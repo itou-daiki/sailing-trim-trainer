@@ -49,12 +49,21 @@ export type Guidance = {
   control?: ControlKey
 }
 
+export type TrimAction = {
+  control: ControlKey
+  direction: string
+  reason: string
+  delta: number
+  urgency: 'large' | 'small'
+}
+
 export type TrimResult = {
   actual: SailPair
   target: SailPair
   targetControls: TrimControls
   metrics: TrimMetrics
   guidance: Guidance
+  actions: TrimAction[]
   apparentWindAngle: number
   apparentWindSpeed: number
 }

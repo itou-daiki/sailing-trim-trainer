@@ -5,6 +5,7 @@ import type {
   Guidance,
   SailPair,
   TrimControls,
+  TrimAction,
   TrimMetrics,
   TrimResult,
 } from './types'
@@ -194,6 +195,66 @@ function controlErrors(
   }))
 }
 
+const ACTION_DIRECTIONS: Record<
+  ControlKey,
+  { increase: string; decrease: string }
+> = {
+  mainSheet: { increase: '引く', decrease: '出す' },
+  jibSheet: { increase: '引く', decrease: '出す' },
+  vang: { increase: '引く', decrease: '出す' },
+  cunningham: { increase: '引く', decrease: '出す' },
+  outhaul: { increase: '引く', decrease: '出す' },
+  crewHike: { increase: '外へ出る', decrease: '内側へ戻る' },
+  crewForeAft: { increase: '前へ移動', decrease: '後ろへ移動' },
+  centerboard: { increase: '下げる', decrease: '上げる' },
+  chock: { increase: '厚くする', decrease: '薄くする' },
+  jibHeight: { increase: '高くする', decrease: '低くする' },
+  windwardSheet: { increase: '引く', decrease: '出す' },
+  forePuller: { increase: '前へ引く', decrease: '緩める' },
+  aftPuller: { increase: '後ろへ引く', decrease: '緩める' },
+  jibLeadForeAft: { increase: '前へ送る', decrease: '後ろへ送る' },
+  jibLeadInOut: { increase: '内へ寄せる', decrease: '外へ出す' },
+}
+
+const ACTION_REASONS: Record<ControlKey, string> = {
+  mainSheet: 'メインの迎角を先に合わせる',
+  jibSheet: 'ジブの迎角とスロットを合わせる',
+  vang: '上部リーチのツイストを合わせる',
+  cunningham: '最大ドラフト位置を前後に戻す',
+  outhaul: 'メイン下部の深さを合わせる',
+  crewHike: '艇をフラットへ戻して力を前へ向ける',
+  crewForeAft: '船体の濡れ方と抵抗を整える',
+  centerboard: '横流れと水中抵抗を合わせる',
+  chock: 'ロワーマストの曲がりを合わせる',
+  jibHeight: 'ジブのリード角とツイストを合わせる',
+  windwardSheet: 'ジブの内寄せとスロットを合わせる',
+  forePuller: 'ロワーマストを前後に合わせる',
+  aftPuller: 'ロワーマストを前後に合わせる',
+  jibLeadForeAft: 'ジブ上部のツイストを合わせる',
+  jibLeadInOut: 'ジブ角度とスロットを合わせる',
+}
+
+function prioritizedActions(
+  boat: BoatClass,
+  controls: TrimControls,
+  target: TrimControls,
+): TrimAction[] {
+  return controlErrors(boat, controls, target)
+    .filter((item) => item.severity >= 0.35)
+    .sort((a, b) => b.severity * b.weight - a.severity * a.weight)
+    .slice(0, 5)
+    .map((item) => ({
+      control: item.key,
+      direction:
+        item.delta < 0
+          ? ACTION_DIRECTIONS[item.key].increase
+          : ACTION_DIRECTIONS[item.key].decrease,
+      reason: ACTION_REASONS[item.key],
+      delta: Math.round(Math.abs(item.delta)),
+      urgency: item.severity >= 1.15 ? 'large' : 'small',
+    }))
+}
+
 function metrics(
   boat: BoatClass,
   trueWindAngle: number,
@@ -330,6 +391,7 @@ export function calculateTrim(
   const target = sailShapes(boat, targets, windSpeed)
   const trimMetrics = metrics(boat, trueWindAngle, windSpeed, controls, targets)
   const apparent = apparentWind(trueWindAngle, windSpeed, trimMetrics.speed)
+  const actions = prioritizedActions(boat, controls, targets)
 
   return {
     actual,
@@ -337,6 +399,7 @@ export function calculateTrim(
     targetControls: targets,
     metrics: trimMetrics,
     guidance: guidance(boat, controls, targets, trimMetrics.efficiency),
+    actions,
     apparentWindAngle: apparent.angle,
     apparentWindSpeed: apparent.speed,
   }

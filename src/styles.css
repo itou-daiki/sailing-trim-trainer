@@ -1169,6 +1169,153 @@ main {
   line-height: 1.65;
 }
 
+.trim-order {
+  position: relative;
+  z-index: 1;
+  margin-top: 17px;
+  border-top: 2px solid var(--ink);
+}
+
+.trim-order-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.trim-order-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.trim-order-head span,
+.trim-order-head > small {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.08em;
+}
+
+.trim-order-head strong {
+  font-size: 0.8rem;
+}
+
+.trim-order ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trim-order li {
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 52px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.trim-order li.is-first {
+  margin-right: -18px;
+  margin-left: -18px;
+  padding-right: 18px;
+  padding-left: 18px;
+  background: #e7edeb;
+  border-left: 5px solid var(--orange);
+}
+
+.trim-order-rank {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  color: var(--sail);
+  background: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.trim-order li.is-first .trim-order-rank {
+  background: var(--orange);
+}
+
+.trim-order li > div {
+  min-width: 0;
+}
+
+.trim-order li > div > strong {
+  display: block;
+  font-size: 0.7rem;
+}
+
+.trim-order li p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  overflow: hidden;
+  font-size: 0.56rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trim-order-direction {
+  display: flex;
+  min-width: 54px;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.trim-order-direction strong {
+  color: var(--orange-dark);
+  font-size: 0.69rem;
+}
+
+.trim-order-direction small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.48rem;
+}
+
+.trim-order-clear {
+  display: grid;
+  grid-template-columns: 27px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.trim-order-clear > span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: var(--ink);
+  background: var(--aqua);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.trim-order-clear p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.58rem;
+  line-height: 1.45;
+}
+
+.trim-order-clear strong {
+  display: block;
+  color: var(--ink);
+  font-size: 0.68rem;
+}
+
 .last-control {
   margin-top: 17px;
   padding: 13px 0;

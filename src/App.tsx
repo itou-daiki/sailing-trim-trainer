@@ -108,6 +108,7 @@ function App() {
               guidance={result.guidance}
               lastControl={lastControl}
               efficiency={result.metrics.efficiency}
+              actions={result.actions}
               onShowBaseline={tryBaseline}
             />
           </div>

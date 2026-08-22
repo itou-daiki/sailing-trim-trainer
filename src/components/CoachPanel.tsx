@@ -1,10 +1,11 @@
 import { CONTROL_EFFECTS, CONTROL_LABELS } from '../domain/trimModel'
-import type { ControlKey, Guidance } from '../domain/types'
+import type { ControlKey, Guidance, TrimAction } from '../domain/types'
 
 type CoachPanelProps = {
   guidance: Guidance
   lastControl: ControlKey
   efficiency: number
+  actions: TrimAction[]
   onShowBaseline: () => void
 }
 
@@ -12,6 +13,7 @@ export function CoachPanel({
   guidance,
   lastControl,
   efficiency,
+  actions,
   onShowBaseline,
 }: CoachPanelProps) {
   return (
@@ -38,6 +40,39 @@ export function CoachPanel({
         <span>DO THIS</span>
         <p>{guidance.action}</p>
       </div>
+
+      <section className="trim-order" aria-labelledby="trim-order-title">
+        <div className="trim-order-head">
+          <div>
+            <span>ADJUSTMENT ORDER</span>
+            <strong id="trim-order-title">操作の優先順位</strong>
+          </div>
+          <small>上から一本ずつ</small>
+        </div>
+
+        {actions.length > 0 ? (
+          <ol>
+            {actions.map((action, index) => (
+              <li className={index === 0 ? 'is-first' : ''} key={action.control}>
+                <span className="trim-order-rank">{index + 1}</span>
+                <div>
+                  <strong>{CONTROL_LABELS[action.control]}</strong>
+                  <p>{action.reason}</p>
+                </div>
+                <span className="trim-order-direction">
+                  <strong>{action.direction}</strong>
+                  <small>{action.urgency === 'large' ? `差 ${action.delta}` : '少しずつ'}</small>
+                </span>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <div className="trim-order-clear">
+            <span aria-hidden="true">✓</span>
+            <p><strong>いま直す操作はありません</strong>テルテールと艇の姿勢を保ちます。</p>
+          </div>
+        )}
+      </section>
 
       <div className="last-control">
         <span>いま触ったもの</span>

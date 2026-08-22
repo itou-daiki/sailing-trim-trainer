@@ -452,7 +452,7 @@ function App() {
         <section className="model-note" aria-label="モデルについて">
           <span>MODEL NOTE</span>
           <p>
-            速度は上・中・下の断面から揚力・抗力・前進力を積分した学習用の推定値です。実測ポーラやCFDではありません。基本角度、艇バランス、センターボードは常に最適と仮定し、マスト曲がりは差を読み取れるよう強調表示します。
+            ジブは固定ラフを軸に動き、ラフ・リーチ・フット三辺を維持します。速度は上・中・下の断面から揚力・抗力・前進力を積分した学習用の推定値で、実測ポーラやCFDではありません。基本角度、艇バランス、センターボードは常に最適と仮定します。
           </p>
         </section>
 
@@ -460,12 +460,14 @@ function App() {
           <summary>詳しく見る：このモデルの考え方と参考資料</summary>
           <div>
             <p>
-              一つの3Dセール面に上・中・下の断面形状とマストベンドを与え、上・斜め横・後ろの三台の正投影カメラで観察します。各断面の深さ・最大深さ位置・ツイストから揚力係数、抗力係数、前進力の代理値を積分し、推定艇速へ変換します。<strong>形状コントロール → 同じセール面 → 断面性能 → 推定艇速</strong>の因果を比べる準定常の学習モデルで、実艇の実測ポーラやCFDではありません。マスト曲がりの表示量は読み取り用に強調しており、チューニングゲージの実測mmとは対応しません。
+              一つの3Dセール面に上・中・下の計測断面とマストベンドを与え、その間を全高へ連続させ、上・斜め横・船尾中心線0°の三台の正投影カメラで観察します。ジブは固定ラフの局所基底で回転し、クラス規則の三辺長とトップ幅を維持します。各断面の深さ・最大深さ位置・ツイストから揚力係数、抗力係数、前進力の代理値を積分し、推定艇速へ変換します。<strong>形状コントロール → 同じセール面 → 断面性能 → 推定艇速</strong>の因果を比べる準定常の学習モデルで、実艇の実測ポーラやCFDではありません。マスト曲がりの表示量は読み取り用に強調しており、チューニングゲージの実測mmとは対応しません。
             </p>
             <ul>
               <li><a href="https://www.northsails.co.jp/wordpress/wp-content/uploads/2026/03/420-M12-Tuning-Guide_j.pdf" target="_blank" rel="noreferrer">North Sails Japan — 420 M11 / M12 Tuning Guide</a></li>
               <li><a href="https://www.northsails.com/en-fr/blogs/north-sails-blog/420-tuning-guide" target="_blank" rel="noreferrer">North Sails — 420 Tuning Guide</a></li>
               <li><a href="https://www.northsails.com/en-ca/blogs/north-sails-blog/470-speed-guide" target="_blank" rel="noreferrer">North Sails — 470 Speed Guide</a></li>
+              <li><a href="https://www.northsails.com/products/470-n17-l26-mainsail" target="_blank" rel="noreferrer">North Sails — 470 N17-L26 Mainsail</a></li>
+              <li><a href="https://media.sailing.org/sailing/wp-content/uploads/2024/06/04011421/Equipment-Rules-of-Sailing-2025-2028-v.2.pdf" target="_blank" rel="noreferrer">World Sailing — Equipment Rules of Sailing 2025–2028</a></li>
               <li><a href="https://cmst.curtin.edu.au/products/sailtool-software/" target="_blank" rel="noreferrer">Curtin University CMST — SailTool / draft stripe measurement</a></li>
               <li><a href="https://northu.com/sail-trim-simulator-user-guide/" target="_blank" rel="noreferrer">North U — Sail Trim Simulator User Guide</a></li>
               <li><a href="https://github.com/flyinggorilla/simulator.atterwind.info" target="_blank" rel="noreferrer">Atterwind — model assumptions and shareable views</a></li>
@@ -478,7 +480,7 @@ function App() {
       </main>
 
       <footer>
-        <span>TRIM NOTE / TRAINING BUILD 0.8</span>
+        <span>TRIM NOTE / TRAINING BUILD 0.10</span>
         <span className="footer-credit">Created by Dit-Lab.</span>
         <p>タック、ジャイブ、レース戦術を扱わず、420 / 470のセール形状づくりに集中しています。</p>
       </footer>

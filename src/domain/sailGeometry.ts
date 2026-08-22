@@ -25,6 +25,7 @@ export type SurfaceRow = {
   height: number
   level?: SailLevel
   battenStartU?: number
+  rotationDegrees: number
   section: SailSection
   points: SurfacePoint[]
 }
@@ -77,6 +78,8 @@ type BattenStation = {
 
 type ClassSailSpecification = {
   main: {
+    /** Maximum distance between the mast lower and upper points. */
+    luffMm: number
     leechMm: number
     footMm: number
     crossWidths: MainCrossWidth[]
@@ -96,7 +99,7 @@ type ClassSailSpecification = {
 
 /**
  * The rule dimensions remain the hard dimensional envelope. The outline stations
- * are normalized from the current North Sails M-12 (420) and N16-L18 (470)
+ * are normalized from the current North Sails M-12 (420) and N17-L26 (470)
  * product silhouettes. This is deliberately separate from ERS cross widths:
  * quarter/half widths are measured from leech points and are not horizontal
  * chords at 25/50/75% height.
@@ -104,6 +107,7 @@ type ClassSailSpecification = {
 export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification> = {
   '420': {
     main: {
+      luffMm: 4900,
       leechMm: 5400,
       footMm: 1920,
       crossWidths: [
@@ -174,6 +178,7 @@ export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification
   },
   '470': {
     main: {
+      luffMm: 5750,
       leechMm: 6265,
       footMm: 2200,
       crossWidths: [
@@ -185,22 +190,22 @@ export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification
       ],
       outline: [
         { height: 0, chordRatio: 1, luffRakeRatio: 0 },
-        { height: 0.0625, chordRatio: 0.978, luffRakeRatio: 0.007 },
-        { height: 0.125, chordRatio: 0.945, luffRakeRatio: 0.010 },
-        { height: 0.1875, chordRatio: 0.909, luffRakeRatio: 0.014 },
-        { height: 0.25, chordRatio: 0.874, luffRakeRatio: 0.020 },
-        { height: 0.3125, chordRatio: 0.823, luffRakeRatio: 0.027 },
-        { height: 0.375, chordRatio: 0.773, luffRakeRatio: 0.035 },
-        { height: 0.4375, chordRatio: 0.722, luffRakeRatio: 0.045 },
-        { height: 0.5, chordRatio: 0.672, luffRakeRatio: 0.053 },
-        { height: 0.5625, chordRatio: 0.604, luffRakeRatio: 0.065 },
-        { height: 0.625, chordRatio: 0.534, luffRakeRatio: 0.078 },
-        { height: 0.6875, chordRatio: 0.464, luffRakeRatio: 0.093 },
-        { height: 0.75, chordRatio: 0.393, luffRakeRatio: 0.108 },
-        { height: 0.8125, chordRatio: 0.304, luffRakeRatio: 0.123 },
-        { height: 0.875, chordRatio: 0.211, luffRakeRatio: 0.139 },
-        { height: 0.9375, chordRatio: 0.115, luffRakeRatio: 0.157 },
-        { height: 1, chordRatio: 140 / 2200, luffRakeRatio: 0.181 },
+        { height: 0.0625, chordRatio: 0.969, luffRakeRatio: 0.002 },
+        { height: 0.125, chordRatio: 0.934, luffRakeRatio: 0.008 },
+        { height: 0.1875, chordRatio: 0.899, luffRakeRatio: 0.014 },
+        { height: 0.25, chordRatio: 0.86, luffRakeRatio: 0.019 },
+        { height: 0.3125, chordRatio: 0.812, luffRakeRatio: 0.027 },
+        { height: 0.375, chordRatio: 0.764, luffRakeRatio: 0.035 },
+        { height: 0.4375, chordRatio: 0.715, luffRakeRatio: 0.045 },
+        { height: 0.5, chordRatio: 0.663, luffRakeRatio: 0.054 },
+        { height: 0.5625, chordRatio: 0.599, luffRakeRatio: 0.066 },
+        { height: 0.625, chordRatio: 0.533, luffRakeRatio: 0.079 },
+        { height: 0.6875, chordRatio: 0.467, luffRakeRatio: 0.093 },
+        { height: 0.75, chordRatio: 0.399, luffRakeRatio: 0.109 },
+        { height: 0.8125, chordRatio: 0.312, luffRakeRatio: 0.122 },
+        { height: 0.875, chordRatio: 0.225, luffRakeRatio: 0.138 },
+        { height: 0.9375, chordRatio: 0.134, luffRakeRatio: 0.155 },
+        { height: 1, chordRatio: 140 / 2200, luffRakeRatio: 0.178 },
       ],
       battens: [
         { height: 0.25, startU: 0.58 },
@@ -257,29 +262,28 @@ const clamp = (value: number, min: number, max: number) =>
 const lerp = (start: number, end: number, amount: number) =>
   start + (end - start) * amount
 
-function mixSection(a: SailSection, b: SailSection, amount: number): SailSection {
-  return {
-    height: lerp(a.height, b.height, amount),
-    draftDepth: lerp(a.draftDepth, b.draftDepth, amount),
-    draftPosition: lerp(a.draftPosition, b.draftPosition, amount),
-    twist: lerp(a.twist, b.twist, amount),
-  }
-}
-
 export function sectionAtHeight(shape: SailShape, height: number): SailSection {
   const h = clamp(height, 0, 1)
   const { lower, middle, upper } = shape.sections
+  const interpolate = (key: 'draftDepth' | 'draftPosition' | 'twist') => {
+    const points = [lower, middle, upper]
+    return points.reduce((sum, point, index) => {
+      const others = points.filter((_, otherIndex) => otherIndex !== index)
+      const basis = others.reduce(
+        (product, other) =>
+          product * ((h - other.height) / (point.height - other.height)),
+        1,
+      )
+      return sum + point[key] * basis
+    }, 0)
+  }
 
-  if (h <= lower.height) return { ...lower, height: h }
-  if (h <= middle.height) {
-    const amount = (h - lower.height) / (middle.height - lower.height)
-    return { ...mixSection(lower, middle, amount), height: h }
+  return {
+    height: h,
+    draftDepth: clamp(interpolate('draftDepth'), 0.02, 0.3),
+    draftPosition: clamp(interpolate('draftPosition'), 0.05, 0.95),
+    twist: clamp(interpolate('twist'), -20, 50),
   }
-  if (h <= upper.height) {
-    const amount = (h - middle.height) / (upper.height - middle.height)
-    return { ...mixSection(middle, upper, amount), height: h }
-  }
-  return { ...upper, height: h }
 }
 
 function chordSample(column: number, peakPosition: number) {
@@ -305,13 +309,60 @@ function stationAtHeight(stations: SailOutlineStation[], height: number) {
   }
 }
 
+type Vector3 = { x: number; y: number; z: number }
+
+const addVector = (a: Vector3, b: Vector3): Vector3 => ({
+  x: a.x + b.x,
+  y: a.y + b.y,
+  z: a.z + b.z,
+})
+
+const scaleVector = (vector: Vector3, scale: number): Vector3 => ({
+  x: vector.x * scale,
+  y: vector.y * scale,
+  z: vector.z * scale,
+})
+
+const dotVector = (a: Vector3, b: Vector3) =>
+  a.x * b.x + a.y * b.y + a.z * b.z
+
+const crossVector = (a: Vector3, b: Vector3): Vector3 => ({
+  x: a.y * b.z - a.z * b.y,
+  y: a.z * b.x - a.x * b.z,
+  z: a.x * b.y - a.y * b.x,
+})
+
+const vectorLength = (vector: Vector3) =>
+  Math.hypot(vector.x, vector.y, vector.z)
+
+const normalizeVector = (vector: Vector3): Vector3 => {
+  const length = vectorLength(vector)
+  if (length < 1e-12) return { x: 1, y: 0, z: 0 }
+  return scaleVector(vector, 1 / length)
+}
+
+function rotateAroundAxis(vector: Vector3, axis: Vector3, angle: number): Vector3 {
+  const unitAxis = normalizeVector(axis)
+  const cosine = Math.cos(angle)
+  const sine = Math.sin(angle)
+  return addVector(
+    addVector(
+      scaleVector(vector, cosine),
+      scaleVector(crossVector(unitAxis, vector), sine),
+    ),
+    scaleVector(unitAxis, dotVector(unitAxis, vector) * (1 - cosine)),
+  )
+}
+
 function jibTriangle(specification: ClassSailSpecification['jib']) {
   const { luffMm, leechMm, footMm } = specification
-  const headOffsetMm =
-    (luffMm ** 2 + footMm ** 2 - leechMm ** 2) / (2 * footMm)
+  const clewAlongLuffMm =
+    (luffMm ** 2 + footMm ** 2 - leechMm ** 2) / (2 * luffMm)
   return {
-    headOffsetMm,
-    headHeightMm: Math.sqrt(Math.max(0, luffMm ** 2 - headOffsetMm ** 2)),
+    clewAlongLuffMm,
+    clewPerpendicularMm: Math.sqrt(
+      Math.max(0, footMm ** 2 - clewAlongLuffMm ** 2),
+    ),
   }
 }
 
@@ -323,36 +374,99 @@ export function camberAt(u: number, depth: number, position: number) {
   return Math.sin(((1 - u) / (1 - peak)) * (Math.PI / 2)) * depth
 }
 
+function mainLuffPoint(
+  boat: BoatClass,
+  height: number,
+  mastBend: number,
+): Vector3 {
+  const specification = CLASS_SAIL_SPECIFICATIONS[boat]
+  const outline = stationAtHeight(specification.main.outline, height)
+  const foot = specification.main.footMm / SAIL_GEOMETRY_UNIT_MM
+  return {
+    x: foot * outline.luffRakeRatio - mastBend * Math.sin(Math.PI * height),
+    y: 0,
+    z: (height * specification.main.luffMm) / SAIL_GEOMETRY_UNIT_MM,
+  }
+}
+
 function planform(
   boat: BoatClass,
   sail: SailKey,
   height: number,
   mastBend: number,
+  rotation: number,
 ) {
   const specification = CLASS_SAIL_SPECIFICATIONS[boat]
-
   if (sail === 'main') {
     const outline = stationAtHeight(specification.main.outline, height)
     const foot = specification.main.footMm / SAIL_GEOMETRY_UNIT_MM
-    const luffX =
-      foot * outline.luffRakeRatio - mastBend * Math.sin(Math.PI * height)
+    const chordDirection = { x: Math.cos(rotation), y: Math.sin(rotation), z: 0 }
     return {
-      luffX,
-      luffY: 0,
-      z: (height * specification.main.leechMm) / SAIL_GEOMETRY_UNIT_MM,
+      luff: mainLuffPoint(boat, height, mastBend),
       chord: foot * outline.chordRatio,
+      chordDirection,
+      normalDirection: { x: -chordDirection.y, y: chordDirection.x, z: 0 },
     }
   }
 
   const jib = specification.jib
   const triangle = jibTriangle(jib)
   const outline = stationAtHeight(jib.outline, height)
-  const tackX = jib.tackFromMastMm / SAIL_GEOMETRY_UNIT_MM
+  const luffLength = jib.luffMm / SAIL_GEOMETRY_UNIT_MM
+  const tack = {
+    x: jib.tackFromMastMm / SAIL_GEOMETRY_UNIT_MM,
+    y: 0,
+    z: 0.015,
+  }
+
+  // The jib head follows the current mainsail luff instead of floating in front
+  // of the mast. Iteration is required because its height depends on the fixed
+  // luff length while the mast's fore/aft coordinate depends on that height.
+  let headX = 0
+  let headZ = tack.z
+  for (let iteration = 0; iteration < 8; iteration += 1) {
+    const deltaX = headX - tack.x
+    headZ = tack.z + Math.sqrt(Math.max(0, luffLength ** 2 - deltaX ** 2))
+    const mainHeight = clamp(
+      (headZ * SAIL_GEOMETRY_UNIT_MM) / specification.main.luffMm,
+      0,
+      1,
+    )
+    headX = mainLuffPoint(boat, mainHeight, mastBend).x
+  }
+  const head = { x: headX, y: 0, z: headZ }
+  const luffVector = {
+    x: head.x - tack.x,
+    y: 0,
+    z: head.z - tack.z,
+  }
+  const luffDirection = normalizeVector(luffVector)
+  const centrelinePerpendicular = normalizeVector({
+    x: luffDirection.z,
+    y: 0,
+    z: -luffDirection.x,
+  })
+  const rotatedPerpendicular = rotateAroundAxis(
+    centrelinePerpendicular,
+    luffDirection,
+    rotation,
+  )
+  const along =
+    ((1 - height) * triangle.clewAlongLuffMm) / SAIL_GEOMETRY_UNIT_MM
+  const perpendicular =
+    ((1 - height) * triangle.clewPerpendicularMm + height * jib.topWidthMm) /
+    SAIL_GEOMETRY_UNIT_MM
+  const chordDirection = normalizeVector(
+    addVector(
+      scaleVector(luffDirection, along),
+      scaleVector(rotatedPerpendicular, perpendicular),
+    ),
+  )
   return {
-    luffX: tackX + (triangle.headOffsetMm / SAIL_GEOMETRY_UNIT_MM) * height,
-    luffY: 0,
-    z: 0.04 + (triangle.headHeightMm / SAIL_GEOMETRY_UNIT_MM) * height,
+    luff: addVector(tack, scaleVector(luffVector, height)),
     chord: (jib.footMm / SAIL_GEOMETRY_UNIT_MM) * outline.chordRatio,
+    chordDirection,
+    normalDirection: normalizeVector(crossVector(luffDirection, chordDirection)),
   }
 }
 
@@ -360,6 +474,7 @@ export function buildSailSurface(
   boat: BoatClass,
   sail: SailKey,
   shape: SailShape,
+  rigMastBend = shape.mastBend,
 ): SailSurface {
   const battens = CLASS_SAIL_SPECIFICATIONS[boat][sail].battens
   const rowHeights = [...new Set([
@@ -368,12 +483,8 @@ export function buildSailSurface(
   ])].sort((a, b) => a - b)
   const rows = rowHeights.map((height, rowIndex): SurfaceRow => {
     const section = sectionAtHeight(shape, height)
-    const rig = planform(boat, sail, height, shape.mastBend)
     const angle = ((shape.angle + section.twist) * Math.PI) / 180
-    const chordX = Math.cos(angle)
-    const chordY = Math.sin(angle)
-    const normalX = -chordY
-    const normalY = chordX
+    const rig = planform(boat, sail, height, rigMastBend, angle)
     const level = (Object.entries(LEVEL_HEIGHTS) as Array<[SailLevel, number]>)
       .find(([, levelHeight]) => levelHeight === height)?.[0]
     const battenStartU = battens.find(
@@ -390,13 +501,29 @@ export function buildSailSurface(
         column,
         u,
         height,
-        x: rig.luffX + chordX * u * rig.chord + normalX * camber,
-        y: rig.luffY + chordY * u * rig.chord + normalY * camber,
-        z: rig.z,
+        x:
+          rig.luff.x +
+          rig.chordDirection.x * u * rig.chord +
+          rig.normalDirection.x * camber,
+        y:
+          rig.luff.y +
+          rig.chordDirection.y * u * rig.chord +
+          rig.normalDirection.y * camber,
+        z:
+          rig.luff.z +
+          rig.chordDirection.z * u * rig.chord +
+          rig.normalDirection.z * camber,
       }
     })
 
-    return { height, level, battenStartU, section, points }
+    return {
+      height,
+      level,
+      battenStartU,
+      rotationDegrees: shape.angle + section.twist,
+      section,
+      points,
+    }
   })
 
   return { sail, rows }
@@ -404,8 +531,8 @@ export function buildSailSurface(
 
 export function buildRigSurfaces(boat: BoatClass, pair: SailPair): RigSurfaces {
   return {
-    main: buildSailSurface(boat, 'main', pair.main),
-    jib: buildSailSurface(boat, 'jib', pair.jib),
+    main: buildSailSurface(boat, 'main', pair.main, pair.main.mastBend),
+    jib: buildSailSurface(boat, 'jib', pair.jib, pair.main.mastBend),
   }
 }
 
@@ -426,44 +553,86 @@ export function measureSurfaceRow(row: SurfaceRow, baseAngle: number) {
   const luff = row.points[0]
   const leech = row.points.at(-1)
   if (!leech) throw new Error('A surface row requires a leech point')
-  const chordX = leech.x - luff.x
-  const chordY = leech.y - luff.y
-  const chordLength = Math.hypot(chordX, chordY)
-  const unitX = chordX / chordLength
-  const unitY = chordY / chordLength
-  const normalX = -unitY
-  const normalY = unitX
+  const chordVector = {
+    x: leech.x - luff.x,
+    y: leech.y - luff.y,
+    z: leech.z - luff.z,
+  }
+  const chordLength = vectorLength(chordVector)
+  const chordDirection = normalizeVector(chordVector)
 
   let maxDepth = -Infinity
   let draftPosition = 0
   for (const point of row.points) {
-    const offsetX = point.x - luff.x
-    const offsetY = point.y - luff.y
-    const depth = offsetX * normalX + offsetY * normalY
+    const offset = {
+      x: point.x - luff.x,
+      y: point.y - luff.y,
+      z: point.z - luff.z,
+    }
+    const along = dotVector(offset, chordDirection)
+    const normalOffset = addVector(
+      offset,
+      scaleVector(chordDirection, -along),
+    )
+    const depth = vectorLength(normalOffset)
     if (depth > maxDepth) {
       maxDepth = depth
-      draftPosition = (offsetX * unitX + offsetY * unitY) / chordLength
+      draftPosition = along / chordLength
     }
   }
 
-  const rowAngle = (Math.atan2(chordY, chordX) * 180) / Math.PI
   const entryPoint = row.points[1]
   const exitPoint = row.points.at(-2)
   if (!entryPoint || !exitPoint) throw new Error('A surface row requires edge tangent points')
   const tangentAngle = (from: SurfacePoint, to: SurfacePoint) => {
-    const deltaX = to.x - from.x
-    const deltaY = to.y - from.y
-    const along = deltaX * unitX + deltaY * unitY
-    const normal = deltaX * normalX + deltaY * normalY
+    const delta = {
+      x: to.x - from.x,
+      y: to.y - from.y,
+      z: to.z - from.z,
+    }
+    const along = dotVector(delta, chordDirection)
+    const normal = vectorLength(addVector(
+      delta,
+      scaleVector(chordDirection, -along),
+    ))
     return (Math.atan2(normal, along) * 180) / Math.PI
   }
   return {
     draftDepth: maxDepth / chordLength,
     draftPosition,
-    twist: normalizedDegrees(rowAngle - baseAngle),
+    twist: normalizedDegrees(row.rotationDegrees - baseAngle),
     entryAngle: Math.abs(tangentAngle(luff, entryPoint)),
     exitAngle: Math.abs(tangentAngle(exitPoint, leech)),
   }
+}
+
+export function surfaceRowProfile(row: SurfaceRow) {
+  const luff = row.points[0]
+  const leech = row.points.at(-1)
+  if (!leech) throw new Error('A surface row requires a leech point')
+  const chordVector = {
+    x: leech.x - luff.x,
+    y: leech.y - luff.y,
+    z: leech.z - luff.z,
+  }
+  const chordLength = vectorLength(chordVector)
+  const chordDirection = normalizeVector(chordVector)
+  return row.points.map((point) => {
+    const offset = {
+      x: point.x - luff.x,
+      y: point.y - luff.y,
+      z: point.z - luff.z,
+    }
+    const along = dotVector(offset, chordDirection)
+    const normalOffset = addVector(
+      offset,
+      scaleVector(chordDirection, -along),
+    )
+    return {
+      u: along / chordLength,
+      depth: vectorLength(normalOffset) / chordLength,
+    }
+  })
 }
 
 export function projectSurface(

@@ -48,12 +48,16 @@ _Avoid_: Physics coefficient, measured load
 A single three-dimensional form of one sail whose horizontal sections carry the observed depth, draft position, and twist. Every camera view is an observation of this same form.
 _Avoid_: Separate drawings for each view, decorative sail curve
 
+**Fixed-luff jib basis**:
+A local three-dimensional coordinate system whose rotation axis is the line from jib tack to jib head. Sheet angle and twist rotate chord directions around that axis while the class-rule luff, leech, foot, and top-width corner distances remain invariant.
+_Avoid_: Rotating every jib stripe in the horizontal plane, stretching a sail edge when the sheet angle changes
+
 **Class-rule planform**:
 The flat outline beneath the live three-dimensional shape. Main leech length, foot length, quarter/half/three-quarter widths, top width, jib edge lengths, and batten layouts are calibrated separately for 420 and 470 from the current World Sailing class-rule measurement envelopes and representative current class sails. It is a representative legal-class silhouette, not the proprietary cut of one sailmaker or one measured sail.
 _Avoid_: Uniformly scaling one generic dinghy sail, claiming an exact M-12/N14 cut
 
 **Sail projection**:
-An orthographic observation of a sail surface from above, from an oblique side angle, or from 35 degrees off the stern. The aft-oblique camera is explicitly labelled because a strict astern view makes a close-hauled sail nearly edge-on. A projection may hide a dimension but must not invent a different shape.
+An orthographic observation of a sail surface from above, from an oblique side angle, or from directly astern on the hull centreline. The aft camera is explicitly labelled 0 degrees; a close-hauled sail is therefore correctly shown nearly edge-on. A projection may hide a dimension but must not invent a different shape.
 _Avoid_: Independent top, side, and aft models
 
 **Section polar proxy**:

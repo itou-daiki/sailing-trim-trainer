@@ -8,6 +8,7 @@ import {
   measureSurfaceRow,
   projectSurface,
   SAIL_GEOMETRY_UNIT_MM,
+  sectionAtHeight,
   SIDE_ELEVATION_DEGREES,
   SIDE_OBLIQUE_DEGREES,
 } from './sailGeometry'
@@ -15,13 +16,13 @@ import {
 const LEVELS = ['lower', 'middle', 'upper'] as const
 
 describe('single sail surface geometry', () => {
-  it('matches the sampled M-12 and N16-L18 product silhouettes', () => {
+  it('matches the sampled M-12 and current N17-L26 product silhouettes', () => {
     const reference = {
       '420': [
         [0.125, 0.926], [0.25, 0.842], [0.5, 0.649], [0.75, 0.421], [0.875, 0.246],
       ],
       '470': [
-        [0.125, 0.945], [0.25, 0.874], [0.5, 0.672], [0.75, 0.393], [0.875, 0.211],
+        [0.125, 0.934], [0.25, 0.86], [0.5, 0.663], [0.75, 0.399], [0.875, 0.225],
       ],
     } as const
 
@@ -33,6 +34,86 @@ describe('single sail surface geometry', () => {
         expect(station?.chordRatio).toBeCloseTo(expectedRatio, 3)
       }
     }
+  })
+
+  it('uses the class mast limit distance for mainsail luff height', () => {
+    for (const boat of ['420', '470'] as const) {
+      const result = calculateTrim(boat, 45, 12, targetControls(boat, 45, 12))
+      const main = buildRigSurfaces(boat, result.actual).main
+      const tack = main.rows[0].points[0]
+      const head = main.rows.at(-1)!.points[0]
+
+      expect((head.z - tack.z) * SAIL_GEOMETRY_UNIT_MM).toBeCloseTo(
+        CLASS_SAIL_SPECIFICATIONS[boat].main.luffMm,
+        8,
+      )
+    }
+  })
+
+  it('keeps every class-rule jib corner dimension under all sheet angles', () => {
+    for (const boat of ['420', '470'] as const) {
+      const result = calculateTrim(boat, 90, 12, targetControls(boat, 90, 12))
+      const specification = CLASS_SAIL_SPECIFICATIONS[boat].jib
+      for (const angle of [5, 20, 45, 70]) {
+        const jib = buildRigSurfaces(boat, {
+          ...result.actual,
+          jib: { ...result.actual.jib, angle },
+        }).jib
+        const tack = jib.rows[0].points[0]
+        const clew = jib.rows[0].points.at(-1)!
+        const head = jib.rows.at(-1)!.points[0]
+        const aftHead = jib.rows.at(-1)!.points.at(-1)!
+        const distanceMm = (a: typeof tack, b: typeof tack) =>
+          Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) * SAIL_GEOMETRY_UNIT_MM
+
+        expect(distanceMm(tack, head)).toBeCloseTo(specification.luffMm, 6)
+        expect(distanceMm(head, clew)).toBeCloseTo(specification.leechMm, 6)
+        expect(distanceMm(tack, clew)).toBeCloseTo(specification.footMm, 6)
+        expect(distanceMm(head, aftHead)).toBeCloseTo(specification.topWidthMm, 6)
+      }
+    }
+  })
+
+  it('locks the complete jib luff while sheet angle and twist change', () => {
+    const result = calculateTrim('420', 90, 12, targetControls('420', 90, 12))
+    const baseline = buildRigSurfaces('420', result.actual).jib
+    const changed = buildRigSurfaces('420', {
+      ...result.actual,
+      jib: {
+        ...result.actual.jib,
+        angle: 70,
+        sections: {
+          lower: { ...result.actual.jib.sections.lower, twist: 1 },
+          middle: { ...result.actual.jib.sections.middle, twist: 14 },
+          upper: { ...result.actual.jib.sections.upper, twist: 25 },
+        },
+      },
+    }).jib
+
+    expect(changed.rows.map((row) => row.points[0])).toEqual(
+      baseline.rows.map((row) => row.points[0]),
+    )
+  })
+
+  it('varies shape continuously below 25% and above 75% instead of freezing it', () => {
+    const shape = calculateTrim(
+      '470',
+      90,
+      16,
+      targetControls('470', 90, 16),
+    ).actual.main
+    const bottom = sectionAtHeight(shape, 0)
+    const lower = sectionAtHeight(shape, 0.25)
+    const justBelowLower = sectionAtHeight(shape, 0.249)
+    const justAboveLower = sectionAtHeight(shape, 0.251)
+    const upper = sectionAtHeight(shape, 0.75)
+    const top = sectionAtHeight(shape, 1)
+
+    expect(bottom.draftDepth).not.toBeCloseTo(lower.draftDepth, 6)
+    expect(top.twist).not.toBeCloseTo(upper.twist, 6)
+    expect(justBelowLower.draftDepth).toBeCloseTo(justAboveLower.draftDepth, 3)
+    expect(Number.isFinite(bottom.draftPosition)).toBe(true)
+    expect(Number.isFinite(top.twist)).toBe(true)
   })
 
   it('keeps the class-rule jib outline fair between its straight luff and leech', () => {
@@ -60,7 +141,11 @@ describe('single sail surface geometry', () => {
       const chordLength = (row: (typeof surfaces.main.rows)[number]) => {
         const luff = row.points[0]
         const leech = row.points.at(-1)!
-        return Math.hypot(leech.x - luff.x, leech.y - luff.y)
+        return Math.hypot(
+          leech.x - luff.x,
+          leech.y - luff.y,
+          leech.z - luff.z,
+        )
       }
 
       expect(chordLength(surfaces.main.rows[0])).toBeCloseTo(
@@ -101,12 +186,16 @@ describe('single sail surface geometry', () => {
       const row = getLevelRow(surface, level)
       const luff = row.points[0]
       const leech = row.points.at(-1)!
-      return Math.hypot(leech.x - luff.x, leech.y - luff.y)
+      return Math.hypot(
+        leech.x - luff.x,
+        leech.y - luff.y,
+        leech.z - luff.z,
+      )
     }
 
-    expect(height(fourSeventy.main) / height(fourTwenty.main)).toBeCloseTo(6265 / 5400, 10)
+    expect(height(fourSeventy.main) / height(fourTwenty.main)).toBeCloseTo(5750 / 4900, 10)
     expect(chord(fourSeventy.main, 'middle') / chord(fourTwenty.main, 'middle')).toBeCloseTo(
-      (2200 * 0.672) / (1920 * 0.649),
+      (2200 * 0.663) / (1920 * 0.649),
       10,
     )
     expect(fourTwenty.main.rows.filter((row) => row.battenStartU !== undefined)).toHaveLength(4)

@@ -8,6 +8,7 @@ import {
   measureSurfaceRow,
   projectSurface,
   SAIL_GEOMETRY_UNIT_MM,
+  surfaceRowProfile,
 } from '../domain/sailGeometry'
 import {
   buildHullGeometry,
@@ -99,7 +100,7 @@ function createMapper(
     surface.rows.flatMap((row) => row.points),
   )
   const classScale = boat === '470' ? 1.12 : 1
-  const rigHeight = CLASS_SAIL_SPECIFICATIONS[boat].main.leechMm / SAIL_GEOMETRY_UNIT_MM
+  const rigHeight = CLASS_SAIL_SPECIFICATIONS[boat].main.luffMm / SAIL_GEOMETRY_UNIT_MM
   const extra = view === 'top'
     ? [{ x: -1.12 * classScale, y: -0.24 }, { x: 1.28 * classScale, y: 0.24 }]
     : view === 'side'
@@ -391,22 +392,10 @@ function ProjectionPanel({
 }
 
 function profilePath(row: SurfaceRow) {
-  const luff = row.points[0]
-  const leech = row.points.at(-1)!
-  const chordX = leech.x - luff.x
-  const chordY = leech.y - luff.y
-  const chord = Math.hypot(chordX, chordY)
-  const unitX = chordX / chord
-  const unitY = chordY / chord
-  const normalX = -unitY
-  const normalY = unitX
-  const points = row.points.map((point) => {
-    const offsetX = point.x - luff.x
-    const offsetY = point.y - luff.y
-    const u = (offsetX * unitX + offsetY * unitY) / chord
-    const depth = (offsetX * normalX + offsetY * normalY) / chord
-    return { x: 18 + u * 284, y: 70 - depth * 310 }
-  })
+  const points = surfaceRowProfile(row).map((point) => ({
+    x: 18 + point.u * 284,
+    y: 70 - point.depth * 310,
+  }))
   return `M${points.map((point) => `${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join('L')}`
 }
 
@@ -525,7 +514,7 @@ export function BoatView({
   const referenceLabel = comparisonMode === 'previous' ? '操作前' : '基準形'
   const geometryReference = boat === '420'
     ? 'WS DRAWING #5J · NORTH M-12'
-    : 'WS 470-003 · NORTH N16-L18'
+    : 'WS 470-003 · NORTH N17-L26'
 
   return (
     <section className="boat-view geometry-view" aria-labelledby="boat-view-title">
@@ -533,7 +522,7 @@ export function BoatView({
         <div className="section-heading light-heading">
           <span className="section-index">B</span>
           <div>
-            <p>OFFICIAL HULL PLAN + SAILMAKER SILHOUETTE / THREE CAMERAS</p>
+            <p>LOCKED LUFF / CLASS CORNERS + SAILMAKER SILHOUETTE / THREE CAMERAS</p>
             <h2 id="boat-view-title">{boat}実艇形状を、三方向で見てトリム</h2>
           </div>
         </div>

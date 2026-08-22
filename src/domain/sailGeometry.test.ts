@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { calculateTrim, targetControls } from './trimModel'
 import {
-  AFT_OBLIQUE_DEGREES,
+  AFT_VIEW_DEGREES,
   buildRigSurfaces,
   CLASS_SAIL_SPECIFICATIONS,
   getLevelRow,
@@ -162,7 +162,7 @@ describe('single sail surface geometry', () => {
     const aft = projected[2].rows[4].points[9]
     const oblique = (SIDE_OBLIQUE_DEGREES * Math.PI) / 180
     const elevation = (SIDE_ELEVATION_DEGREES * Math.PI) / 180
-    const aftOblique = (AFT_OBLIQUE_DEGREES * Math.PI) / 180
+    const aftView = (AFT_VIEW_DEGREES * Math.PI) / 180
 
     expect(top.x).toBeCloseTo(source.x, 12)
     expect(top.y).toBeCloseTo(source.y, 12)
@@ -174,10 +174,12 @@ describe('single sail surface geometry', () => {
       12,
     )
     expect(aft.x).toBeCloseTo(
-      source.y * Math.cos(aftOblique) + source.x * Math.sin(aftOblique),
+      source.y * Math.cos(aftView) + source.x * Math.sin(aftView),
       12,
     )
     expect(aft.y).toBeCloseTo(source.z, 12)
+    expect(AFT_VIEW_DEGREES).toBe(0)
+    expect(aft.x).toBeCloseTo(source.y, 12)
   })
 
   it('keeps the whole geometry finite across boats, courses, winds, and control edges', () => {

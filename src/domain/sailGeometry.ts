@@ -52,7 +52,8 @@ export type ProjectedSurface = {
 
 export const SIDE_OBLIQUE_DEGREES = 18
 export const SIDE_ELEVATION_DEGREES = 12
-export const AFT_OBLIQUE_DEGREES = 35
+/** Zero degrees: orthographic camera on the hull centreline, looking forward. */
+export const AFT_VIEW_DEGREES = 0
 export const DRAFT_PEAK_COLUMN = 10
 export const SAIL_GEOMETRY_UNIT_MM = 1900
 
@@ -488,7 +489,7 @@ export function projectCoordinate(
 ) {
   const oblique = (SIDE_OBLIQUE_DEGREES * Math.PI) / 180
   const elevation = (SIDE_ELEVATION_DEGREES * Math.PI) / 180
-  const aftOblique = (AFT_OBLIQUE_DEGREES * Math.PI) / 180
+  const aftView = (AFT_VIEW_DEGREES * Math.PI) / 180
   if (view === 'top') return { x: point.x, y: point.y }
   if (view === 'side') {
     return {
@@ -500,7 +501,7 @@ export function projectCoordinate(
     }
   }
   return {
-    x: point.y * Math.cos(aftOblique) + point.x * Math.sin(aftOblique),
+    x: point.y * Math.cos(aftView) + point.x * Math.sin(aftView),
     y: point.z,
   }
 }

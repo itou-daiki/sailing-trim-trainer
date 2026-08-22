@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import {
-  AFT_OBLIQUE_DEGREES,
+  AFT_VIEW_DEGREES,
   buildRigSurfaces,
   CLASS_SAIL_SPECIFICATIONS,
   DRAFT_PEAK_COLUMN,
@@ -73,9 +73,9 @@ const VIEW_META: Record<
   },
   aft: {
     index: '03',
-    view: `AFT ${AFT_OBLIQUE_DEGREES}° / 後ろ斜め`,
+    view: `AFT ${AFT_VIEW_DEGREES}° / 真後ろ`,
     title: 'ツイストとリーチ',
-    note: `艇尾の風下側${AFT_OBLIQUE_DEGREES}°。上・中・下を重ねて見る`,
+    note: '船尾中心線から前を見る。上・中・下のリーチ開きを比べる',
   },
 }
 

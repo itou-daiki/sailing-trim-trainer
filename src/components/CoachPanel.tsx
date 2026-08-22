@@ -1,9 +1,8 @@
-import { CONTROL_EFFECTS, CONTROL_LABELS } from '../domain/trimModel'
-import type { ControlKey, Guidance, TrimAction } from '../domain/types'
+import { CONTROL_LABELS } from '../domain/trimModel'
+import type { Guidance, TrimAction } from '../domain/types'
 
 type CoachPanelProps = {
   guidance: Guidance
-  lastControl: ControlKey
   efficiency: number
   actions: TrimAction[]
   onShowBaseline: () => void
@@ -11,7 +10,6 @@ type CoachPanelProps = {
 
 export function CoachPanel({
   guidance,
-  lastControl,
   efficiency,
   actions,
   onShowBaseline,
@@ -80,12 +78,6 @@ export function CoachPanel({
           </div>
         )}
       </section>
-
-      <div className="last-control">
-        <span>いま触ったもの</span>
-        <strong>{CONTROL_LABELS[lastControl]}</strong>
-        <p>{CONTROL_EFFECTS[lastControl]}</p>
-      </div>
 
       <button type="button" className="baseline-button" onClick={onShowBaseline}>
         基準トリムを試す

@@ -53,22 +53,18 @@ function TopProjection({
   boat,
   angle,
   windSpeed,
-  controls,
   result,
 }: ProjectionProps & { angle: number; windSpeed: number }) {
   const mainEnd = pointFromAngle(260, 215, 196, result.actual.main.angle)
   const mainMid = pointFromAngle(260, 215, 105, result.actual.main.angle + 6)
   const jibEnd = pointFromAngle(260, 203, 108, result.actual.jib.angle)
-  const crewY = 220 + (controls.crewForeAft - 50) * 1.35
-  const crewX = 228 - controls.crewHike * 0.86
   const driveLength = 42 + result.metrics.drive * 0.8
-  const sideLength = 15 + result.metrics.heel * 2.1
 
   return (
     <figure className="projection-frame projection-top">
       <ProjectionCaption
         view="01 / TOP"
-        title="セール角度"
+        title="基本角度（自動）"
         value={`MAIN ${Math.round(result.actual.main.angle)}° · JIB ${Math.round(result.actual.jib.angle)}°`}
       />
       <svg viewBox="0 0 560 520" role="img" aria-label={`${boat}を上から見たセール角度と力の模式図`}>
@@ -124,19 +120,9 @@ function TopProjection({
           <path d={`M${mainMid.x + 18} ${mainMid.y - 10}l30 2`} />
         </g>
 
-        <g className="crew" transform={`translate(${crewX} ${crewY})`}>
-          <circle cx="0" cy="0" r="14" />
-          <circle cx="0" cy="38" r="12" />
-          <text x="-23" y="5">H</text>
-          <text x="-21" y="43">C</text>
-        </g>
-        <path className="hiking-line" d={`M236 ${crewY + 20}H${crewX}`} />
-
         <g className="force-vectors">
           <path d={`M275 272V${272 - driveLength}`} markerEnd="url(#force-arrow)" />
           <text x="286" y={250 - driveLength} className="force-label">前へ進む力</text>
-          <path d={`M275 272H${275 + sideLength}`} markerEnd="url(#side-arrow)" />
-          <text x={288 + sideLength} y="292" className="force-label">横へ押す力</text>
         </g>
 
         <text x="260" y="486" textAnchor="middle" className="boat-class-label">
@@ -146,8 +132,7 @@ function TopProjection({
 
       <div className="canvas-key" aria-label="上面図の凡例">
         <span><i className="key-drive" />前へ進む力</span>
-        <span><i className="key-side" />横へ押す力</span>
-        <span><i className="key-sail" />現在のセール</span>
+        <span><i className="key-sail" />自動で合う基本角度</span>
       </div>
     </figure>
   )
@@ -232,28 +217,22 @@ function SideProjection({ boat, controls, result }: ProjectionProps) {
   )
 }
 
-function AftProjection({ controls, result }: ProjectionProps) {
+function AftProjection({ result }: ProjectionProps) {
   const main = result.actual.main
-  const heel = clamp(result.metrics.heel, 0, 25)
   const boomProjection = clamp(18 + main.angle * 1.25, 25, 122)
   const middleProjection = clamp(12 + (main.angle + main.twist * 0.45) * 0.9, 20, 100)
   const upperProjection = clamp(7 + (main.angle + main.twist) * 0.62, 15, 82)
-  const crewOffset = 28 + controls.crewHike * 0.63
 
   return (
     <figure className="projection-frame projection-aft">
       <ProjectionCaption
         view="03 / AFT"
-        title="ツイストとヒール"
-        value={`TWIST ${Math.round(main.twist)}° · HEEL ${Math.round(heel)}°`}
+        title="ツイスト"
+        value={`UPPER ${Math.round(main.twist)}°`}
       />
-      <svg viewBox="0 0 300 270" role="img" aria-label={`後ろから見たセールのツイストとヒール ${Math.round(heel)}度`}>
+      <svg viewBox="0 0 300 270" role="img" aria-label={`後ろから見たメインセールのツイスト ${Math.round(main.twist)}度。艇は水平に保たれる前提`}>
         <path className="aft-waterline" d="M12 220H288" />
-        <path className="heel-reference" d="M150 214V34" />
-        <path className="heel-arc" d={`M150 76A138 138 0 0 0 ${150 - heel * 1.8} ${78 + heel * 0.18}`} />
-        <text x="26" y="70" className="heel-label">HEEL {Math.round(heel)}°</text>
-
-        <g transform={`rotate(${-heel} 150 210)`} className="aft-heel-group">
+        <g className="aft-heel-group">
           <path
             className="aft-main"
             d={`M150 36L150 202L${150 + boomProjection} 202Q${150 + middleProjection + 18} 128 ${150 + upperProjection} 62Q158 40 150 36Z`}
@@ -269,16 +248,12 @@ function AftProjection({ controls, result }: ProjectionProps) {
           <path className="aft-hull-shadow" d="M86 194Q150 244 214 194L199 224Q150 249 101 224Z" />
           <path className="aft-hull" d="M83 188Q150 234 217 188L201 218Q150 241 99 218Z" />
           <path className="aft-deck" d="M91 191Q150 212 209 191" />
-          <g className="aft-crew" transform={`translate(${-crewOffset} 187)`}>
-            <circle cx="150" cy="0" r="11" />
-            <circle cx="150" cy="24" r="9" />
-          </g>
         </g>
 
         <path className="twist-callout" d={`M${150 + upperProjection} 64H267`} />
         <text x="207" y="56" className="shape-callout">上部が開く量</text>
         <text x="207" y="71" className="shape-callout-value">{Math.round(main.twist)}° TWIST</text>
-        <text x="18" y="252" className="projection-note">水面は水平 / 艇とマストが一緒に傾く</text>
+        <text x="18" y="252" className="projection-note">艇は水平に保たれる前提 / 上部の開きだけを比較</text>
       </svg>
     </figure>
   )
@@ -296,10 +271,10 @@ export function BoatView({
     <section className="boat-view" aria-labelledby="boat-view-title">
       <div className="boat-view-head">
         <div className="section-heading light-heading">
-          <span className="section-index">B</span>
+          <span className="section-index">E</span>
           <div>
             <p>LIVE THREE-VIEW</p>
-            <h2 id="boat-view-title">角度と形を三方向から見る</h2>
+            <h2 id="boat-view-title">最後に三方向で確かめる</h2>
           </div>
         </div>
         <div className="apparent-readout">
@@ -322,9 +297,9 @@ export function BoatView({
           <AftProjection boat={boat} controls={controls} result={result} />
         </div>
         <div className="projection-guide" aria-label="三面図で確認する項目">
-          <span><strong>TOP</strong> シートで開く角度</span>
+          <span><strong>TOP</strong> 基本角度は自動で最適</span>
           <span><strong>SIDE</strong> ドラフトの深さと位置</span>
-          <span><strong>AFT</strong> ツイストとヒール</span>
+          <span><strong>AFT</strong> 上・中・下のツイスト</span>
         </div>
       </div>
 

@@ -11,39 +11,33 @@ describe('trim model', () => {
     expect(result.actions).toHaveLength(0)
   })
 
-  it('requires sheets to be eased after bearing away', () => {
+  it('keeps the basic sail angles automatically aligned after a course change', () => {
     const closeHauled = targetControls('420', 45, 8)
     const reach = calculateTrim('420', 90, 8, closeHauled)
 
     expect(reach.targetControls.mainSheet).toBeLessThan(closeHauled.mainSheet)
     expect(reach.targetControls.jibSheet).toBeLessThan(closeHauled.jibSheet)
-    expect(reach.metrics.efficiency).toBeLessThan(85)
-    expect(['mainSheet', 'jibSheet']).toContain(reach.guidance.control)
-    expect(reach.actions.slice(0, 2).map((action) => action.control)).toEqual([
-      'mainSheet',
-      'jibSheet',
-    ])
-    expect(reach.actions.slice(0, 2).map((action) => action.direction)).toEqual([
-      '出す',
-      '出す',
-    ])
+    expect(reach.actual.main.angle).toBe(reach.target.main.angle)
+    expect(reach.actual.jib.angle).toBe(reach.target.jib.angle)
+    expect(reach.actions.map((action) => action.control)).not.toContain('mainSheet')
+    expect(reach.actions.map((action) => action.control)).not.toContain('jibSheet')
   })
 
-  it('tells the learner to pull sheets when they are too eased', () => {
+  it('ignores balance, centerboard, and basic-angle controls in shape scoring', () => {
     const controls = targetControls('420', 45, 8)
-    controls.mainSheet = 20
-    controls.jibSheet = 20
+    controls.mainSheet = 0
+    controls.jibSheet = 0
+    controls.crewHike = 0
+    controls.crewForeAft = 100
+    controls.centerboard = 0
+    controls.windwardSheet = 100
     const result = calculateTrim('420', 45, 8, controls)
 
-    expect(result.actions[0]).toMatchObject({
-      control: 'mainSheet',
-      direction: '引く',
-      urgency: 'large',
-    })
-    expect(result.actions[1]).toMatchObject({
-      control: 'jibSheet',
-      direction: '引く',
-    })
+    expect(result.metrics.efficiency).toBe(100)
+    expect(result.metrics.heel).toBe(0)
+    expect(result.metrics.leeway).toBe(0)
+    expect(result.metrics.balance).toBe(100)
+    expect(result.actions).toHaveLength(0)
   })
 
   it('moves the main draft forward as cunningham tension increases', () => {

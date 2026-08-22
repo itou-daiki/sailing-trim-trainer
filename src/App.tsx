@@ -42,7 +42,7 @@ function App() {
   const [controls, setControls] = useState<TrimControls>(() =>
     targetControls(challengeFromUrl().boat, INITIAL_ANGLE, INITIAL_WIND),
   )
-  const [lastControl, setLastControl] = useState<ControlKey>('mainSheet')
+  const [lastControl, setLastControl] = useState<ControlKey>('cunningham')
   const [showTarget, setShowTarget] = useState(true)
   const [phase, setPhase] = useState<ChallengePhase>('preview')
   const [prediction, setPrediction] = useState<ControlKey>()
@@ -54,7 +54,7 @@ function App() {
   const [shareStatus, setShareStatus] = useState('')
   const [progress, setProgress] = useState(() => loadProgress(browserStorage()))
   const [courseNotice, setCourseNotice] = useState(
-    'クローズの基準トリムです。ビームを選び、シートを動かさずに変化を見てください。',
+    '基本角度・艇バランス・センターボードは自動で最適です。風を変え、形状コントロールだけを作り直します。',
   )
 
   const result = useMemo(
@@ -110,7 +110,7 @@ function App() {
     setMoveCount(0)
     setStartEfficiency(startingResult.metrics.efficiency)
     setHintLevel(0)
-    setMoveFeedback('予想を残しました。下のコントロールを一本だけ動かし、変化を確かめます。')
+    setMoveFeedback('予想を残しました。優先順位の一番上を一本だけ動かし、大きな断面図の差を確かめます。')
     setAssisted(false)
     setCourseNotice(
       `${activeChallenge.boat} / 真風角 ${setup.angle}° / ${setup.windSpeed} kt。あえて崩れたトリムから始めます。`,
@@ -139,7 +139,7 @@ function App() {
     const after = courseName(nextAngle)
     setAngle(nextAngle)
     setCourseNotice(
-      `${before}から${after}へ船首だけ変えました。まずメインとジブの風に対する角度を観察します。`,
+      `${before}から${after}へ変更。基本角度は自動で合いました。深さ・位置・ツイストだけを作り直します。`,
     )
     if (phase === 'practice' && nextAngle !== activeChallenge.setup.angle) {
       setMoveFeedback(`指定条件は真風角${activeChallenge.setup.angle}°です。条件を変えた試行は自由練習として扱います。`)
@@ -149,7 +149,7 @@ function App() {
   const changeWind = (nextWind: number) => {
     setWindSpeed(nextWind)
     setCourseNotice(
-      `風速を${nextWind} ktへ変えました。コントロールはそのままです。ドラフト位置とヒールを見比べてください。`,
+      `風速を${nextWind} ktへ変更。艇は水平のまま、ドラフト深さ・位置・ツイストの差を見ます。`,
     )
     if (phase === 'practice' && nextWind !== activeChallenge.setup.windSpeed) {
       setMoveFeedback(`指定条件は${activeChallenge.setup.windSpeed} ktです。条件を戻すと到達判定が再開します。`)
@@ -207,7 +207,7 @@ function App() {
       setMoveFeedback('基準形を表示しました。自動で完了にはしません。形を観察した後、もう一度チャレンジしてください。')
     }
     setCourseNotice(
-      '比較用の基準トリムを入れました。断面の破線と現在形が重なる様子を確認してください。',
+      '比較用の基準形状を入れました。大きな断面の現在線が基準帯へ入る様子を確認してください。',
     )
   }
 
@@ -266,7 +266,7 @@ function App() {
             <h1 id="lesson-title">{activeChallenge.question}</h1>
           </div>
           <p>
-            風向角が変わったら、セールにも新しい角度が必要です。まず予想し、一本動かし、形と艇速で確かめます。
+            基本角度と艇の姿勢は自動で最適に保ちます。形を予想し、一本動かし、断面と速度で確かめます。
           </p>
           <div className="lesson-loop" aria-label="学習の流れ">
             <span>予想</span><i>→</i><span>動かす</span><i>→</i><span>形を見る</span><i>→</i><span>理由を言う</span>
@@ -295,53 +295,55 @@ function App() {
           onShare={shareChallenge}
         />
 
-        <div className="upper-workspace" id="simulator">
+        <div className="condition-shape-workspace" id="simulator">
           <CourseBoard
             angle={angle}
             windSpeed={windSpeed}
             onCourseChange={changeCourse}
             onWindChange={changeWind}
           />
-          <BoatView
-            boat={boat}
-            angle={angle}
-            windSpeed={windSpeed}
-            controls={controls}
-            result={result}
-            courseNotice={courseNotice}
-          />
-          <div className="right-rail">
-            <MetricsRail metrics={result.metrics} />
-            <CoachPanel
-              guidance={result.guidance}
-              lastControl={lastControl}
-              efficiency={result.metrics.efficiency}
-              actions={result.actions}
-              onShowBaseline={tryBaseline}
-            />
-          </div>
-        </div>
-
-        <div className="lower-workspace">
           <ShapeLab
+            key={activeChallenge.id}
             actual={result.actual}
             target={result.target}
             showTarget={showTarget}
+            focusControl={result.actions[0]?.control ?? lastControl}
             onToggleTarget={() => setShowTarget((shown) => !shown)}
           />
-          <ControlPanel
-            boat={boat}
-            controls={controls}
-            targets={result.targetControls}
-            highlightedControl={result.guidance.control}
-            onControlChange={changeControl}
-          />
         </div>
+
+        <div className="action-workspace">
+          <CoachPanel
+            guidance={result.guidance}
+            efficiency={result.metrics.efficiency}
+            actions={result.actions}
+            onShowBaseline={tryBaseline}
+          />
+          <div className="adjustment-stack">
+            <ControlPanel
+              boat={boat}
+              controls={controls}
+              targets={result.targetControls}
+              actions={result.actions}
+              onControlChange={changeControl}
+            />
+            <MetricsRail result={result} />
+          </div>
+        </div>
+
+        <BoatView
+          boat={boat}
+          angle={angle}
+          windSpeed={windSpeed}
+          controls={controls}
+          result={result}
+          courseNotice={courseNotice}
+        />
 
         <section className="model-note" aria-label="モデルについて">
           <span>MODEL NOTE</span>
           <p>
-            速度・ヒール・リーウェイは学習用の推定値です。波、クルー体重、個体差、セールカットで最適範囲は変わります。海上ではテルテール、舵の重さ、相手艇との比較を優先してください。
+            速度は形状差による学習用の推定値です。基本角度、艇バランス、センターボードは常に最適と仮定します。波、個体差、セールカットで実艇の最適範囲は変わります。
           </p>
         </section>
 
@@ -349,7 +351,7 @@ function App() {
           <summary>詳しく見る：このモデルの考え方と参考資料</summary>
           <div>
             <p>
-              このMVPはCFDではなく、<strong>操作 → セール形状 → 前進力／横力 → 艇速・ヒール・リーウェイ</strong>を即時に比べるための準定常モデルです。基準値は一点の正解ではなく、学習用の適正範囲として扱います。
+              このMVPはCFDではなく、<strong>形状コントロール → セール形状 → 推定艇速</strong>を即時に比べるための準定常モデルです。基本角度・艇バランス・センターボードは自動で最適とし、基準値は一点の正解ではなく適正範囲として扱います。
             </p>
             <ul>
               <li><a href="https://www.northsails.com/en-fr/blogs/north-sails-blog/420-tuning-guide" target="_blank" rel="noreferrer">North Sails — 420 Tuning Guide</a></li>
@@ -361,8 +363,9 @@ function App() {
       </main>
 
       <footer>
-        <span>TRIM NOTE / TRAINING BUILD 0.2</span>
-        <p>タック、ジャイブ、レース戦術を扱わず、セール形状と艇バランスの学習に集中しています。</p>
+        <span>TRIM NOTE / TRAINING BUILD 0.3</span>
+        <span className="footer-credit">Created by Dit-Lab.</span>
+        <p>タック、ジャイブ、レース戦術を扱わず、420 / 470のセール形状づくりに集中しています。</p>
       </footer>
     </div>
   )

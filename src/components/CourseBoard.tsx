@@ -98,8 +98,8 @@ export function CourseBoard({
       </label>
 
       <p className="course-rule">
-        <span aria-hidden="true">!</span>
-        船首を変えても、シートは自動で動きません。
+        <span aria-hidden="true">✓</span>
+        基本角度・艇バランス・センターは自動で最適。
       </p>
     </section>
   )

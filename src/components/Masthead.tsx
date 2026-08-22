@@ -18,6 +18,7 @@ export function Masthead({ boat, lesson, lessonTitle, onBoatChange }: MastheadPr
         <span>
           <strong>TRIM NOTE</strong>
           <small>420 / 470 SAIL LAB</small>
+          <small className="brand-credit">Created by Dit-Lab.</small>
         </span>
       </a>
 

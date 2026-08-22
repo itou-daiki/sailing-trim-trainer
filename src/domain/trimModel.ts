@@ -159,27 +159,20 @@ function sailShapes(
 type WeightedControl = { key: ControlKey; weight: number; tolerance: number }
 
 const BASE_WEIGHTS: WeightedControl[] = [
-  { key: 'mainSheet', weight: 1.8, tolerance: 8 },
-  { key: 'jibSheet', weight: 1.55, tolerance: 9 },
-  { key: 'vang', weight: 0.8, tolerance: 13 },
-  { key: 'cunningham', weight: 0.45, tolerance: 18 },
-  { key: 'outhaul', weight: 0.55, tolerance: 16 },
-  { key: 'crewHike', weight: 1.05, tolerance: 14 },
-  { key: 'crewForeAft', weight: 0.22, tolerance: 20 },
-  { key: 'centerboard', weight: 0.65, tolerance: 15 },
+  { key: 'vang', weight: 0.95, tolerance: 13 },
+  { key: 'cunningham', weight: 0.9, tolerance: 18 },
+  { key: 'outhaul', weight: 1, tolerance: 16 },
 ]
 
 const CLASS_WEIGHTS: Record<BoatClass, WeightedControl[]> = {
   '420': [
-    { key: 'chock', weight: 0.22, tolerance: 20 },
-    { key: 'jibHeight', weight: 0.25, tolerance: 18 },
-    { key: 'windwardSheet', weight: 0.34, tolerance: 16 },
+    { key: 'chock', weight: 0.72, tolerance: 20 },
+    { key: 'jibHeight', weight: 0.76, tolerance: 18 },
   ],
   '470': [
-    { key: 'forePuller', weight: 0.18, tolerance: 22 },
-    { key: 'aftPuller', weight: 0.18, tolerance: 22 },
-    { key: 'jibLeadForeAft', weight: 0.26, tolerance: 18 },
-    { key: 'jibLeadInOut', weight: 0.32, tolerance: 17 },
+    { key: 'forePuller', weight: 0.68, tolerance: 22 },
+    { key: 'aftPuller', weight: 0.68, tolerance: 22 },
+    { key: 'jibLeadForeAft', weight: 0.78, tolerance: 18 },
   ],
 }
 
@@ -276,23 +269,13 @@ function metrics(
     0,
     boat === '470' ? 7.8 : 7.2,
   )
-  const lateralDemand = Math.max(0.12, Math.cos((Math.min(trueWindAngle, 150) * Math.PI) / 360))
-  const sheetOvertrim =
-    Math.max(0, controls.mainSheet - target.mainSheet) * 0.09 +
-    Math.max(0, controls.jibSheet - target.jibSheet) * 0.06
-  const righting = 0.42 + controls.crewHike / 120
-  const heel = clamp((windSpeed * lateralDemand * 1.15 + sheetOvertrim) / righting - 3.5, 0, 28)
-  const boardSupport = 0.35 + controls.centerboard / 100
-  const leeway = clamp((windSpeed * lateralDemand * 0.53) / boardSupport + sheetOvertrim * 0.14, 0.8, 11)
-  const balance = clamp(100 - Math.abs(heel - (windSpeed > 8 ? 5 : 3)) * 3.1 - Math.abs(controls.crewForeAft - target.crewForeAft) * 0.5, 30, 100)
-
   return {
     efficiency,
     speed,
-    heel,
-    leeway,
+    heel: 0,
+    leeway: 0,
     drive: clamp(efficiency * coursePower * 1.32, 25, 100),
-    balance,
+    balance: 100,
   }
 }
 
@@ -311,8 +294,8 @@ function guidance(
     return {
       tone: 'good',
       label: 'IN THE GROOVE',
-      title: '形とバランスが適正範囲です',
-      explanation: '速い一点ではなく、波や風の変化に対応できる幅を残したトリムです。テルテールの流れを保ってください。',
+      title: 'セール形状が適正範囲です',
+      explanation: '深さ・最大深さ位置・ツイストが比較用の範囲へ入りました。艇の姿勢と基本角度は最適に保たれている前提です。',
       action: '次は風速を2 kt上げ、同じ形を作り直してみましょう。',
     }
   }
@@ -387,18 +370,28 @@ export function calculateTrim(
   controls: TrimControls,
 ): TrimResult {
   const targets = targetControls(boat, trueWindAngle, windSpeed)
-  const actual = sailShapes(boat, controls, windSpeed)
+  const shapeControls: TrimControls = {
+    ...controls,
+    mainSheet: targets.mainSheet,
+    jibSheet: targets.jibSheet,
+    crewHike: targets.crewHike,
+    crewForeAft: targets.crewForeAft,
+    centerboard: targets.centerboard,
+    windwardSheet: targets.windwardSheet,
+    jibLeadInOut: targets.jibLeadInOut,
+  }
+  const actual = sailShapes(boat, shapeControls, windSpeed)
   const target = sailShapes(boat, targets, windSpeed)
-  const trimMetrics = metrics(boat, trueWindAngle, windSpeed, controls, targets)
+  const trimMetrics = metrics(boat, trueWindAngle, windSpeed, shapeControls, targets)
   const apparent = apparentWind(trueWindAngle, windSpeed, trimMetrics.speed)
-  const actions = prioritizedActions(boat, controls, targets)
+  const actions = prioritizedActions(boat, shapeControls, targets)
 
   return {
     actual,
     target,
     targetControls: targets,
     metrics: trimMetrics,
-    guidance: guidance(boat, controls, targets, trimMetrics.efficiency),
+    guidance: guidance(boat, shapeControls, targets, trimMetrics.efficiency),
     actions,
     apparentWindAngle: apparent.angle,
     apparentWindSpeed: apparent.speed,

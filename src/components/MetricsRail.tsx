@@ -1,7 +1,7 @@
-import type { TrimMetrics } from '../domain/types'
+import type { TrimResult } from '../domain/types'
 
 type MetricsRailProps = {
-  metrics: TrimMetrics
+  result: TrimResult
 }
 
 const Metric = ({
@@ -22,32 +22,33 @@ const Metric = ({
   </div>
 )
 
-export function MetricsRail({ metrics }: MetricsRailProps) {
+export function MetricsRail({ result }: MetricsRailProps) {
+  const { metrics, actual } = result
   return (
-    <div className="metrics-rail" aria-label="艇の推定状態">
+    <div className="metrics-rail" aria-label="セール形状と推定性能">
+      <Metric
+        label="SHAPE FIT"
+        value={Math.round(metrics.efficiency).toString()}
+        unit="%"
+        detail="基準形状との近さ"
+      />
       <Metric
         label="EST. SPEED"
         value={metrics.speed.toFixed(1)}
         unit="kt"
-        detail="現在の設定による推定"
+        detail="形状差による推定変化"
       />
       <Metric
-        label="TRIM RANGE"
-        value={Math.round(metrics.efficiency).toString()}
+        label="MAIN SHAPE"
+        value={(actual.main.draftDepth * 100).toFixed(1)}
         unit="%"
-        detail="基準形との近さ"
+        detail={`最大深さ位置 ${Math.round(actual.main.draftPosition * 100)}%`}
       />
       <Metric
-        label="HEEL"
-        value={Math.round(metrics.heel).toString()}
-        unit="°"
-        detail={metrics.heel > 10 ? '力が横へ逃げています' : '姿勢は安定範囲です'}
-      />
-      <Metric
-        label="LEEWAY"
-        value={metrics.leeway.toFixed(1)}
-        unit="°"
-        detail="センターボードと横力"
+        label="JIB SHAPE"
+        value={(actual.jib.draftDepth * 100).toFixed(1)}
+        unit="%"
+        detail={`最大深さ位置 ${Math.round(actual.jib.draftPosition * 100)}%`}
       />
     </div>
   )

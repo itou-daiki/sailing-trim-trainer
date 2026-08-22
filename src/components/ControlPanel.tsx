@@ -8,6 +8,7 @@ type ControlPanelProps = {
   controls: TrimControls
   targets: TrimControls
   actions: TrimAction[]
+  onControlChangeStart: (control: ControlKey) => void
   onControlChange: (control: ControlKey, value: number) => void
 }
 
@@ -42,6 +43,7 @@ function ControlSlider({
   target,
   action,
   rank,
+  onChangeStart,
   onChange,
 }: {
   meta: SliderMeta
@@ -49,6 +51,7 @@ function ControlSlider({
   target: number
   action?: TrimAction
   rank?: number
+  onChangeStart: () => void
   onChange: (value: number) => void
 }) {
   const rangeStyle = {
@@ -76,6 +79,8 @@ function ControlSlider({
           max="100"
           value={value}
           aria-label={CONTROL_LABELS[meta.key]}
+          onFocus={onChangeStart}
+          onPointerDown={onChangeStart}
           onInput={(event) => onChange(Number(event.currentTarget.value))}
         />
         <i className="target-notch" aria-hidden="true" />
@@ -92,6 +97,7 @@ function ControlGroup({
   controls,
   targets,
   actions,
+  onControlChangeStart,
   onControlChange,
 }: {
   name: string
@@ -100,6 +106,7 @@ function ControlGroup({
   controls: TrimControls
   targets: TrimControls
   actions: TrimAction[]
+  onControlChangeStart: (control: ControlKey) => void
   onControlChange: (control: ControlKey, value: number) => void
 }) {
   return (
@@ -117,6 +124,7 @@ function ControlGroup({
               target={targets[meta.key]}
               action={action}
               rank={action ? actionIndex + 1 : undefined}
+              onChangeStart={() => onControlChangeStart(meta.key)}
               onChange={(value) => onControlChange(meta.key, value)}
             />
           )
@@ -131,6 +139,7 @@ export function ControlPanel({
   controls,
   targets,
   actions,
+  onControlChangeStart,
   onControlChange,
 }: ControlPanelProps) {
   const available = [...SHAPE, ...ADVANCED[boat]]
@@ -162,6 +171,7 @@ export function ControlPanel({
         controls={controls}
         targets={targets}
         actions={actions}
+        onControlChangeStart={onControlChangeStart}
         onControlChange={onControlChange}
       />
       <p className="class-shape-note"><strong>{boat}：</strong>{BOATS[boat].note}</p>

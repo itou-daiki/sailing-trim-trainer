@@ -3878,6 +3878,7 @@ footer p { margin: 0; }
 
 .geometry-head-tools {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
   justify-content: flex-end;
@@ -3914,6 +3915,8 @@ footer p { margin: 0; }
 
 .geometry-legend .legend-main { border-color: #d64e2d; }
 .geometry-legend .legend-jib { border-color: #176d76; }
+.geometry-legend .legend-reference.is-target { border-color: #168077; border-top-style: dashed; }
+.geometry-legend .legend-reference.is-previous { border-color: #536d86; border-top-style: dotted; }
 
 .geometry-target-toggle {
   display: inline-flex;
@@ -3941,6 +3944,58 @@ footer p { margin: 0; }
 }
 
 .geometry-target-toggle.is-active i { border-color: #c8efe8; }
+
+.geometry-compare-switch {
+  display: inline-flex;
+  border: 1px solid #789092;
+}
+
+.geometry-compare-switch button,
+.geometry-share-button {
+  min-height: 32px;
+  padding: 5px 8px;
+  color: #3f5a5f;
+  background: #f8faf7;
+  border: 0;
+  cursor: pointer;
+  font-size: 0.56rem;
+  font-weight: 800;
+}
+
+.geometry-compare-switch button + button {
+  border-left: 1px solid #a0b0ae;
+}
+
+.geometry-compare-switch button.is-active {
+  color: #f8faf7;
+  background: #176d67;
+}
+
+.geometry-compare-switch button:disabled {
+  color: #9aa9a8;
+  cursor: not-allowed;
+  background: #e5eae7;
+}
+
+.geometry-share-button {
+  border: 1px solid #789092;
+}
+
+.geometry-share-button:hover {
+  color: var(--sail);
+  background: var(--ink);
+}
+
+.geometry-share-status {
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  padding: 6px 12px;
+  color: #f7f9f6;
+  background: #176d67;
+  font-size: 0.61rem;
+  font-weight: 700;
+}
 
 .geometry-stage {
   position: relative;
@@ -4035,6 +4090,11 @@ footer p { margin: 0; }
 .geometry-mast-target {
   fill: none;
   vector-effect: non-scaling-stroke;
+}
+
+.geometry-mast-target.is-previous {
+  stroke: #536d86;
+  stroke-dasharray: 3 4;
 }
 
 .geometry-mast-reference {
@@ -4137,6 +4197,12 @@ footer p { margin: 0; }
   opacity: 1;
 }
 
+.geometry-target.is-previous .geometry-sail-outline,
+.geometry-target.is-previous .geometry-draft-row path {
+  stroke: #536d86;
+  stroke-dasharray: 3 4;
+}
+
 .geometry-camera-note {
   fill: #61777a;
   font-size: 9px;
@@ -4198,8 +4264,10 @@ footer p { margin: 0; }
 .geometry-profile-chord { stroke: #829493; stroke-width: 1; }
 .geometry-profile-current { stroke: #d64e2d; stroke-width: 3; }
 .geometry-profile-target { stroke: #168077; stroke-width: 2; stroke-dasharray: 6 4; }
+.geometry-profile-target.is-previous { stroke: #536d86; stroke-dasharray: 3 4; }
 .geometry-profile-current-point { fill: #d64e2d; stroke: #fff; stroke-width: 1.2; }
 .geometry-profile-target-point { fill: #168077; stroke: #fff; stroke-width: 1; }
+.geometry-profile-target-point.is-previous { fill: #536d86; }
 
 .geometry-inspector svg text {
   fill: #667b7d;
@@ -4210,7 +4278,7 @@ footer p { margin: 0; }
 
 .geometry-readings {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .geometry-readings > div {
@@ -4245,23 +4313,74 @@ footer p { margin: 0; }
 
 .geometry-course-notice p { font-size: 0.65rem; }
 
+.shape-delta-strip {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(175px, 1.4fr) repeat(3, minmax(88px, 0.8fr));
+  min-height: 54px;
+  background: #d7e9e5;
+  border-top: 1px solid #70aea5;
+}
+
+.shape-delta-strip > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  padding: 7px 10px;
+  border-right: 1px solid #a5c2bd;
+}
+
+.shape-delta-strip > div:last-child { border-right: 0; }
+
+.shape-delta-strip span,
+.shape-delta-strip small {
+  color: #4c686b;
+  font-family: var(--mono);
+  font-size: 0.48rem;
+  letter-spacing: 0.05em;
+}
+
+.shape-delta-strip strong {
+  margin: 2px 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.shape-delta-control {
+  color: #f7faf7;
+  background: #143d47;
+  border-left: 5px solid var(--orange);
+}
+
+.shape-delta-strip .shape-delta-control span,
+.shape-delta-strip .shape-delta-control small {
+  color: #a8c9c6;
+}
+
+.shape-delta-strip .shape-delta-control strong {
+  color: #fffdf5;
+}
+
 @media (max-width: 1120px) {
   .geometry-view-head .section-heading p,
   .geometry-condition,
-  .geometry-camera-note {
+  .geometry-camera-note,
+  .geometry-share-button {
     display: none;
   }
 
   .geometry-stage { min-height: 285px; }
   .geometry-panel figcaption { grid-template-columns: 24px 1fr; min-height: 42px; padding: 5px; }
   .geometry-panel figcaption > span { width: 22px; height: 22px; }
-  .geometry-inspector { grid-template-columns: 125px minmax(205px, 0.9fr) minmax(225px, 1fr); }
+  .geometry-inspector { grid-template-columns: 125px minmax(205px, 0.9fr) minmax(265px, 1.15fr); }
 }
 
 @media (max-width: 720px) {
   .live-visual-column .geometry-view {
-    height: 286px;
-    min-height: 286px;
+    height: auto;
+    min-height: 350px;
     border-top: 5px solid var(--orange);
   }
 
@@ -4280,12 +4399,19 @@ footer p { margin: 0; }
   }
 
   .geometry-view-head .section-heading h2 { font-size: 0.67rem; }
-  .geometry-head-tools { margin-left: auto; }
-  .geometry-target-toggle { min-height: 28px; padding: 3px 6px; font-size: 0.5rem; }
+  .geometry-head-tools { gap: 3px; margin-left: auto; }
+  .geometry-compare-switch button { min-height: 28px; padding: 3px 6px; font-size: 0.48rem; }
+  .geometry-share-button {
+    display: block;
+    min-height: 28px;
+    padding: 3px 5px;
+    font-size: 0;
+  }
+  .geometry-share-button::before { content: "共有 ↗"; font-size: 0.46rem; }
 
   .geometry-stage {
-    min-height: 137px;
-    height: 137px;
+    min-height: 200px;
+    height: 200px;
   }
 
   .geometry-panel figcaption {
@@ -4307,16 +4433,27 @@ footer p { margin: 0; }
   }
 
   .geometry-inspector {
-    grid-template-columns: minmax(115px, 1fr) minmax(165px, 1.4fr);
-    min-height: 105px;
+    grid-template-columns: minmax(135px, 1fr) minmax(175px, 1.25fr);
+    min-height: 112px;
   }
 
   .geometry-profile-title { display: none; }
   .geometry-inspector > svg { padding: 2px 4px; }
   .geometry-readings > div { padding: 5px 4px; }
+  .geometry-readings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .geometry-readings span,
   .geometry-readings small { font-size: 0.41rem; }
   .geometry-readings strong { font-size: 0.7rem; }
+
+  .shape-delta-strip {
+    grid-template-columns: minmax(90px, 1.15fr) repeat(3, minmax(58px, 0.85fr));
+    min-height: 69px;
+  }
+
+  .shape-delta-strip > div { padding: 5px 4px; }
+  .shape-delta-strip span { font-size: 0.4rem; }
+  .shape-delta-strip strong { font-size: 0.62rem; }
+  .shape-delta-strip small { font-size: 0.4rem; }
 }
 
 /* Build 0.6 — the sailmaker's bench is the product, lessons follow it. */
@@ -4620,27 +4757,29 @@ footer p { margin: 0; }
   }
 
   .geometry-stage {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: 137px;
-    min-height: 137px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: 66px 134px;
+    min-height: 200px;
   }
 
   .geometry-panel-top,
   .geometry-panel-side,
   .geometry-panel-aft {
-    grid-row: 1;
-    grid-column: auto;
+    min-width: 0;
   }
 
+  .geometry-panel-top { grid-row: 1; grid-column: 1 / -1; }
+  .geometry-panel-side { grid-row: 2; grid-column: 1; }
+  .geometry-panel-aft { grid-row: 2; grid-column: 2; }
+
   .geometry-panel-top figcaption {
-    position: static;
-    min-width: 0;
-    border: 0;
-    border-bottom: 1px solid #a7b6b4;
+    position: absolute;
+    min-width: 78px;
+    border: 1px solid #a7b6b4;
   }
 
   .geometry-panel-top > svg {
-    height: auto;
+    height: 66px;
   }
 
   .geometry-peak-label {

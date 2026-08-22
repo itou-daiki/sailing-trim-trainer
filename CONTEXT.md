@@ -16,6 +16,10 @@ _Avoid_: Sail fullness without a measurement plane
 The distance from the luff to maximum camber divided by chord length, expressed as a percentage from the luff.
 _Avoid_: Draft as an unlocated amount
 
+**Entry / exit angle**:
+The tangent angle of the first and last sampled segments of a draft stripe relative to its chord. These values help describe how abruptly the section turns at the luff and how it releases at the leech. They are measurements of the learning geometry, not wind-tunnel flow angles.
+_Avoid_: Angle of attack, exact cloth-edge measurement
+
 **Twist**:
 The opening angle of a section relative to the lower reference section. Upper, middle, and lower twist are observed separately.
 _Avoid_: Heel, boom angle
@@ -27,6 +31,10 @@ _Avoid_: A permanently straight luff, measured rig load, exact pre-bend millimet
 **Reference shape**:
 A comparison shape for one boat class, wind speed, and true-wind angle. It is a useful starting range, not a single universally correct race setting.
 _Avoid_: Perfect shape, absolute correct trim
+
+**Previous shape**:
+The sail surface captured at the start of one slider gesture. It remains as a dashed comparison until another control gesture or condition change, so the learner can attribute depth, draft-position, and twist deltas to one action.
+_Avoid_: Target shape, history averaged across several controls
 
 **Shape control**:
 A control included in this trainer because it changes draft depth, draft position, twist, or mast-bend distribution. Basic sheet angle, crew balance, and centerboard position remain automatically optimized assumptions.

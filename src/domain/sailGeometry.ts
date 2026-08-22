@@ -219,10 +219,22 @@ export function measureSurfaceRow(row: SurfaceRow, baseAngle: number) {
   }
 
   const rowAngle = (Math.atan2(chordY, chordX) * 180) / Math.PI
+  const entryPoint = row.points[1]
+  const exitPoint = row.points.at(-2)
+  if (!entryPoint || !exitPoint) throw new Error('A surface row requires edge tangent points')
+  const tangentAngle = (from: SurfacePoint, to: SurfacePoint) => {
+    const deltaX = to.x - from.x
+    const deltaY = to.y - from.y
+    const along = deltaX * unitX + deltaY * unitY
+    const normal = deltaX * normalX + deltaY * normalY
+    return (Math.atan2(normal, along) * 180) / Math.PI
+  }
   return {
     draftDepth: maxDepth / chordLength,
     draftPosition,
     twist: normalizedDegrees(rowAngle - baseAngle),
+    entryAngle: Math.abs(tangentAngle(luff, entryPoint)),
+    exitAngle: Math.abs(tangentAngle(exitPoint, leech)),
   }
 }
 

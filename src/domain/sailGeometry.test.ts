@@ -27,8 +27,20 @@ describe('single sail surface geometry', () => {
         expect(measured.draftDepth).toBeCloseTo(expected.draftDepth, 10)
         expect(measured.draftPosition).toBeCloseTo(expected.draftPosition, 10)
         expect(measured.twist).toBeCloseTo(expected.twist, 10)
+        expect(measured.entryAngle).toBeGreaterThan(0)
+        expect(measured.exitAngle).toBeGreaterThan(0)
       }
     }
+  })
+
+  it('reports finite entry and exit angles for professional stripe comparison', () => {
+    const result = calculateTrim('470', 45, 16, targetControls('470', 45, 16))
+    const row = getLevelRow(buildRigSurfaces('470', result.actual).main, 'middle')
+    const measured = measureSurfaceRow(row, result.actual.main.angle)
+
+    expect(Number.isFinite(measured.entryAngle)).toBe(true)
+    expect(Number.isFinite(measured.exitAngle)).toBe(true)
+    expect(measured.entryAngle).toBeGreaterThan(measured.exitAngle)
   })
 
   it('projects the same vertex identities through all three cameras', () => {

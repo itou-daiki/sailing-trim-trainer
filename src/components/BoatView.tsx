@@ -6,6 +6,12 @@ import {
   measureSurfaceRow,
   projectSurface,
 } from '../domain/sailGeometry'
+import {
+  compareShapeChange,
+  focusForControl,
+} from '../domain/shapeComparison'
+import type { ControlMove } from '../domain/shapeComparison'
+import { CONTROL_LABELS } from '../domain/trimModel'
 import type {
   ProjectedPoint,
   ProjectedSurface,
@@ -25,24 +31,20 @@ type BoatViewProps = {
   angle: number
   windSpeed: number
   result: TrimResult
+  previousResult: TrimResult
   courseNotice: string
   focusControl?: ControlKey
-  showTarget: boolean
-  onToggleTarget: () => void
+  comparisonMode: ComparisonMode
+  hasPrevious: boolean
+  lastMove?: ControlMove
+  shareStatus: string
+  onComparisonModeChange: (mode: ComparisonMode) => void
+  onShareShape: () => void
 }
+
+export type ComparisonMode = 'previous' | 'target'
 
 type Focus = { sail: 'main' | 'jib'; level: SailLevel }
-
-const CONTROL_FOCUS: Partial<Record<ControlKey, Focus>> = {
-  vang: { sail: 'main', level: 'upper' },
-  cunningham: { sail: 'main', level: 'middle' },
-  outhaul: { sail: 'main', level: 'lower' },
-  chock: { sail: 'main', level: 'lower' },
-  forePuller: { sail: 'main', level: 'middle' },
-  aftPuller: { sail: 'main', level: 'middle' },
-  jibHeight: { sail: 'jib', level: 'upper' },
-  jibLeadForeAft: { sail: 'jib', level: 'upper' },
-}
 
 const VIEW_META: Record<
   ProjectionView,
@@ -168,16 +170,20 @@ function SurfaceLayer({
   map,
   active,
   target,
+  referenceMode,
   view,
 }: {
   surface: ProjectedSurface
   map: Mapper
   active: Focus
   target: boolean
+  referenceMode?: ComparisonMode
   view: ProjectionView
 }) {
   const spanColumns = [0, 5, DRAFT_PEAK_COLUMN, 15, 20, 24]
-  const prefix = target ? 'geometry-target' : 'geometry-current'
+  const prefix = target
+    ? `geometry-target is-${referenceMode ?? 'target'}`
+    : 'geometry-current'
   const activeRow = surface.rows.find((row) => row.level === active.level)
   const peakPoints = surface.rows.map((row) => row.points[DRAFT_PEAK_COLUMN])
 
@@ -250,15 +256,15 @@ function SurfaceLayer({
 function ProjectionPanel({
   view,
   actual,
-  target,
+  reference,
   active,
-  showTarget,
+  referenceMode,
 }: {
   view: ProjectionView
   actual: RigSurfaces
-  target: RigSurfaces
+  reference: RigSurfaces
   active: Focus
-  showTarget: boolean
+  referenceMode: ComparisonMode
 }) {
   const dimensions: Record<ProjectionView, { width: number; height: number }> = {
     top: { width: 760, height: 160 },
@@ -270,12 +276,12 @@ function ProjectionPanel({
     projectSurface(actual.jib, view),
     projectSurface(actual.main, view),
   ]
-  const targetProjected = [
-    projectSurface(target.jib, view),
-    projectSurface(target.main, view),
+  const referenceProjected = [
+    projectSurface(reference.jib, view),
+    projectSurface(reference.main, view),
   ]
   const map = createMapper(
-    [...actualProjected, ...targetProjected],
+    [...actualProjected, ...referenceProjected],
     width,
     height,
     view,
@@ -285,7 +291,7 @@ function ProjectionPanel({
   const actualMast = actualProjected
     .find((surface) => surface.sail === 'main')!
     .rows.map((row) => row.points[0])
-  const targetMast = targetProjected
+  const referenceMast = referenceProjected
     .find((surface) => surface.sail === 'main')!
     .rows.map((row) => row.points[0])
 
@@ -303,11 +309,19 @@ function ProjectionPanel({
         {guides.water ? <path className="geometry-waterline" d={guides.water} /> : null}
         <path className="geometry-hull" d={guides.hull} />
         <path className="geometry-mast-reference" d={guides.mast} />
-        {showTarget ? <path className="geometry-mast-target" d={path(targetMast, map)} /> : null}
+        <path className={`geometry-mast-target is-${referenceMode}`} d={path(referenceMast, map)} />
         <path className="geometry-mast" d={path(actualMast, map)} />
-        {showTarget ? targetProjected.map((surface) => (
-          <SurfaceLayer key={`target-${surface.sail}`} surface={surface} map={map} active={active} target view={view} />
-        )) : null}
+        {referenceProjected.map((surface) => (
+          <SurfaceLayer
+            key={`reference-${surface.sail}`}
+            surface={surface}
+            map={map}
+            active={active}
+            target
+            referenceMode={referenceMode}
+            view={view}
+          />
+        ))}
         {actualProjected.map((surface) => (
           <SurfaceLayer key={surface.sail} surface={surface} map={map} active={active} target={false} view={view} />
         ))}
@@ -340,25 +354,26 @@ function profilePath(row: SurfaceRow) {
 function SectionInspector({
   active,
   actual,
-  target,
-  showTarget,
+  reference,
+  referenceMode,
 }: {
   active: Focus
   actual: RigSurfaces
-  target: RigSurfaces
-  showTarget: boolean
+  reference: RigSurfaces
+  referenceMode: ComparisonMode
 }) {
   const currentRow = getLevelRow(actual[active.sail], active.level)
-  const targetRow = getLevelRow(target[active.sail], active.level)
+  const referenceRow = getLevelRow(reference[active.sail], active.level)
   const current = measureSurfaceRow(currentRow, 0)
-  const reference = measureSurfaceRow(targetRow, 0)
+  const compared = measureSurfaceRow(referenceRow, 0)
   const currentPeak = currentRow.points[DRAFT_PEAK_COLUMN]
-  const targetPeak = targetRow.points[DRAFT_PEAK_COLUMN]
+  const referencePeak = referenceRow.points[DRAFT_PEAK_COLUMN]
   const currentPeakX = 18 + currentPeak.u * 284
-  const targetPeakX = 18 + targetPeak.u * 284
+  const referencePeakX = 18 + referencePeak.u * 284
   const currentPeakY = 70 - current.draftDepth * 310
-  const targetPeakY = 70 - reference.draftDepth * 310
+  const referencePeakY = 70 - compared.draftDepth * 310
   const sailLabel = active.sail === 'main' ? 'メイン' : 'ジブ'
+  const referenceLabel = referenceMode === 'previous' ? '操作前' : '基準'
 
   return (
     <div className="geometry-inspector" aria-live="polite">
@@ -369,17 +384,60 @@ function SectionInspector({
       </div>
       <svg viewBox="0 0 320 92" role="img" aria-label={`${sailLabel}${LEVEL_LABELS[active.level]}の水平断面`}>
         <path className="geometry-profile-chord" d="M18 70H302" />
-        {showTarget ? <path className="geometry-profile-target" d={profilePath(targetRow)} /> : null}
+        <path className={`geometry-profile-target is-${referenceMode}`} d={profilePath(referenceRow)} />
         <path className="geometry-profile-current" d={profilePath(currentRow)} />
-        {showTarget ? <circle className="geometry-profile-target-point" cx={targetPeakX} cy={targetPeakY} r="3.2" /> : null}
+        <circle className={`geometry-profile-target-point is-${referenceMode}`} cx={referencePeakX} cy={referencePeakY} r="3.2" />
         <circle className="geometry-profile-current-point" cx={currentPeakX} cy={currentPeakY} r="3.7" />
         <text x="18" y="86">LUFF 0%</text><text x="302" y="86" textAnchor="end">LEECH 100%</text>
       </svg>
       <div className="geometry-readings">
-        <div><span>深さ</span><strong>{(current.draftDepth * 100).toFixed(1)}%</strong><small>基準 {(reference.draftDepth * 100).toFixed(1)}%</small></div>
-        <div><span>最大位置</span><strong>{Math.round(current.draftPosition * 100)}%</strong><small>基準 {Math.round(reference.draftPosition * 100)}%</small></div>
-        <div><span>ツイスト</span><strong>{currentRow.section.twist.toFixed(1)}°</strong><small>基準 {targetRow.section.twist.toFixed(1)}°</small></div>
+        <div><span>深さ</span><strong>{(current.draftDepth * 100).toFixed(1)}%</strong><small>{referenceLabel} {(compared.draftDepth * 100).toFixed(1)}%</small></div>
+        <div><span>最大位置</span><strong>{Math.round(current.draftPosition * 100)}%</strong><small>{referenceLabel} {Math.round(compared.draftPosition * 100)}%</small></div>
+        <div><span>ツイスト</span><strong>{currentRow.section.twist.toFixed(1)}°</strong><small>{referenceLabel} {referenceRow.section.twist.toFixed(1)}°</small></div>
+        <div><span>入口 / 出口角</span><strong>{current.entryAngle.toFixed(0)}° / {current.exitAngle.toFixed(0)}°</strong><small>{referenceLabel} {compared.entryAngle.toFixed(0)}° / {compared.exitAngle.toFixed(0)}°</small></div>
       </div>
+    </div>
+  )
+}
+
+function deltaReading(
+  value: number,
+  unit: string,
+  positive: string,
+  negative: string,
+  threshold: number,
+) {
+  if (Math.abs(value) < threshold) return { value: '≈ 0', direction: 'ほぼ不変' }
+  return {
+    value: `${value > 0 ? '+' : '−'}${Math.abs(value).toFixed(1)}${unit}`,
+    direction: value > 0 ? positive : negative,
+  }
+}
+
+function ShapeDeltaStrip({
+  before,
+  after,
+  move,
+}: {
+  before: TrimResult
+  after: TrimResult
+  move: ControlMove
+}) {
+  const delta = compareShapeChange(before, after, move.control)
+  const depth = deltaReading(delta.draftDepthPoints, 'pt', '深く', '浅く', 0.05)
+  const position = deltaReading(delta.draftPositionPoints, 'pt', '後ろへ', '前へ', 0.05)
+  const twist = deltaReading(delta.twistDegrees, '°', '開く', '閉じる', 0.05)
+
+  return (
+    <div className="shape-delta-strip" aria-live="polite">
+      <div className="shape-delta-control">
+        <span>LAST MOVE / 操作前との差</span>
+        <strong>{CONTROL_LABELS[move.control]}</strong>
+        <small>{move.from} → {move.to}</small>
+      </div>
+      <div><span>深さ</span><strong>{depth.value}</strong><small>{depth.direction}</small></div>
+      <div><span>最大位置</span><strong>{position.value}</strong><small>{position.direction}</small></div>
+      <div><span>ツイスト</span><strong>{twist.value}</strong><small>{twist.direction}</small></div>
     </div>
   )
 }
@@ -389,17 +447,23 @@ export function BoatView({
   angle,
   windSpeed,
   result,
+  previousResult,
   courseNotice,
   focusControl,
-  showTarget,
-  onToggleTarget,
+  comparisonMode,
+  hasPrevious,
+  lastMove,
+  shareStatus,
+  onComparisonModeChange,
+  onShareShape,
 }: BoatViewProps) {
-  const active = CONTROL_FOCUS[focusControl ?? 'cunningham'] ?? {
-    sail: 'main',
-    level: 'middle',
-  }
+  const active = focusForControl(focusControl)
   const actualSurfaces = buildRigSurfaces(boat, result.actual)
-  const targetSurfaces = buildRigSurfaces(boat, result.target)
+  const referenceSurfaces = buildRigSurfaces(
+    boat,
+    comparisonMode === 'previous' ? previousResult.actual : result.target,
+  )
+  const referenceLabel = comparisonMode === 'previous' ? '操作前' : '基準形'
 
   return (
     <section className="boat-view geometry-view" aria-labelledby="boat-view-title">
@@ -417,12 +481,16 @@ export function BoatView({
             <span><i className="legend-main" />メイン</span>
             <span><i className="legend-jib" />ジブ</span>
             <span><i className="legend-draft" />最大ドラフト線</span>
+            <span><i className={`legend-reference is-${comparisonMode}`} />{referenceLabel}</span>
           </div>
-          <button type="button" className={showTarget ? 'geometry-target-toggle is-active' : 'geometry-target-toggle'} aria-pressed={showTarget} onClick={onToggleTarget}>
-            <i />基準形
-          </button>
+          <div className="geometry-compare-switch" aria-label="比較する形">
+            <button type="button" className={comparisonMode === 'previous' ? 'is-active' : ''} disabled={!hasPrevious} aria-pressed={comparisonMode === 'previous'} onClick={() => onComparisonModeChange('previous')}>操作前</button>
+            <button type="button" className={comparisonMode === 'target' ? 'is-active' : ''} aria-pressed={comparisonMode === 'target'} onClick={() => onComparisonModeChange('target')}>基準形</button>
+          </div>
+          <button type="button" className="geometry-share-button" onClick={onShareShape}>この形を共有 ↗</button>
         </div>
       </div>
+      {shareStatus ? <p className="geometry-share-status" role="status">{shareStatus}</p> : null}
 
       <div className="geometry-stage">
         {(['top', 'side', 'aft'] as const).map((view) => (
@@ -430,9 +498,9 @@ export function BoatView({
             key={view}
             view={view}
             actual={actualSurfaces}
-            target={targetSurfaces}
+            reference={referenceSurfaces}
             active={active}
-            showTarget={showTarget}
+            referenceMode={comparisonMode}
           />
         ))}
       </div>
@@ -440,14 +508,18 @@ export function BoatView({
       <SectionInspector
         active={active}
         actual={actualSurfaces}
-        target={targetSurfaces}
-        showTarget={showTarget}
+        reference={referenceSurfaces}
+        referenceMode={comparisonMode}
       />
 
-      <div className="course-notice geometry-course-notice">
-        <span>LIVE CAUSE → SHAPE</span>
-        <p>{courseNotice}</p>
-      </div>
+      {lastMove ? (
+        <ShapeDeltaStrip before={previousResult} after={result} move={lastMove} />
+      ) : (
+        <div className="course-notice geometry-course-notice">
+          <span>LIVE CAUSE → SHAPE</span>
+          <p>{courseNotice}</p>
+        </div>
+      )}
     </section>
   )
 }

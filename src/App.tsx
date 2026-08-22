@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { BoatView } from './components/BoatView'
+import type { ComparisonMode } from './components/BoatView'
 import { ChallengeDeck } from './components/ChallengeDeck'
 import type { ChallengePhase } from './components/ChallengeDeck'
 import { CoachPanel } from './components/CoachPanel'
@@ -10,7 +11,9 @@ import { MetricsRail } from './components/MetricsRail'
 import { BOATS } from './data/boats'
 import { buildChallengeSetup, getChallenge, TRIM_CHALLENGES } from './domain/challenges'
 import { courseName } from './domain/course'
+import { labSnapshotUrl, parseLabSnapshot } from './domain/labShare'
 import { loadProgress, saveProgress, updateRecord } from './domain/progress'
+import type { ControlMove } from './domain/shapeComparison'
 import { calculateTrim, CONTROL_LABELS, targetControls } from './domain/trimModel'
 import type { BoatClass, ControlKey, TrimControls } from './domain/types'
 
@@ -32,17 +35,38 @@ function challengeFromUrl() {
   return getChallenge(id) ?? TRIM_CHALLENGES[0]
 }
 
+function initialSetup() {
+  const challenge = challengeFromUrl()
+  const shared = typeof window === 'undefined'
+    ? undefined
+    : parseLabSnapshot(window.location.search)
+  const boat = shared?.boat ?? challenge.boat
+  const angle = shared?.angle ?? INITIAL_ANGLE
+  const windSpeed = shared?.windSpeed ?? INITIAL_WIND
+  return {
+    challenge,
+    shared,
+    boat,
+    angle,
+    windSpeed,
+    controls: shared?.controls ?? targetControls(boat, angle, windSpeed),
+  }
+}
+
 function App() {
-  const [activeChallengeId, setActiveChallengeId] = useState(() => challengeFromUrl().id)
+  const [initial] = useState(initialSetup)
+  const [activeChallengeId, setActiveChallengeId] = useState(initial.challenge.id)
   const activeChallenge = getChallenge(activeChallengeId) ?? TRIM_CHALLENGES[0]
-  const [boat, setBoat] = useState<BoatClass>(() => challengeFromUrl().boat)
-  const [angle, setAngle] = useState(INITIAL_ANGLE)
-  const [windSpeed, setWindSpeed] = useState(INITIAL_WIND)
-  const [controls, setControls] = useState<TrimControls>(() =>
-    targetControls(challengeFromUrl().boat, INITIAL_ANGLE, INITIAL_WIND),
-  )
+  const [boat, setBoat] = useState<BoatClass>(initial.boat)
+  const [angle, setAngle] = useState(initial.angle)
+  const [windSpeed, setWindSpeed] = useState(initial.windSpeed)
+  const [controls, setControls] = useState<TrimControls>(initial.controls)
+  const [previousControls, setPreviousControls] = useState<TrimControls>(initial.controls)
   const [lastControl, setLastControl] = useState<ControlKey>('cunningham')
-  const [showTarget, setShowTarget] = useState(true)
+  const [lastMove, setLastMove] = useState<ControlMove>()
+  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>('target')
+  const [labShareStatus, setLabShareStatus] = useState('')
+  const [labMode, setLabMode] = useState(Boolean(initial.shared))
   const [phase, setPhase] = useState<ChallengePhase>('preview')
   const [prediction, setPrediction] = useState<ControlKey>()
   const [moveCount, setMoveCount] = useState(0)
@@ -52,13 +76,18 @@ function App() {
   const [assisted, setAssisted] = useState(false)
   const [shareStatus, setShareStatus] = useState('')
   const [progress, setProgress] = useState(() => loadProgress(browserStorage()))
-  const [courseNotice, setCourseNotice] = useState(
-    '基本角度・艇バランス・センターボードは自動で最適です。風を変え、形状コントロールだけを作り直します。',
-  )
+  const [courseNotice, setCourseNotice] = useState(initial.shared
+    ? `共有された${initial.boat}の形を読み込みました。三面図と断面を見ながら、同じ条件から比較できます。`
+    : '基本角度・艇バランス・センターボードは自動で最適です。風を変え、形状コントロールだけを作り直します。')
+  const controlStartRef = useRef<{ control: ControlKey; controls: TrimControls } | undefined>(undefined)
 
   const result = useMemo(
     () => calculateTrim(boat, angle, windSpeed, controls),
     [angle, boat, controls, windSpeed],
+  )
+  const previousResult = useMemo(
+    () => calculateTrim(boat, angle, windSpeed, previousControls),
+    [angle, boat, previousControls, windSpeed],
   )
 
   useEffect(() => {
@@ -75,12 +104,23 @@ function App() {
     setShareStatus('')
   }
 
+  const resetShapeHistory = (nextControls: TrimControls) => {
+    controlStartRef.current = undefined
+    setPreviousControls(nextControls)
+    setLastMove(undefined)
+    setComparisonMode('target')
+    setLabShareStatus('')
+  }
+
   const selectChallenge = (id: string) => {
     const nextChallenge = getChallenge(id)
     if (!nextChallenge) return
     setActiveChallengeId(nextChallenge.id)
+    setLabMode(false)
     setBoat(nextChallenge.boat)
-    setControls(targetControls(nextChallenge.boat, angle, windSpeed))
+    const nextControls = targetControls(nextChallenge.boat, angle, windSpeed)
+    setControls(nextControls)
+    resetShapeHistory(nextControls)
     setLastControl(nextChallenge.prediction.correctControl)
     setCourseNotice(
       `${BOATS[nextChallenge.boat].name}の基準トリムで課題を確認します。予想後に崩れた条件を読み込みます。`,
@@ -102,9 +142,11 @@ function App() {
     const setup = buildChallengeSetup(activeChallenge)
     const startingResult = calculateTrim(setup.boat, setup.angle, setup.windSpeed, setup.controls)
     setBoat(setup.boat)
+    setLabMode(false)
     setAngle(setup.angle)
     setWindSpeed(setup.windSpeed)
     setControls(setup.controls)
+    resetShapeHistory(setup.controls)
     setLastControl(activeChallenge.prediction.correctControl)
     setPhase('practice')
     setMoveCount(0)
@@ -123,8 +165,10 @@ function App() {
   }
 
   const changeBoat = (nextBoat: BoatClass) => {
+    const nextControls = targetControls(nextBoat, angle, windSpeed)
     setBoat(nextBoat)
-    setControls(targetControls(nextBoat, angle, windSpeed))
+    setControls(nextControls)
+    resetShapeHistory(nextControls)
     setCourseNotice(
       `${BOATS[nextBoat].name}へ切り替えました。現在の風に合う基準トリムから始めます。`,
     )
@@ -138,6 +182,7 @@ function App() {
     const before = courseName(angle)
     const after = courseName(nextAngle)
     setAngle(nextAngle)
+    resetShapeHistory(controls)
     setCourseNotice(
       `${before}から${after}へ変更。基本角度は自動で合いました。深さ・位置・ツイストだけを作り直します。`,
     )
@@ -148,6 +193,7 @@ function App() {
 
   const changeWind = (nextWind: number) => {
     setWindSpeed(nextWind)
+    resetShapeHistory(controls)
     setCourseNotice(
       `風速を${nextWind} ktへ変更。艇は水平のまま、ドラフト深さ・位置・ツイストの差を見ます。`,
     )
@@ -156,9 +202,28 @@ function App() {
     }
   }
 
+  const beginControlChange = (control: ControlKey) => {
+    controlStartRef.current = { control, controls }
+    setPreviousControls(controls)
+    setLastControl(control)
+    setLastMove(undefined)
+    setComparisonMode('target')
+    setLabShareStatus('')
+  }
+
   const changeControl = (control: ControlKey, value: number) => {
     const nextControls = { ...controls, [control]: value }
+    const baseline = controlStartRef.current?.control === control
+      ? controlStartRef.current.controls
+      : controls
+    setPreviousControls(baseline)
     setLastControl(control)
+    setLastMove({
+      control,
+      from: baseline[control],
+      to: value,
+    })
+    setComparisonMode('previous')
     setControls(nextControls)
 
     if (phase !== 'practice') return
@@ -201,7 +266,11 @@ function App() {
   }
 
   const tryBaseline = () => {
+    setPreviousControls(controls)
     setControls(result.targetControls)
+    setLastMove(undefined)
+    setComparisonMode('target')
+    setLabShareStatus('')
     if (phase === 'practice') {
       setAssisted(true)
       setMoveFeedback('基準形を表示しました。自動で完了にはしません。形を観察した後、もう一度チャレンジしてください。')
@@ -249,24 +318,46 @@ function App() {
     }
   }
 
+  const shareCurrentShape = async () => {
+    if (typeof window === 'undefined') return
+    const url = labSnapshotUrl(window.location.href, { boat, angle, windSpeed, controls })
+
+    try {
+      await navigator.clipboard.writeText(url)
+      setLabShareStatus('この風・艇種・各コントロール値のURLをコピーしました。')
+    } catch {
+      const copyField = document.createElement('textarea')
+      copyField.value = url
+      copyField.style.position = 'fixed'
+      copyField.style.opacity = '0'
+      document.body.append(copyField)
+      copyField.select()
+      const copied = document.execCommand('copy')
+      copyField.remove()
+      setLabShareStatus(copied ? 'この形のURLをコピーしました。' : `共有URL: ${url}`)
+    }
+  }
+
   return (
     <div className="app-shell" id="top">
       <a className="skip-link" href="#simulator">セール形状モデルへスキップ</a>
       <Masthead
         boat={boat}
-        lesson={`DRILL ${String(activeChallenge.order).padStart(2, '0')}`}
-        lessonTitle={activeChallenge.title}
+        lesson={labMode ? 'SHARED LAB' : `DRILL ${String(activeChallenge.order).padStart(2, '0')}`}
+        lessonTitle={labMode ? '共有されたセール形状' : activeChallenge.title}
         onBoatChange={changeBoat}
       />
 
       <main>
         <section className="lesson-brief" aria-labelledby="lesson-title">
           <div>
-            <span className="lesson-kicker">TODAY'S QUESTION / {activeChallenge.boat}</span>
-            <h1 id="lesson-title">{activeChallenge.question}</h1>
+            <span className="lesson-kicker">{labMode ? `SHARED SHAPE / ${boat}` : `TODAY'S QUESTION / ${activeChallenge.boat}`}</span>
+            <h1 id="lesson-title">{labMode ? `${boat}・${windSpeed} kt・TWA ${angle}°の形を同じ条件で比較する` : activeChallenge.question}</h1>
           </div>
           <p>
-            基本角度と艇の姿勢は自動で最適に保ちます。形を予想し、一本動かし、断面と速度で確かめます。
+            {labMode
+              ? '艇種・風・形状コントロールを共有URLから復元しました。一本動かし、操作前との差を話し合えます。'
+              : '基本角度と艇の姿勢は自動で最適に保ちます。形を予想し、一本動かし、断面と速度で確かめます。'}
           </p>
           <div className="lesson-loop" aria-label="学習の流れ">
             <span>予想</span><i>→</i><span>動かす</span><i>→</i><span>形を見る</span><i>→</i><span>理由を言う</span>
@@ -290,10 +381,15 @@ function App() {
                 angle={angle}
                 windSpeed={windSpeed}
                 result={result}
+                previousResult={previousResult}
                 courseNotice={courseNotice}
                 focusControl={lastControl}
-                showTarget={showTarget}
-                onToggleTarget={() => setShowTarget((shown) => !shown)}
+                comparisonMode={comparisonMode}
+                hasPrevious={Boolean(lastMove)}
+                lastMove={lastMove}
+                shareStatus={labShareStatus}
+                onComparisonModeChange={setComparisonMode}
+                onShareShape={shareCurrentShape}
               />
               <MetricsRail result={result} />
             </div>
@@ -309,6 +405,7 @@ function App() {
               controls={controls}
               targets={result.targetControls}
               actions={result.actions}
+              onControlChangeStart={beginControlChange}
               onControlChange={changeControl}
             />
               <CoachPanel
@@ -369,6 +466,9 @@ function App() {
               <li><a href="https://www.northsails.co.jp/wordpress/wp-content/uploads/2026/03/420-M12-Tuning-Guide_j.pdf" target="_blank" rel="noreferrer">North Sails Japan — 420 M11 / M12 Tuning Guide</a></li>
               <li><a href="https://www.northsails.com/en-fr/blogs/north-sails-blog/420-tuning-guide" target="_blank" rel="noreferrer">North Sails — 420 Tuning Guide</a></li>
               <li><a href="https://www.northsails.com/en-ca/blogs/north-sails-blog/470-speed-guide" target="_blank" rel="noreferrer">North Sails — 470 Speed Guide</a></li>
+              <li><a href="https://cmst.curtin.edu.au/products/sailtool-software/" target="_blank" rel="noreferrer">Curtin University CMST — SailTool / draft stripe measurement</a></li>
+              <li><a href="https://northu.com/sail-trim-simulator-user-guide/" target="_blank" rel="noreferrer">North U — Sail Trim Simulator User Guide</a></li>
+              <li><a href="https://github.com/flyinggorilla/simulator.atterwind.info" target="_blank" rel="noreferrer">Atterwind — model assumptions and shareable views</a></li>
               <li><a href="https://www.grc.nasa.gov/WWW/k-12/FoilSim/Manual/fsim0007.htm" target="_blank" rel="noreferrer">NASA Glenn — The Lift Coefficient</a></li>
               <li><a href="https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/induced-drag-coefficient/" target="_blank" rel="noreferrer">NASA Glenn — Induced Drag Coefficient</a></li>
               <li><a href="https://doksi.net/en/get.php?lid=34356" target="_blank" rel="noreferrer">Science of the 470 Sailing Performance — VPP / experimental study</a></li>
@@ -378,7 +478,7 @@ function App() {
       </main>
 
       <footer>
-        <span>TRIM NOTE / TRAINING BUILD 0.6</span>
+        <span>TRIM NOTE / TRAINING BUILD 0.7</span>
         <span className="footer-credit">Created by Dit-Lab.</span>
         <p>タック、ジャイブ、レース戦術を扱わず、420 / 470のセール形状づくりに集中しています。</p>
       </footer>

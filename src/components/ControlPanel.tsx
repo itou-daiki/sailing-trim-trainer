@@ -143,7 +143,7 @@ export function ControlPanel({
     <section className="control-panel" aria-labelledby="controls-title">
       <div className="control-panel-head">
         <div className="section-heading">
-          <span className="section-index">D</span>
+          <span className="section-index">C</span>
           <div>
             <p>TRIM CONTROLS</p>
             <h2 id="controls-title">優先順に一本ずつ動かす</h2>

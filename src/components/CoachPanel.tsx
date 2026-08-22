@@ -17,7 +17,7 @@ export function CoachPanel({
   return (
     <aside className={`coach-panel tone-${guidance.tone}`} aria-labelledby="coach-title">
       <div className="section-heading">
-        <span className="section-index">C</span>
+        <span className="section-index">D</span>
         <div>
           <p>COACH'S NOTE</p>
           <h2 id="coach-title">次に直すこと</h2>

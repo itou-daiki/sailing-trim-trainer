@@ -82,6 +82,7 @@ function App() {
     setActiveChallengeId(nextChallenge.id)
     setBoat(nextChallenge.boat)
     setControls(targetControls(nextChallenge.boat, angle, windSpeed))
+    setLastControl(nextChallenge.prediction.correctControl)
     setCourseNotice(
       `${BOATS[nextChallenge.boat].name}の基準トリムで課題を確認します。予想後に崩れた条件を読み込みます。`,
     )
@@ -295,31 +296,35 @@ function App() {
           onShare={shareChallenge}
         />
 
-        <div className="condition-shape-workspace" id="simulator">
-          <CourseBoard
-            angle={angle}
-            windSpeed={windSpeed}
-            onCourseChange={changeCourse}
-            onWindChange={changeWind}
-          />
-          <ShapeLab
-            key={activeChallenge.id}
-            actual={result.actual}
-            target={result.target}
-            showTarget={showTarget}
-            focusControl={result.actions[0]?.control ?? lastControl}
-            onToggleTarget={() => setShowTarget((shown) => !shown)}
-          />
-        </div>
+        <section className="live-training-area" id="simulator" aria-label="セール形状とトリム操作">
+          <div className="condition-bar">
+            <CourseBoard
+              angle={angle}
+              windSpeed={windSpeed}
+              onCourseChange={changeCourse}
+              onWindChange={changeWind}
+            />
+          </div>
 
-        <div className="action-workspace">
-          <CoachPanel
-            guidance={result.guidance}
-            efficiency={result.metrics.efficiency}
-            actions={result.actions}
-            onShowBaseline={tryBaseline}
-          />
-          <div className="adjustment-stack">
+          <div className="trim-workbench">
+            <div className="live-visual-column">
+              <ShapeLab
+                key={activeChallenge.id}
+                actual={result.actual}
+                target={result.target}
+                showTarget={showTarget}
+                focusControl={lastControl}
+                onToggleTarget={() => setShowTarget((shown) => !shown)}
+              />
+              <MetricsRail result={result} />
+            </div>
+
+            <div className="live-control-column">
+              <div className="workbench-cue" aria-hidden="true">
+                <span>一本動かす</span>
+                <i>↔</i>
+                <strong>形が変わる</strong>
+              </div>
             <ControlPanel
               boat={boat}
               controls={controls}
@@ -327,9 +332,15 @@ function App() {
               actions={result.actions}
               onControlChange={changeControl}
             />
-            <MetricsRail result={result} />
+              <CoachPanel
+                guidance={result.guidance}
+                efficiency={result.metrics.efficiency}
+                actions={result.actions}
+                onShowBaseline={tryBaseline}
+              />
+            </div>
           </div>
-        </div>
+        </section>
 
         <BoatView
           boat={boat}

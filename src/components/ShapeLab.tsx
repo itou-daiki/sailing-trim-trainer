@@ -180,8 +180,8 @@ export function ShapeLab({
         <div className="section-heading">
           <span className="section-index">B</span>
           <div>
-            <p>SAILMAKER'S LIGHT TABLE</p>
-            <h2 id="shape-title">一本のドラフトストライプを大きく読む</h2>
+            <p>LIVE SHAPE MONITOR</p>
+            <h2 id="shape-title">動かしながら形を見る</h2>
           </div>
         </div>
         <button

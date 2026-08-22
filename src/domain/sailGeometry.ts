@@ -24,6 +24,7 @@ export type SurfacePoint = {
 export type SurfaceRow = {
   height: number
   level?: SailLevel
+  battenStartU?: number
   section: SailSection
   points: SurfacePoint[]
 }
@@ -51,7 +52,103 @@ export type ProjectedSurface = {
 
 export const SIDE_OBLIQUE_DEGREES = 18
 export const SIDE_ELEVATION_DEGREES = 12
+export const AFT_OBLIQUE_DEGREES = 35
 export const DRAFT_PEAK_COLUMN = 10
+export const SAIL_GEOMETRY_UNIT_MM = 1900
+
+type MainCrossWidth = {
+  height: number
+  widthMm: number
+}
+
+type BattenStation = {
+  height: number
+  startU: number
+}
+
+type ClassSailSpecification = {
+  main: {
+    leechMm: number
+    footMm: number
+    crossWidths: MainCrossWidth[]
+    battens: BattenStation[]
+  }
+  jib: {
+    luffMm: number
+    leechMm: number
+    footMm: number
+    topWidthMm: number
+    battens: BattenStation[]
+  }
+}
+
+/**
+ * Representative planforms taken from the current World Sailing class-rule
+ * measurement envelopes. Cross widths are placed at their ERS leech stations.
+ * They define the flat sail outline; depth and twist remain the live trim model.
+ */
+export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification> = {
+  '420': {
+    main: {
+      leechMm: 5400,
+      footMm: 1920,
+      crossWidths: [
+        { height: 0, widthMm: 1920 },
+        { height: 0.25, widthMm: 2130 },
+        { height: 0.5, widthMm: 1630 },
+        { height: 0.75, widthMm: 995 },
+        { height: 1 - 600 / 5400, widthMm: 480 },
+        { height: 1, widthMm: 115 },
+      ],
+      battens: [
+        { height: 1 - 4220 / 5400, startU: 0.74 },
+        { height: 1 - 3220 / 5400, startU: 0.59 },
+        { height: 1 - 2220 / 5400, startU: 0.55 },
+        { height: 1 - 1220 / 5400, startU: 0.1 },
+      ],
+    },
+    jib: {
+      luffMm: 3500,
+      leechMm: 3200,
+      footMm: 1750,
+      topWidthMm: 40,
+      battens: [
+        { height: 0.25, startU: 0.8 },
+        { height: 0.5, startU: 0.8 },
+        { height: 0.75, startU: 0.8 },
+      ],
+    },
+  },
+  '470': {
+    main: {
+      leechMm: 6265,
+      footMm: 2200,
+      crossWidths: [
+        { height: 0, widthMm: 2200 },
+        { height: 0.25, widthMm: 2340 },
+        { height: 0.5, widthMm: 1790 },
+        { height: 0.75, widthMm: 1050 },
+        { height: 1, widthMm: 140 },
+      ],
+      battens: [
+        { height: 0.25, startU: 0.58 },
+        { height: 0.5, startU: 0.48 },
+        { height: 0.72, startU: 0.08 },
+      ],
+    },
+    jib: {
+      luffMm: 4100,
+      leechMm: 3750,
+      footMm: 1955,
+      topWidthMm: 30,
+      battens: [
+        { height: 0.25, startU: 0.8 },
+        { height: 0.5, startU: 0.8 },
+        { height: 0.75, startU: 0.8 },
+      ],
+    },
+  },
+}
 
 const ROW_HEIGHTS = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]
 const POINT_COUNT = 25
@@ -102,6 +199,26 @@ function chordSample(column: number, peakPosition: number) {
       (1 - peakPosition)
 }
 
+function piecewiseWidth(stations: MainCrossWidth[], height: number) {
+  const h = clamp(height, 0, 1)
+  const upperIndex = stations.findIndex((station) => station.height >= h)
+  if (upperIndex <= 0) return stations[0].widthMm
+  const lower = stations[upperIndex - 1]
+  const upper = stations[upperIndex]
+  const amount = (h - lower.height) / (upper.height - lower.height)
+  return lerp(lower.widthMm, upper.widthMm, amount)
+}
+
+function jibTriangle(specification: ClassSailSpecification['jib']) {
+  const { luffMm, leechMm, footMm } = specification
+  const headOffsetMm =
+    (luffMm ** 2 + footMm ** 2 - leechMm ** 2) / (2 * footMm)
+  return {
+    headOffsetMm,
+    headHeightMm: Math.sqrt(Math.max(0, luffMm ** 2 - headOffsetMm ** 2)),
+  }
+}
+
 export function camberAt(u: number, depth: number, position: number) {
   const peak = clamp(position, 0.05, 0.95)
   if (u <= peak) {
@@ -116,23 +233,28 @@ function planform(
   height: number,
   mastBend: number,
 ) {
-  const classScale = boat === '470' ? 1.035 : 1
+  const specification = CLASS_SAIL_SPECIFICATIONS[boat]
 
   if (sail === 'main') {
     const luffX = -mastBend * Math.sin(Math.PI * height)
+    const measuredWidth = piecewiseWidth(specification.main.crossWidths, height)
     return {
       luffX,
       luffY: 0,
-      z: height * 1.2 * classScale,
-      chord: (Math.max(0.075, 1 - 0.925 * height ** 1.12) - luffX * 0.35) * classScale,
+      z: (height * specification.main.leechMm) / SAIL_GEOMETRY_UNIT_MM,
+      chord: measuredWidth / SAIL_GEOMETRY_UNIT_MM - luffX * 0.35,
     }
   }
 
+  const jib = specification.jib
+  const triangle = jibTriangle(jib)
+  const foot = jib.footMm / SAIL_GEOMETRY_UNIT_MM
+  const tackX = 0.05 - foot
   return {
-    luffX: (-0.72 + 0.63 * height) * classScale,
+    luffX: tackX + (triangle.headOffsetMm / SAIL_GEOMETRY_UNIT_MM) * height,
     luffY: 0,
-    z: (0.04 + height * 0.91) * classScale,
-    chord: (0.55 * (1 - height ** 1.06) + 0.018) * classScale,
+    z: 0.04 + (triangle.headHeightMm / SAIL_GEOMETRY_UNIT_MM) * height,
+    chord: lerp(jib.footMm, jib.topWidthMm, height) / SAIL_GEOMETRY_UNIT_MM,
   }
 }
 
@@ -141,7 +263,12 @@ export function buildSailSurface(
   sail: SailKey,
   shape: SailShape,
 ): SailSurface {
-  const rows = ROW_HEIGHTS.map((height, rowIndex): SurfaceRow => {
+  const battens = CLASS_SAIL_SPECIFICATIONS[boat][sail].battens
+  const rowHeights = [...new Set([
+    ...ROW_HEIGHTS,
+    ...battens.map((batten) => batten.height),
+  ])].sort((a, b) => a - b)
+  const rows = rowHeights.map((height, rowIndex): SurfaceRow => {
     const section = sectionAtHeight(shape, height)
     const rig = planform(boat, sail, height, shape.mastBend)
     const angle = ((shape.angle + section.twist) * Math.PI) / 180
@@ -151,6 +278,9 @@ export function buildSailSurface(
     const normalY = chordX
     const level = (Object.entries(LEVEL_HEIGHTS) as Array<[SailLevel, number]>)
       .find(([, levelHeight]) => levelHeight === height)?.[0]
+    const battenStartU = battens.find(
+      (batten) => Math.abs(batten.height - height) < 1e-9,
+    )?.startU
 
     const points = Array.from({ length: POINT_COUNT }, (_, column) => {
       const u = chordSample(column, section.draftPosition)
@@ -168,7 +298,7 @@ export function buildSailSurface(
       }
     })
 
-    return { height, level, section, points }
+    return { height, level, battenStartU, section, points }
   })
 
   return { sail, rows }
@@ -244,6 +374,7 @@ export function projectSurface(
 ): ProjectedSurface {
   const oblique = (SIDE_OBLIQUE_DEGREES * Math.PI) / 180
   const elevation = (SIDE_ELEVATION_DEGREES * Math.PI) / 180
+  const aftOblique = (AFT_OBLIQUE_DEGREES * Math.PI) / 180
   return {
     sail: surface.sail,
     view,
@@ -261,7 +392,11 @@ export function projectSurface(
               point.z * Math.cos(elevation),
           }
         }
-        return { ...point, x: point.y, y: point.z }
+        return {
+          ...point,
+          x: point.y * Math.cos(aftOblique) + point.x * Math.sin(aftOblique),
+          y: point.z,
+        }
       }),
     })),
   }

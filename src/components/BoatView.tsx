@@ -1,10 +1,13 @@
 import type { CSSProperties } from 'react'
 import {
+  AFT_OBLIQUE_DEGREES,
   buildRigSurfaces,
+  CLASS_SAIL_SPECIFICATIONS,
   DRAFT_PEAK_COLUMN,
   getLevelRow,
   measureSurfaceRow,
   projectSurface,
+  SAIL_GEOMETRY_UNIT_MM,
 } from '../domain/sailGeometry'
 import {
   compareShapeChange,
@@ -64,9 +67,9 @@ const VIEW_META: Record<
   },
   aft: {
     index: '03',
-    view: 'AFT / 後ろから',
-    title: '高さごとのツイスト',
-    note: '上・中・下の開き角を比べる',
+    view: `AFT ${AFT_OBLIQUE_DEGREES}° / 後ろ斜め`,
+    title: 'ツイストとリーチ',
+    note: `艇尾の風下側${AFT_OBLIQUE_DEGREES}°。上・中・下を重ねて見る`,
   },
 }
 
@@ -83,15 +86,18 @@ function createMapper(
   width: number,
   height: number,
   view: ProjectionView,
+  boat: BoatClass,
 ): Mapper {
   const points = surfaces.flatMap((surface) =>
     surface.rows.flatMap((row) => row.points),
   )
+  const classScale = boat === '470' ? 1.12 : 1
+  const rigHeight = CLASS_SAIL_SPECIFICATIONS[boat].main.leechMm / SAIL_GEOMETRY_UNIT_MM
   const extra = view === 'top'
-    ? [{ x: -1.08, y: -0.22 }, { x: 1.22, y: 0.22 }]
+    ? [{ x: -1.12 * classScale, y: -0.24 }, { x: 1.28 * classScale, y: 0.24 }]
     : view === 'side'
-      ? [{ x: -1.08, y: -0.14 }, { x: 1.22, y: 1.28 }]
-      : [{ x: -0.32, y: -0.14 }, { x: 1.05, y: 1.28 }]
+      ? [{ x: -1.12 * classScale, y: -0.16 }, { x: 1.28 * classScale, y: rigHeight + 0.1 }]
+      : [{ x: -0.58, y: -0.16 }, { x: 0.66, y: rigHeight + 0.1 }]
   const all = [...points, ...extra]
   const minX = Math.min(...all.map((point) => point.x))
   const maxX = Math.max(...all.map((point) => point.x))
@@ -128,7 +134,9 @@ function outlinePoints(surface: ProjectedSurface) {
   return [...lower, ...leech, ...top, ...luff]
 }
 
-function projectedRigGuides(view: ProjectionView, map: Mapper) {
+function projectedRigGuides(view: ProjectionView, map: Mapper, boat: BoatClass) {
+  const classScale = boat === '470' ? 1.12 : 1
+  const rigHeight = CLASS_SAIL_SPECIFICATIONS[boat].main.leechMm / SAIL_GEOMETRY_UNIT_MM
   const line = (points: Array<{ x: number; y: number }>) => {
     const mapped = points.map(map)
     return `M${mapped.map((point) => `${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join('L')}`
@@ -137,9 +145,10 @@ function projectedRigGuides(view: ProjectionView, map: Mapper) {
   if (view === 'top') {
     return {
       hull: line([
-        { x: -1.05, y: 0 }, { x: -0.82, y: -0.12 },
-        { x: 0.98, y: -0.11 }, { x: 1.18, y: 0 },
-        { x: 0.98, y: 0.11 }, { x: -0.82, y: 0.12 }, { x: -1.05, y: 0 },
+        { x: -1.1 * classScale, y: 0 }, { x: -0.86 * classScale, y: -0.12 },
+        { x: 1.02 * classScale, y: -0.11 }, { x: 1.24 * classScale, y: 0 },
+        { x: 1.02 * classScale, y: 0.11 }, { x: -0.86 * classScale, y: 0.12 },
+        { x: -1.1 * classScale, y: 0 },
       ]),
       mast: line([{ x: 0, y: -0.15 }, { x: 0, y: 0.15 }]),
       water: '',
@@ -148,20 +157,21 @@ function projectedRigGuides(view: ProjectionView, map: Mapper) {
   if (view === 'side') {
     return {
       hull: line([
-        { x: -1.02, y: -0.02 }, { x: -0.65, y: -0.12 },
-        { x: 0.96, y: -0.11 }, { x: 1.18, y: -0.02 }, { x: -1.02, y: -0.02 },
+        { x: -1.08 * classScale, y: -0.02 }, { x: -0.68 * classScale, y: -0.12 },
+        { x: 1.02 * classScale, y: -0.11 }, { x: 1.24 * classScale, y: -0.02 },
+        { x: -1.08 * classScale, y: -0.02 },
       ]),
-      mast: line([{ x: 0, y: -0.02 }, { x: -0.018, y: 1.22 }]),
-      water: line([{ x: -1.08, y: -0.14 }, { x: 1.22, y: -0.14 }]),
+      mast: line([{ x: 0, y: -0.02 }, { x: 0, y: rigHeight }]),
+      water: line([{ x: -1.12 * classScale, y: -0.14 }, { x: 1.28 * classScale, y: -0.14 }]),
     }
   }
   return {
     hull: line([
-      { x: -0.3, y: -0.02 }, { x: -0.2, y: -0.13 },
-      { x: 0.2, y: -0.13 }, { x: 0.3, y: -0.02 }, { x: -0.3, y: -0.02 },
+      { x: -0.42, y: -0.02 }, { x: -0.26, y: -0.14 },
+      { x: 0.24, y: -0.13 }, { x: 0.46, y: -0.02 }, { x: -0.42, y: -0.02 },
     ]),
-    mast: line([{ x: 0, y: -0.02 }, { x: 0, y: 1.22 }]),
-    water: line([{ x: -0.32, y: -0.14 }, { x: 1.05, y: -0.14 }]),
+    mast: line([{ x: 0, y: -0.02 }, { x: 0, y: rigHeight }]),
+    water: line([{ x: -0.58, y: -0.15 }, { x: 0.66, y: -0.15 }]),
   }
 }
 
@@ -231,6 +241,13 @@ function SurfaceLayer({
           d={path(row.points, map)}
         />
       )) : null}
+      {!target ? surface.rows.filter((row) => row.battenStartU !== undefined).map((row) => (
+        <path
+          key={`batten-${row.height}`}
+          className="geometry-batten"
+          d={path(row.points.filter((point) => point.u >= row.battenStartU!), map)}
+        />
+      )) : null}
       {!target ? (
         <path className="geometry-draft-spine" d={path(peakPoints, map)} />
       ) : null}
@@ -259,17 +276,19 @@ function ProjectionPanel({
   reference,
   active,
   referenceMode,
+  boat,
 }: {
   view: ProjectionView
   actual: RigSurfaces
   reference: RigSurfaces
   active: Focus
   referenceMode: ComparisonMode
+  boat: BoatClass
 }) {
   const dimensions: Record<ProjectionView, { width: number; height: number }> = {
     top: { width: 760, height: 160 },
-    side: { width: 520, height: 300 },
-    aft: { width: 300, height: 300 },
+    side: { width: 500, height: 330 },
+    aft: { width: 420, height: 330 },
   }
   const { width, height } = dimensions[view]
   const actualProjected = [
@@ -285,9 +304,11 @@ function ProjectionPanel({
     width,
     height,
     view,
+    boat,
   )
-  const guides = projectedRigGuides(view, map)
+  const guides = projectedRigGuides(view, map, boat)
   const meta = VIEW_META[view]
+  const classSails = CLASS_SAIL_SPECIFICATIONS[boat]
   const actualMast = actualProjected
     .find((surface) => surface.sail === 'main')!
     .rows.map((row) => row.points[0])
@@ -299,7 +320,10 @@ function ProjectionPanel({
     <figure className={`geometry-panel geometry-panel-${view}`}>
       <figcaption>
         <span>{meta.index}</span>
-        <div><strong>{meta.view}</strong><small>{meta.title}</small></div>
+        <div>
+          <strong>{meta.view}</strong>
+          <small>{meta.title}{view === 'aft' ? ` · ${boat} M${classSails.main.battens.length} / J${classSails.jib.battens.length}バテン` : ''}</small>
+        </div>
       </figcaption>
       <svg
         viewBox={`0 0 ${width} ${height}`}
@@ -471,8 +495,8 @@ export function BoatView({
         <div className="section-heading light-heading">
           <span className="section-index">B</span>
           <div>
-            <p>SAILMAKER'S SHAPE BENCH / THREE CAMERAS</p>
-            <h2 id="boat-view-title">動かしながら、同じ断面を三方向で見る</h2>
+            <p>CLASS-RULE SAIL PLAN / THREE CAMERAS</p>
+            <h2 id="boat-view-title">420 / 470を、三方向で見てトリム</h2>
           </div>
         </div>
         <div className="geometry-head-tools">
@@ -501,6 +525,7 @@ export function BoatView({
             reference={referenceSurfaces}
             active={active}
             referenceMode={comparisonMode}
+            boat={boat}
           />
         ))}
       </div>

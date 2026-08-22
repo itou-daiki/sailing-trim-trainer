@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { CONTROL_EFFECTS, CONTROL_LABELS } from '../domain/trimModel'
-import type { ControlKey, SailShape } from '../domain/types'
+import type { ControlKey, SailLevel, SailShape } from '../domain/types'
 
 type SailKey = 'main' | 'jib'
-type LevelKey = 'upper' | 'middle' | 'lower'
+type LevelKey = SailLevel
 
 type ShapeLabProps = {
   actual: { main: SailShape; jib: SailShape }
@@ -17,12 +17,10 @@ const LEVELS: Array<{
   id: LevelKey
   label: string
   height: string
-  depthModifier: number
-  twistModifier: number
 }> = [
-  { id: 'upper', label: '上部', height: '75%', depthModifier: 0.76, twistModifier: 1 },
-  { id: 'middle', label: '中部', height: '50%', depthModifier: 1, twistModifier: 0.52 },
-  { id: 'lower', label: '下部', height: '25%', depthModifier: 1.08, twistModifier: 0.12 },
+  { id: 'upper', label: '上部', height: '75%' },
+  { id: 'middle', label: '中部', height: '50%' },
+  { id: 'lower', label: '下部', height: '25%' },
 ]
 
 const CONTROL_FOCUS: Partial<Record<ControlKey, { sail: SailKey; level: LevelKey }>> = {
@@ -37,11 +35,8 @@ const CONTROL_FOCUS: Partial<Record<ControlKey, { sail: SailKey; level: LevelKey
 }
 
 function sectionReading(shape: SailShape, level: (typeof LEVELS)[number]) {
-  return {
-    depth: shape.draftDepth * level.depthModifier,
-    position: shape.draftPosition,
-    twist: shape.twist * level.twistModifier,
-  }
+  const section = shape.sections[level.id]
+  return { depth: section.draftDepth, position: section.draftPosition, twist: section.twist }
 }
 
 function shapePath(depth: number, position: number) {
@@ -111,7 +106,7 @@ function TwistPlot({
   showTarget: boolean
 }) {
   const line = (twist: number, level: (typeof LEVELS)[number], y: number) => {
-    const angle = twist * level.twistModifier
+    const angle = twist
     const radians = (angle * Math.PI) / 180
     return {
       x2: 74 + Math.cos(radians) * 180,
@@ -130,8 +125,8 @@ function TwistPlot({
         <path className="twist-mast" d="M58 20V226" />
         {LEVELS.map((level, index) => {
           const y = 75 + index * 70
-          const currentLine = line(actual.twist, level, y)
-          const targetLine = line(target.twist, level, y)
+          const currentLine = line(actual.sections[level.id].twist, level, y)
+          const targetLine = line(target.sections[level.id].twist, level, y)
           return (
             <g key={level.id}>
               <path className="twist-zero" d={`M74 ${y}H292`} />

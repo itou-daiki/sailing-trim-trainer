@@ -3461,3 +3461,387 @@ footer p { margin: 0; }
     grid-template-columns: 1fr;
   }
 }
+
+/* Observation dock: switch between a measured section and three live projections. */
+.visual-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  min-height: 42px;
+  color: #aac0c2;
+  background: var(--deep);
+  border: 1px solid #173d47;
+}
+
+.visual-mode-switch > span {
+  align-self: center;
+  padding: 0 13px;
+  color: var(--aqua);
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.1em;
+}
+
+.visual-mode-switch button {
+  min-width: 118px;
+  min-height: 42px;
+  padding: 7px 13px;
+  color: #b8c9ca;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid #31505a;
+  cursor: pointer;
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+
+.visual-mode-switch button:hover {
+  color: var(--sail);
+  background: #123d49;
+}
+
+.visual-mode-switch button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 3px solid var(--orange);
+  outline-offset: -3px;
+}
+
+.visual-mode-switch button.is-active {
+  color: var(--ink);
+  background: var(--aqua);
+}
+
+.visual-panel,
+.visual-panel > .boat-view,
+.visual-panel > .shape-lab {
+  min-width: 0;
+}
+
+.visual-panel[hidden] {
+  display: none;
+}
+
+.live-visual-column .boat-view {
+  min-height: 615px;
+}
+
+.live-visual-column .boat-view-head {
+  padding: 12px 14px 10px;
+}
+
+.live-visual-column .boat-canvas {
+  min-height: 468px;
+  padding: 7px 7px 0;
+}
+
+.live-visual-column .projection-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: minmax(410px, 1fr);
+  min-height: 410px;
+  gap: 6px;
+}
+
+.live-visual-column .projection-top,
+.live-visual-column .projection-side,
+.live-visual-column .projection-aft {
+  grid-row: auto;
+  grid-column: auto;
+}
+
+.live-visual-column .projection-caption {
+  min-height: 47px;
+}
+
+.live-visual-column .projection-guide {
+  min-height: 36px;
+  margin-top: 6px;
+}
+
+.live-visual-column .course-notice {
+  min-height: 52px;
+  padding: 9px 13px;
+}
+
+@media (max-width: 1120px) {
+  .live-visual-column .boat-view { min-height: 560px; }
+
+  .live-visual-column .boat-canvas { min-height: 420px; }
+
+  .live-visual-column .projection-grid {
+    grid-template-rows: minmax(365px, 1fr);
+    min-height: 365px;
+  }
+
+  .live-visual-column .projection-caption {
+    grid-template-columns: 1fr;
+    min-height: 52px;
+  }
+
+  .live-visual-column .projection-caption strong {
+    justify-self: start;
+  }
+
+  .live-visual-column .projection-caption small {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .live-visual-column {
+    gap: 6px;
+  }
+
+  .visual-mode-switch {
+    grid-template-columns: 1fr 1fr;
+    min-height: 38px;
+    border-top: 5px solid var(--orange);
+  }
+
+  .visual-mode-switch > span {
+    display: none;
+  }
+
+  .visual-mode-switch button {
+    min-width: 0;
+    min-height: 36px;
+    padding: 5px 8px;
+    border-left: 0;
+  }
+
+  .visual-mode-switch button + button {
+    border-left: 1px solid #31505a;
+  }
+
+  .live-visual-column .boat-view {
+    height: 254px;
+    min-height: 254px;
+    border-top: 0;
+  }
+
+  .live-visual-column .boat-view-head {
+    min-height: 39px;
+    padding: 6px 8px;
+  }
+
+  .live-visual-column .boat-view-head .section-index,
+  .live-visual-column .boat-view-head .section-heading p,
+  .live-visual-column .course-notice,
+  .live-visual-column .projection-guide,
+  .live-visual-column .canvas-key {
+    display: none;
+  }
+
+  .live-visual-column .boat-view-head h2 {
+    margin: 0;
+    font-size: 0.75rem;
+  }
+
+  .live-visual-column .apparent-readout {
+    column-gap: 5px;
+  }
+
+  .live-visual-column .apparent-readout span {
+    font-size: 0.44rem;
+  }
+
+  .live-visual-column .apparent-readout strong {
+    font-size: 0.82rem;
+  }
+
+  .live-visual-column .apparent-readout small {
+    font-size: 0.5rem;
+  }
+
+  .live-visual-column .boat-canvas {
+    height: 214px;
+    min-height: 214px;
+    padding: 4px;
+  }
+
+  .live-visual-column .projection-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: 206px;
+    min-height: 206px;
+    height: 206px;
+    gap: 3px;
+  }
+
+  .live-visual-column .projection-frame {
+    min-height: 0;
+  }
+
+  .live-visual-column .projection-caption {
+    display: block;
+    min-height: 35px;
+    padding: 4px 5px;
+  }
+
+  .live-visual-column .projection-caption span {
+    display: block;
+    font-size: 0.42rem;
+  }
+
+  .live-visual-column .projection-caption strong {
+    display: block;
+    margin-top: 2px;
+    overflow: hidden;
+    font-size: 0.49rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .live-visual-column .projection-caption small,
+  .live-visual-column .svg-caption,
+  .live-visual-column .force-label,
+  .live-visual-column .boat-class-label,
+  .live-visual-column .shape-callout,
+  .live-visual-column .shape-callout-value,
+  .live-visual-column .projection-note {
+    display: none;
+  }
+}
+
+/* Sailmaker sheet: white sail cloth, measured stripes, and a reference overlay. */
+.live-visual-column .boat-view {
+  color: var(--ink);
+  background: #f4f7f4;
+  border-color: var(--line-dark);
+}
+
+.live-visual-column .boat-view::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cpath d='M32 0H0v32' fill='none' stroke='%23d8e1df' stroke-width='.6'/%3E%3C/svg%3E");
+  opacity: 0.65;
+}
+
+.live-visual-column .boat-view-head {
+  background: #edf2ef;
+  border-bottom-color: var(--line-dark);
+}
+
+.live-visual-column .light-heading .section-index {
+  color: var(--sail);
+  background: var(--ink);
+}
+
+.live-visual-column .light-heading p { color: var(--muted); }
+.live-visual-column .light-heading h2 { color: var(--ink); }
+
+.projection-live-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+  justify-content: flex-end;
+  color: #51696e;
+  font-family: var(--mono);
+  font-size: 0.53rem;
+}
+
+.projection-live-key span {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.projection-live-key i {
+  display: inline-block;
+  width: 20px;
+}
+
+.current-shape-key { border-top: 3px solid var(--orange); }
+.reference-shape-key { border-top: 2px dashed #187a72; }
+
+.live-visual-column .projection-frame {
+  background: rgba(250, 252, 249, 0.96);
+  border-color: #9aacac;
+}
+
+.live-visual-column .projection-caption {
+  color: #4c6368;
+  background: #e7ece9;
+  border-bottom-color: #b8c6c4;
+}
+
+.live-visual-column .projection-caption span { color: #14766d; }
+.live-visual-column .projection-caption strong { color: var(--ink); }
+.live-visual-column .projection-caption small { color: #607579; }
+
+.live-visual-column .projection-guide {
+  color: #526b70;
+  background: #edf2ef;
+  border-top-color: #b8c6c4;
+}
+
+.live-visual-column .projection-guide span { border-right-color: #b8c6c4; }
+.live-visual-column .projection-guide strong { color: #14766d; }
+
+.live-visual-column .course-notice {
+  color: var(--ink);
+  background: #ccebe5;
+  border-top-color: #8bcfc6;
+}
+
+.projection-target-shape,
+.aft-target-shape {
+  fill: none;
+  stroke: #167b72;
+  stroke-width: 2.2;
+  stroke-dasharray: 7 5;
+  vector-effect: non-scaling-stroke;
+}
+
+.projection-target-stripes {
+  stroke: #167b72;
+  stroke-width: 1.6;
+  stroke-dasharray: 6 4;
+  opacity: 0.85;
+}
+
+.sail-plan-label {
+  fill: #496267;
+  font-family: var(--mono);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.live-visual-column .water-traces path { stroke: #c4d2d0; }
+.live-visual-column .svg-caption,
+.live-visual-column .boat-class-label { fill: #587277; }
+.live-visual-column .force-label { fill: #334f55; }
+.live-visual-column .hull-shadow,
+.live-visual-column .side-hull-shadow,
+.live-visual-column .aft-hull-shadow { fill: #cad4d1; }
+.live-visual-column .hull,
+.live-visual-column .side-hull,
+.live-visual-column .aft-hull { fill: #f7f8f3; stroke: #536d71; }
+.live-visual-column .cockpit { fill: #d4ddda; stroke: #536d71; }
+.live-visual-column .deck-line,
+.live-visual-column .side-cockpit,
+.live-visual-column .aft-deck { stroke: #72898c; }
+.live-visual-column .main-sail,
+.live-visual-column .side-main { fill: rgba(255, 255, 250, 0.9); stroke: #294b52; }
+.live-visual-column .jib-sail,
+.live-visual-column .side-jib { fill: rgba(221, 238, 234, 0.76); stroke: #447a7c; }
+.live-visual-column .aft-main { fill: rgba(221, 238, 234, 0.8); stroke: #294b52; }
+.live-visual-column .side-waterline,
+.live-visual-column .aft-waterline { stroke: #90aaa9; }
+.live-visual-column .side-mast-reference { stroke: #97aaa9; }
+.live-visual-column .side-forestay,
+.live-visual-column .aft-leech { stroke: #587478; }
+.live-visual-column .shape-callout,
+.live-visual-column .heel-label { fill: #314e54; }
+.live-visual-column .shape-callout-value,
+.live-visual-column .projection-note { fill: #5b7377; }
+
+@media (max-width: 720px) {
+  .projection-live-key {
+    gap: 3px 7px;
+    font-size: 0.42rem;
+  }
+
+  .projection-live-key i { width: 13px; }
+
+  .live-visual-column .sail-plan-label {
+    display: none;
+  }
+}

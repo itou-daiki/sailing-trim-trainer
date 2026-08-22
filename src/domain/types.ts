@@ -19,11 +19,21 @@ export type ControlKey =
 
 export type TrimControls = Record<ControlKey, number>
 
+export type SailLevel = 'upper' | 'middle' | 'lower'
+
+export type SailSection = {
+  height: number
+  draftDepth: number
+  draftPosition: number
+  twist: number
+}
+
 export type SailShape = {
   angle: number
   draftDepth: number
   draftPosition: number
   twist: number
+  sections: Record<SailLevel, SailSection>
 }
 
 export type SailPair = {

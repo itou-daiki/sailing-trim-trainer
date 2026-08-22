@@ -31,6 +31,34 @@ const pointFromAngle = (
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value))
 
+function curvedPlanPath(
+  originX: number,
+  originY: number,
+  endX: number,
+  endY: number,
+  depth: number,
+  position: number,
+) {
+  const points: string[] = []
+  const dx = endX - originX
+  const dy = endY - originY
+  const chord = Math.hypot(dx, dy)
+  const peakPosition = clamp(position, 0.05, 0.95)
+  const normalX = dy / chord
+  const normalY = -dx / chord
+
+  for (let index = 0; index <= 24; index += 1) {
+    const ratio = index / 24
+    const rise = ratio <= peakPosition
+      ? Math.sin((ratio / peakPosition) * (Math.PI / 2))
+      : Math.sin(((1 - ratio) / (1 - peakPosition)) * (Math.PI / 2))
+    const camber = rise * depth * chord
+    points.push(`${originX + dx * ratio + normalX * camber},${originY + dy * ratio + normalY * camber}`)
+  }
+
+  return `M${points.join(' L')}`
+}
+
 function ProjectionCaption({
   view,
   title,
@@ -56,18 +84,51 @@ function TopProjection({
   result,
 }: ProjectionProps & { angle: number; windSpeed: number }) {
   const mainEnd = pointFromAngle(260, 215, 196, result.actual.main.angle)
-  const mainMid = pointFromAngle(260, 215, 105, result.actual.main.angle + 6)
   const jibEnd = pointFromAngle(260, 203, 108, result.actual.jib.angle)
+  const targetMainEnd = pointFromAngle(260, 215, 196, result.target.main.angle)
+  const targetJibEnd = pointFromAngle(260, 203, 108, result.target.jib.angle)
+  const mainCurve = curvedPlanPath(
+    260,
+    215,
+    mainEnd.x,
+    mainEnd.y,
+    result.actual.main.draftDepth,
+    result.actual.main.draftPosition,
+  )
+  const jibCurve = curvedPlanPath(
+    260,
+    203,
+    jibEnd.x,
+    jibEnd.y,
+    result.actual.jib.draftDepth,
+    result.actual.jib.draftPosition,
+  )
+  const targetMainCurve = curvedPlanPath(
+    260,
+    215,
+    targetMainEnd.x,
+    targetMainEnd.y,
+    result.target.main.draftDepth,
+    result.target.main.draftPosition,
+  )
+  const targetJibCurve = curvedPlanPath(
+    260,
+    203,
+    targetJibEnd.x,
+    targetJibEnd.y,
+    result.target.jib.draftDepth,
+    result.target.jib.draftPosition,
+  )
   const driveLength = 42 + result.metrics.drive * 0.8
 
   return (
     <figure className="projection-frame projection-top">
       <ProjectionCaption
         view="01 / TOP"
-        title="基本角度（自動）"
-        value={`MAIN ${Math.round(result.actual.main.angle)}° · JIB ${Math.round(result.actual.jib.angle)}°`}
+        title="平面のふくらみ"
+        value={`深さ ${(result.actual.main.draftDepth * 100).toFixed(1)}% · 位置 ${Math.round(result.actual.main.draftPosition * 100)}%`}
       />
-      <svg viewBox="0 0 560 520" role="img" aria-label={`${boat}を上から見たセール角度と力の模式図`}>
+      <svg viewBox="0 0 560 520" role="img" aria-label={`${boat}を上から見たセールのふくらみ。深さ${(result.actual.main.draftDepth * 100).toFixed(1)}%、最大深さ位置${Math.round(result.actual.main.draftPosition * 100)}%`}>
         <defs>
           <marker id="force-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M 0 0 L 10 5 L 0 10 z" />
@@ -103,13 +164,15 @@ function TopProjection({
         <path className="deck-line" d="M260 62V444M230 205H290" />
         <circle cx="260" cy="215" r="8" className="mast" />
 
+        <path className="projection-target-shape" d={targetJibCurve} />
+        <path className="projection-target-shape" d={targetMainCurve} />
         <path
           className="jib-sail"
-          d={`M260 72L260 203Q${jibEnd.x - 20} ${jibEnd.y - 18} ${jibEnd.x} ${jibEnd.y}Z`}
+          d={`${jibCurve}L260 203Z`}
         />
         <path
           className="main-sail"
-          d={`M260 215Q${mainMid.x + 24} ${mainMid.y - 18} ${mainEnd.x} ${mainEnd.y}L${mainEnd.x - 8} ${mainEnd.y + 8}Q${mainMid.x} ${mainMid.y + 7} 260 232Z`}
+          d={`${mainCurve}L260 215Z`}
         />
         <path className="boom" d={`M260 215L${mainEnd.x} ${mainEnd.y}`} />
         <path className="jib-foot" d={`M260 203L${jibEnd.x} ${jibEnd.y}`} />
@@ -117,7 +180,7 @@ function TopProjection({
         <g className={result.metrics.efficiency > 88 ? 'telltales is-flowing' : 'telltales'}>
           <path d={`M${jibEnd.x - 29} ${jibEnd.y - 20}l28 -2`} />
           <path d={`M${jibEnd.x - 38} ${jibEnd.y - 38}l27 5`} />
-          <path d={`M${mainMid.x + 18} ${mainMid.y - 10}l30 2`} />
+          <path d={`M${mainEnd.x - 42} ${mainEnd.y - 22}l30 2`} />
         </g>
 
         <g className="force-vectors">
@@ -132,7 +195,7 @@ function TopProjection({
 
       <div className="canvas-key" aria-label="上面図の凡例">
         <span><i className="key-drive" />前へ進む力</span>
-        <span><i className="key-sail" />自動で合う基本角度</span>
+        <span><i className="key-sail" />曲線＝現在のふくらみ</span>
       </div>
     </figure>
   )
@@ -141,30 +204,41 @@ function TopProjection({
 function SideProjection({ boat, controls, result }: ProjectionProps) {
   const main = result.actual.main
   const jib = result.actual.jib
+  const targetMain = result.target.main
+  const targetJib = result.target.jib
   const mastBend = boat === '420'
     ? 5 + (100 - controls.chock) * 0.1
     : 7 + (controls.forePuller - controls.aftPuller) * 0.08
   const mastTopX = 188 + clamp(mastBend, -4, 18)
-  const mainLevels = [76, 126, 176]
-  const jibLevels = [105, 153]
+  const mainLevels = [
+    { level: 'upper', y: 76 },
+    { level: 'middle', y: 126 },
+    { level: 'lower', y: 176 },
+  ] as const
+  const jibLevels = [
+    { level: 'upper', y: 105 },
+    { level: 'lower', y: 153 },
+  ] as const
 
-  const mainStripe = (y: number) => {
+  const mainStripe = (shape: typeof main, level: (typeof mainLevels)[number]['level'], y: number) => {
+    const section = shape.sections[level]
     const ratio = (y - 34) / 168
     const luffX = mastTopX + (190 - mastTopX) * ratio
     const leechX = mastTopX + (360 - mastTopX) * ratio
     const chord = leechX - luffX
-    const peakX = luffX + chord * main.draftPosition
-    const bow = main.draftDepth * 150 * (0.82 + ratio * 0.2)
+    const peakX = luffX + chord * section.draftPosition
+    const bow = section.draftDepth * 150 * (0.82 + ratio * 0.2)
     return `M${luffX} ${y} Q${peakX} ${y + bow} ${leechX} ${y}`
   }
 
-  const jibStripe = (y: number) => {
+  const jibStripe = (shape: typeof jib, level: (typeof jibLevels)[number]['level'], y: number) => {
+    const section = shape.sections[level]
     const ratio = (y - 50) / 150
     const luffX = mastTopX + (68 - mastTopX) * ratio
     const leechX = mastTopX + (174 - mastTopX) * ratio
     const chord = leechX - luffX
-    const peakX = luffX + chord * jib.draftPosition
-    return `M${luffX} ${y} Q${peakX} ${y + jib.draftDepth * 120} ${leechX} ${y}`
+    const peakX = luffX + chord * section.draftPosition
+    return `M${luffX} ${y} Q${peakX} ${y + section.draftDepth * 120} ${leechX} ${y}`
   }
 
   return (
@@ -191,12 +265,20 @@ function SideProjection({ boat, controls, result }: ProjectionProps) {
         <path className="side-vang" d="M210 202L249 183" />
         <path className="side-forestay" d={`M${mastTopX} 45L67 197`} />
 
+        <g className="draft-stripes projection-target-stripes">
+          {mainLevels.map((stripe) => <path key={stripe.level} d={mainStripe(targetMain, stripe.level, stripe.y)} />)}
+          {jibLevels.map((stripe) => <path key={`jib-${stripe.level}`} d={jibStripe(targetJib, stripe.level, stripe.y)} />)}
+        </g>
         <g className="draft-stripes draft-main">
-          {mainLevels.map((level) => <path key={level} d={mainStripe(level)} />)}
+          {mainLevels.map((stripe) => <path key={stripe.level} d={mainStripe(main, stripe.level, stripe.y)} />)}
         </g>
         <g className="draft-stripes draft-jib">
-          {jibLevels.map((level) => <path key={level} d={jibStripe(level)} />)}
+          {jibLevels.map((stripe) => <path key={stripe.level} d={jibStripe(jib, stripe.level, stripe.y)} />)}
         </g>
+
+        <text x="201" y="43" className="sail-plan-label">LUFF</text>
+        <text x="344" y="164" className="sail-plan-label">LEECH</text>
+        <text x="251" y="218" className="sail-plan-label">FOOT</text>
 
         <g className="side-telltales">
           <path d="M320 108l23 4M339 155l24 2M351 190l23 1" />
@@ -219,20 +301,28 @@ function SideProjection({ boat, controls, result }: ProjectionProps) {
 
 function AftProjection({ result }: ProjectionProps) {
   const main = result.actual.main
-  const boomProjection = clamp(18 + main.angle * 1.25, 25, 122)
-  const middleProjection = clamp(12 + (main.angle + main.twist * 0.45) * 0.9, 20, 100)
-  const upperProjection = clamp(7 + (main.angle + main.twist) * 0.62, 15, 82)
+  const target = result.target.main
+  const boomProjection = clamp(18 + (main.angle + main.sections.lower.twist) * 1.25, 25, 122)
+  const middleProjection = clamp(12 + (main.angle + main.sections.middle.twist) * 0.9, 20, 100)
+  const upperProjection = clamp(7 + (main.angle + main.sections.upper.twist) * 0.62, 15, 82)
+  const targetBoomProjection = clamp(18 + (target.angle + target.sections.lower.twist) * 1.25, 25, 122)
+  const targetMiddleProjection = clamp(12 + (target.angle + target.sections.middle.twist) * 0.9, 20, 100)
+  const targetUpperProjection = clamp(7 + (target.angle + target.sections.upper.twist) * 0.62, 15, 82)
 
   return (
     <figure className="projection-frame projection-aft">
       <ProjectionCaption
         view="03 / AFT"
         title="ツイスト"
-        value={`UPPER ${Math.round(main.twist)}°`}
+        value={`UPPER ${Math.round(main.sections.upper.twist)}°`}
       />
-      <svg viewBox="0 0 300 270" role="img" aria-label={`後ろから見たメインセールのツイスト ${Math.round(main.twist)}度。艇は水平に保たれる前提`}>
+      <svg viewBox="0 0 300 270" role="img" aria-label={`後ろから見たメインセール上部のツイスト ${Math.round(main.sections.upper.twist)}度。艇は水平に保たれる前提`}>
         <path className="aft-waterline" d="M12 220H288" />
         <g className="aft-heel-group">
+          <path
+            className="aft-target-shape"
+            d={`M150 36L150 202L${150 + targetBoomProjection} 202Q${150 + targetMiddleProjection + 18} 128 ${150 + targetUpperProjection} 62Q158 40 150 36Z`}
+          />
           <path
             className="aft-main"
             d={`M150 36L150 202L${150 + boomProjection} 202Q${150 + middleProjection + 18} 128 ${150 + upperProjection} 62Q158 40 150 36Z`}
@@ -252,7 +342,7 @@ function AftProjection({ result }: ProjectionProps) {
 
         <path className="twist-callout" d={`M${150 + upperProjection} 64H267`} />
         <text x="207" y="56" className="shape-callout">上部が開く量</text>
-        <text x="207" y="71" className="shape-callout-value">{Math.round(main.twist)}° TWIST</text>
+        <text x="207" y="71" className="shape-callout-value">{Math.round(main.sections.upper.twist)}° TWIST</text>
         <text x="18" y="252" className="projection-note">艇は水平に保たれる前提 / 上部の開きだけを比較</text>
       </svg>
     </figure>
@@ -271,16 +361,15 @@ export function BoatView({
     <section className="boat-view" aria-labelledby="boat-view-title">
       <div className="boat-view-head">
         <div className="section-heading light-heading">
-          <span className="section-index">E</span>
+          <span className="section-index">B</span>
           <div>
             <p>LIVE THREE-VIEW</p>
-            <h2 id="boat-view-title">最後に三方向で確かめる</h2>
+            <h2 id="boat-view-title">三方向を見ながら動かす</h2>
           </div>
         </div>
-        <div className="apparent-readout">
-          <span>APPARENT</span>
-          <strong>{Math.round(result.apparentWindAngle)}°</strong>
-          <small>{result.apparentWindSpeed.toFixed(1)} kt</small>
+        <div className="projection-live-key" aria-label="三方向図の凡例">
+          <span><i className="current-shape-key" />現在形</span>
+          <span><i className="reference-shape-key" />基準形</span>
         </div>
       </div>
 
@@ -297,7 +386,7 @@ export function BoatView({
           <AftProjection boat={boat} controls={controls} result={result} />
         </div>
         <div className="projection-guide" aria-label="三面図で確認する項目">
-          <span><strong>TOP</strong> 基本角度は自動で最適</span>
+          <span><strong>TOP</strong> 平面のふくらみと最大深さ位置</span>
           <span><strong>SIDE</strong> ドラフトの深さと位置</span>
           <span><strong>AFT</strong> 上・中・下のツイスト</span>
         </div>

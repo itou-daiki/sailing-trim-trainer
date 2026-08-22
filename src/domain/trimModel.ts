@@ -48,12 +48,12 @@ export const CONTROL_EFFECTS: Record<ControlKey, string> = {
   crewHike: '外へ出るほど復原力が増え、艇をフラットに保ちやすくなります。',
   crewForeAft: '前後の位置で船体の濡れ方が変わります。弱風では動きを小さくします。',
   centerboard: '下げるほど横流れを抑えます。ベアすると上げて余分な抵抗を減らします。',
-  chock: '厚くするほどロワーマストの前後移動を抑え、メイン下部の曲がりと深さに影響します。',
-  jibHeight: '高さを変えるとシートの引く向きが変わり、ジブのツイストと下部の深さが変わります。',
+  chock: '厚くするほどバングによるロワーマストの曲がりを抑え、メイン下部の深さを保ちます。',
+  jibHeight: '高くするほどシートがクリューを下へ引き、ジブ上部のツイストを減らして下部を深くします。',
   windwardSheet: '引くほどジブを内側へ寄せます。クローズでは有効ですが、ベア後はスロットを狭めます。',
-  forePuller: 'ロワーマストを前へ導き、マストベンドとメインの深さを変えます。艤装差は艇の動きで確認します。',
-  aftPuller: 'ロワーマストを後ろへ導き、フォアプラーと反対方向にマスト形状を変えます。',
-  jibLeadForeAft: '前へ出すほどジブ上部を強く引き、リーチのツイストを減らします。',
+  forePuller: 'ロワーマストを前へ導き、前後方向のベンドを増やしてメイン中〜下部をフラットにします。',
+  aftPuller: 'ロワーマストを後ろへ導き、フォアプラーと反対にベンドを戻してメイン中〜下部の深さを増やします。',
+  jibLeadForeAft: '前へ出すほどジブのクリューを下へ引き、上部ツイストを減らして下部を深くします。',
   jibLeadInOut: '内へ寄せるほどジブの角度が小さくなります。上り角度とスロットの余裕の交換です。',
 }
 
@@ -83,17 +83,25 @@ export function targetControls(
   const course = courseBlend(trueWindAngle)
   const breeze = inverseLerp(4, 18, windSpeed)
   const broad = inverseLerp(105, 155, trueWindAngle)
+  const powered = inverseLerp(8, 18, windSpeed)
+  const overpowered = inverseLerp(10, 18, windSpeed)
+  const targetVang = clamp(
+    10 + inverseLerp(42, 100, trueWindAngle) * 20 - broad * 10 + overpowered * 58,
+    8,
+    82,
+  )
+  const targetOuthaul = clamp(58 + powered * 32 - course * 25, 20, 92)
 
   return {
     mainSheet: Math.round(lerp(88, 16, course)),
     jibSheet: Math.round(lerp(84, 19, course)),
-    vang: Math.round(clamp(lerp(43, 54, inverseLerp(42, 92, trueWindAngle)) - broad * 18 + breeze * 21, 18, 82)),
-    cunningham: Math.round(lerp(8, 72, breeze) * lerp(1, 0.45, broad)),
-    outhaul: Math.round(clamp(lerp(72, 25, course) + breeze * 15, 18, 91)),
+    vang: Math.round(targetVang),
+    cunningham: Math.round(lerp(4, 78, overpowered) * lerp(1, 0.38, broad)),
+    outhaul: Math.round(targetOuthaul),
     crewHike: Math.round(clamp(lerp(12, 96, breeze) * lerp(1, 0.34, broad), 5, 96)),
     crewForeAft: Math.round(clamp(48 + broad * 15 - (1 - breeze) * 5, 30, 70)),
     centerboard: Math.round(lerp(96, 38, course) - breeze * broad * 7),
-    chock: Math.round(boat === '420' ? lerp(62, 38, breeze) : 50),
+    chock: Math.round(boat === '420' ? clamp(10 + targetVang * 0.8, 16, 76) : 50),
     jibHeight: Math.round(boat === '420' ? lerp(60, 38, breeze) : 50),
     windwardSheet: Math.round(boat === '420' ? lerp(46, 2, course) : 0),
     forePuller: Math.round(boat === '470' ? lerp(38, 65, breeze) : 50),
@@ -109,49 +117,117 @@ function sailShapes(
   windSpeed: number,
 ): SailPair {
   const windLoad = inverseLerp(4, 18, windSpeed)
-  const mastBend =
-    boat === '420'
-      ? clamp(0.72 - controls.chock / 180, 0.12, 0.72)
-      : clamp(0.42 + controls.forePuller / 210 - controls.aftPuller / 250, 0.12, 0.82)
-  const mainDepth = clamp(
-    0.188 - controls.outhaul * 0.00072 - controls.cunningham * 0.00018 - mastBend * 0.034 + windLoad * 0.01,
-    0.075,
-    0.17,
-  )
-  const mainDraftPosition = clamp(
-    0.515 - controls.cunningham * 0.00125 - mastBend * 0.018 + windLoad * 0.018,
-    0.36,
-    0.52,
-  )
-  const mainTwist = clamp(25 - controls.vang * 0.135 - controls.mainSheet * 0.065 + windLoad * 2.5, 3, 24)
+  const vang = controls.vang / 100
+  const cunningham = controls.cunningham / 100
+  const outhaul = controls.outhaul / 100
+  const sheet = controls.mainSheet / 100
+  const chock = controls.chock / 100
+  const forePuller = controls.forePuller / 100
+  const aftPuller = controls.aftPuller / 100
+
+  const bend = boat === '420'
+    ? {
+        lower: clamp(0.38 + vang * 0.2 - chock * 0.3, 0.08, 0.78),
+        middle: clamp(0.4 + vang * 0.34 - chock * 0.18, 0.12, 0.86),
+        upper: clamp(0.38 + vang * 0.42 - chock * 0.05, 0.16, 0.9),
+      }
+    : {
+        lower: clamp(0.34 + forePuller * 0.45 - aftPuller * 0.35 + vang * 0.16, 0.08, 0.9),
+        middle: clamp(0.36 + forePuller * 0.34 - aftPuller * 0.25 + vang * 0.28, 0.1, 0.92),
+        upper: clamp(0.36 + forePuller * 0.14 - aftPuller * 0.09 + vang * 0.42, 0.16, 0.94),
+      }
+
+  const mainSections = {
+    lower: {
+      height: 0.25,
+      draftDepth: clamp(
+        0.165 - (outhaul - 0.5) * 0.065 - bend.lower * 0.028 - cunningham * 0.01 + windLoad * 0.007,
+        0.075,
+        0.19,
+      ),
+      draftPosition: clamp(
+        0.47 - cunningham * 0.055 - bend.lower * 0.012 + windLoad * 0.018,
+        0.36,
+        0.52,
+      ),
+      twist: clamp(1.8 - vang * 1.2 + bend.lower * 0.6, 0.3, 4),
+    },
+    middle: {
+      height: 0.5,
+      draftDepth: clamp(
+        0.145 - (outhaul - 0.5) * 0.02 - bend.middle * 0.045 - cunningham * 0.009 + windLoad * 0.01,
+        0.07,
+        0.17,
+      ),
+      draftPosition: clamp(
+        0.46 - cunningham * 0.07 - bend.middle * 0.014 + windLoad * 0.02,
+        0.35,
+        0.52,
+      ),
+      twist: clamp(10 - vang * 6.5 - sheet * 1.5 + bend.middle * 2 + cunningham * 0.8, 2, 13),
+    },
+    upper: {
+      height: 0.75,
+      draftDepth: clamp(
+        0.118 - (outhaul - 0.5) * 0.004 - bend.upper * 0.038 - cunningham * 0.006 + windLoad * 0.012,
+        0.06,
+        0.145,
+      ),
+      draftPosition: clamp(
+        0.45 - cunningham * 0.08 - bend.upper * 0.016 + windLoad * 0.022,
+        0.34,
+        0.51,
+      ),
+      twist: clamp(20 - vang * 14 - sheet * 3 + bend.upper * 4.5 + cunningham * 2 + windLoad * 1.5, 4, 24),
+    },
+  }
   const mainAngle = clamp(80 - controls.mainSheet * 0.72, 7, 80)
 
-  const jibLeadClosure =
+  const jibLeadClosure = clamp(
     boat === '420'
-      ? controls.jibHeight * 0.055 + controls.windwardSheet * 0.03
-      : controls.jibLeadForeAft * 0.06
-  const jibDepth = clamp(
-    0.161 - controls.jibSheet * 0.00022 + (50 - jibLeadClosure * 8) * 0.00012 + windLoad * 0.006,
-    0.09,
-    0.16,
+      ? controls.jibHeight / 100
+      : controls.jibLeadForeAft / 100,
+    0,
+    1,
   )
-  const jibDraftPosition = clamp(0.46 - controls.jibSheet * 0.00035 + windLoad * 0.012, 0.39, 0.49)
-  const jibTwist = clamp(25 - controls.jibSheet * 0.07 - jibLeadClosure + windLoad * 1.8, 4, 24)
+  const jibSheet = controls.jibSheet / 100
+  const jibSections = {
+    lower: {
+      height: 0.25,
+      draftDepth: clamp(0.148 + (jibLeadClosure - 0.5) * 0.02 - jibSheet * 0.006 + windLoad * 0.006, 0.1, 0.175),
+      draftPosition: clamp(0.465 - jibLeadClosure * 0.008 - jibSheet * 0.006 + windLoad * 0.012, 0.39, 0.5),
+      twist: clamp(2 - jibLeadClosure * 0.8, 0.6, 3),
+    },
+    middle: {
+      height: 0.5,
+      draftDepth: clamp(0.14 + (jibLeadClosure - 0.5) * 0.012 - jibSheet * 0.005 + windLoad * 0.007, 0.095, 0.165),
+      draftPosition: clamp(0.455 - jibLeadClosure * 0.006 - jibSheet * 0.005 + windLoad * 0.013, 0.385, 0.495),
+      twist: clamp(10 - jibLeadClosure * 5 - jibSheet * 0.7 + windLoad * 0.8, 3, 12),
+    },
+    upper: {
+      height: 0.75,
+      draftDepth: clamp(0.124 + (jibLeadClosure - 0.5) * 0.004 - jibSheet * 0.004 + windLoad * 0.008, 0.085, 0.15),
+      draftPosition: clamp(0.445 - jibLeadClosure * 0.004 - jibSheet * 0.004 + windLoad * 0.014, 0.38, 0.49),
+      twist: clamp(21 - jibLeadClosure * 11 - jibSheet * 1.2 + windLoad * 1.2, 5, 23),
+    },
+  }
   const inboard = boat === '420' ? controls.windwardSheet : controls.jibLeadInOut
   const jibAngle = clamp(69 - controls.jibSheet * 0.57 - inboard * 0.12, 5, 70)
 
   return {
     main: {
       angle: mainAngle,
-      draftDepth: mainDepth,
-      draftPosition: mainDraftPosition,
-      twist: mainTwist,
+      draftDepth: mainSections.middle.draftDepth,
+      draftPosition: mainSections.middle.draftPosition,
+      twist: mainSections.upper.twist,
+      sections: mainSections,
     },
     jib: {
       angle: jibAngle,
-      draftDepth: jibDepth,
-      draftPosition: jibDraftPosition,
-      twist: jibTwist,
+      draftDepth: jibSections.middle.draftDepth,
+      draftPosition: jibSections.middle.draftPosition,
+      twist: jibSections.upper.twist,
+      sections: jibSections,
     },
   }
 }
@@ -186,6 +262,38 @@ function controlErrors(
     delta: controls[item.key] - target[item.key],
     severity: Math.abs(controls[item.key] - target[item.key]) / item.tolerance,
   }))
+}
+
+const SAIL_LEVELS = ['lower', 'middle', 'upper'] as const
+
+function shapeMismatch(actual: SailPair, target: SailPair) {
+  let weightedSquares = 0
+  let totalWeight = 0
+
+  for (const sailKey of ['main', 'jib'] as const) {
+    const sailWeight = sailKey === 'main' ? 1 : 0.78
+    for (const level of SAIL_LEVELS) {
+      const levelWeight = level === 'middle' ? 1 : level === 'lower' ? 0.92 : 0.88
+      const weight = sailWeight * levelWeight
+      const actualSection = actual[sailKey].sections[level]
+      const targetSection = target[sailKey].sections[level]
+      const depthTolerance = sailKey === 'main' ? 0.009 : 0.01
+      const positionTolerance = 0.022
+      const twistTolerance = level === 'upper' ? 2.2 : level === 'middle' ? 1.5 : 0.8
+      const errors = [
+        (actualSection.draftDepth - targetSection.draftDepth) / depthTolerance,
+        (actualSection.draftPosition - targetSection.draftPosition) / positionTolerance,
+        (actualSection.twist - targetSection.twist) / twistTolerance,
+      ]
+
+      for (const error of errors) {
+        weightedSquares += Math.min(3.5, Math.abs(error)) ** 2 * weight
+        totalWeight += weight
+      }
+    }
+  }
+
+  return Math.sqrt(weightedSquares / totalWeight)
 }
 
 const ACTION_DIRECTIONS: Record<
@@ -231,10 +339,20 @@ function prioritizedActions(
   boat: BoatClass,
   controls: TrimControls,
   target: TrimControls,
+  windSpeed: number,
 ): TrimAction[] {
+  const targetShape = sailShapes(boat, target, windSpeed)
+  const currentMismatch = shapeMismatch(sailShapes(boat, controls, windSpeed), targetShape)
+
   return controlErrors(boat, controls, target)
     .filter((item) => item.severity >= 0.35)
-    .sort((a, b) => b.severity * b.weight - a.severity * a.weight)
+    .map((item) => {
+      const corrected = { ...controls, [item.key]: target[item.key] }
+      const correctedMismatch = shapeMismatch(sailShapes(boat, corrected, windSpeed), targetShape)
+      return { ...item, benefit: Math.max(0, currentMismatch - correctedMismatch) }
+    })
+    .filter((item) => item.benefit > 0.005)
+    .sort((a, b) => b.benefit * b.weight - a.benefit * a.weight)
     .slice(0, 5)
     .map((item) => ({
       control: item.key,
@@ -252,16 +370,11 @@ function metrics(
   boat: BoatClass,
   trueWindAngle: number,
   windSpeed: number,
-  controls: TrimControls,
-  target: TrimControls,
+  actualShape: SailPair,
+  targetShape: SailPair,
 ): TrimMetrics {
-  const errors = controlErrors(boat, controls, target)
-  const totalWeight = errors.reduce((sum, item) => sum + item.weight, 0)
-  const penalty = errors.reduce(
-    (sum, item) => sum + Math.min(2.4, item.severity ** 1.45) * item.weight,
-    0,
-  ) / totalWeight
-  const efficiency = clamp(100 - penalty * 23, 34, 100)
+  const mismatch = shapeMismatch(actualShape, targetShape)
+  const efficiency = clamp(100 - mismatch * 24, 34, 100)
   const angleRad = (trueWindAngle * Math.PI) / 180
   const coursePower = clamp(0.44 + Math.sin(angleRad) * 0.24, 0.43, 0.69)
   const speed = clamp(
@@ -284,11 +397,12 @@ function guidance(
   controls: TrimControls,
   target: TrimControls,
   efficiency: number,
+  actions: TrimAction[],
 ): Guidance {
   const errors = controlErrors(boat, controls, target).sort(
     (a, b) => b.severity * b.weight - a.severity * a.weight,
   )
-  const biggest = errors[0]
+  const biggest = errors.find((error) => error.key === actions[0]?.control) ?? errors[0]
 
   if (efficiency >= 93) {
     return {
@@ -382,16 +496,16 @@ export function calculateTrim(
   }
   const actual = sailShapes(boat, shapeControls, windSpeed)
   const target = sailShapes(boat, targets, windSpeed)
-  const trimMetrics = metrics(boat, trueWindAngle, windSpeed, shapeControls, targets)
+  const trimMetrics = metrics(boat, trueWindAngle, windSpeed, actual, target)
   const apparent = apparentWind(trueWindAngle, windSpeed, trimMetrics.speed)
-  const actions = prioritizedActions(boat, shapeControls, targets)
+  const actions = prioritizedActions(boat, shapeControls, targets, windSpeed)
 
   return {
     actual,
     target,
     targetControls: targets,
     metrics: trimMetrics,
-    guidance: guidance(boat, shapeControls, targets, trimMetrics.efficiency),
+    guidance: guidance(boat, shapeControls, targets, trimMetrics.efficiency, actions),
     actions,
     apparentWindAngle: apparent.angle,
     apparentWindSpeed: apparent.speed,

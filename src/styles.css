@@ -555,15 +555,108 @@ main {
 .boat-canvas {
   position: relative;
   z-index: 1;
+  display: flex;
   flex: 1;
-  min-height: 540px;
+  flex-direction: column;
+  min-height: 585px;
+  padding: 8px 8px 0;
 }
 
-.boat-canvas > svg {
+.projection-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 1.25fr) minmax(210px, 0.75fr);
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+  min-height: 540px;
+  flex: 1;
+}
+
+.projection-frame {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  margin: 0;
+  overflow: hidden;
+  background: rgba(4, 31, 41, 0.62);
+  border: 1px solid #31505a;
+}
+
+.projection-top {
+  grid-row: 1 / 3;
+}
+
+.projection-caption {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  min-height: 43px;
+  padding: 7px 9px 6px;
+  color: #b7c7c9;
+  background: #082b37;
+  border-bottom: 1px solid #31505a;
+}
+
+.projection-caption span,
+.projection-caption small {
+  font-family: var(--mono);
+  font-size: 0.49rem;
+  letter-spacing: 0.08em;
+}
+
+.projection-caption span {
+  color: var(--aqua);
+}
+
+.projection-caption strong {
+  justify-self: end;
+  font-size: 0.61rem;
+  letter-spacing: 0.04em;
+}
+
+.projection-caption small {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: #8fa6aa;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projection-frame > svg {
   display: block;
   width: 100%;
-  height: 100%;
-  min-height: 540px;
+  height: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+.projection-guide {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  min-height: 37px;
+  margin-top: 7px;
+  color: #94aaae;
+  font-size: 0.56rem;
+  border-top: 1px solid #31505a;
+}
+
+.projection-guide span {
+  padding: 8px 9px;
+  border-right: 1px solid #31505a;
+}
+
+.projection-guide span:last-child {
+  border-right: 0;
+}
+
+.projection-guide strong {
+  margin-right: 4px;
+  color: var(--aqua);
+  font-family: var(--mono);
+  font-size: 0.54rem;
 }
 
 .water-traces path {
@@ -716,6 +809,167 @@ main {
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.12em;
+}
+
+.side-waterline,
+.aft-waterline {
+  fill: none;
+  stroke: #5d878c;
+  stroke-width: 1.4;
+  stroke-dasharray: 8 5;
+}
+
+.side-hull-shadow,
+.aft-hull-shadow {
+  fill: #031820;
+  transform: translate(4px, 5px);
+}
+
+.side-hull,
+.aft-hull {
+  fill: #e9efea;
+  stroke: #a8babb;
+  stroke-width: 2;
+}
+
+.side-cockpit,
+.aft-deck {
+  fill: none;
+  stroke: #607d81;
+  stroke-width: 2;
+}
+
+.side-main,
+.aft-main {
+  fill: rgba(248, 250, 240, 0.76);
+  stroke: #e8ede3;
+  stroke-width: 1.6;
+  transition: d 220ms ease;
+}
+
+.side-jib {
+  fill: rgba(174, 220, 211, 0.55);
+  stroke: #bfe3dd;
+  stroke-width: 1.4;
+}
+
+.side-mast-reference {
+  fill: none;
+  stroke: #58747a;
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.side-mast,
+.aft-mast {
+  fill: none;
+  stroke: var(--orange);
+  stroke-width: 4;
+  stroke-linecap: square;
+}
+
+.side-boom,
+.aft-boom {
+  fill: none;
+  stroke: var(--orange);
+  stroke-width: 3;
+}
+
+.side-vang {
+  fill: none;
+  stroke: var(--aqua);
+  stroke-width: 2;
+}
+
+.side-forestay,
+.aft-leech {
+  fill: none;
+  stroke: #d7e1dc;
+  stroke-width: 1.4;
+}
+
+.draft-stripes,
+.aft-stripes {
+  fill: none;
+  stroke: var(--orange);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.draft-jib {
+  stroke: var(--aqua);
+  stroke-width: 1.8;
+}
+
+.side-telltales {
+  fill: none;
+  stroke: var(--red);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.shape-callout-line,
+.twist-callout {
+  fill: none;
+  stroke: #78969a;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.shape-callout-dot {
+  fill: var(--orange);
+  stroke: var(--sail);
+  stroke-width: 1.5;
+}
+
+.shape-callout,
+.heel-label {
+  fill: #c3d0d1;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.shape-callout-value,
+.projection-note {
+  fill: #79969a;
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.05em;
+}
+
+.heel-reference {
+  fill: none;
+  stroke: #57747a;
+  stroke-width: 1;
+  stroke-dasharray: 5 5;
+}
+
+.heel-arc {
+  fill: none;
+  stroke: var(--orange);
+  stroke-width: 2;
+}
+
+.aft-main {
+  fill: rgba(200, 226, 220, 0.58);
+}
+
+.aft-stripes {
+  stroke: #f3f6ed;
+  stroke-width: 1.2;
+  opacity: 0.72;
+}
+
+.aft-crew circle {
+  fill: var(--orange);
+  stroke: #ffc4aa;
+  stroke-width: 1.5;
+}
+
+.aft-crew circle:nth-child(2) {
+  fill: var(--aqua);
+  stroke: #a9ebe3;
 }
 
 .canvas-key {
@@ -1463,7 +1717,14 @@ footer p { margin: 0; }
     grid-template-columns: 1fr;
   }
 
-  .boat-view { min-height: 620px; }
+  .boat-view { min-height: 720px; }
+
+  .projection-grid {
+    grid-template-columns: minmax(390px, 1.3fr) minmax(260px, 0.7fr);
+    min-height: 570px;
+  }
+
+  .boat-canvas { min-height: 615px; }
 
   .control-group-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1515,10 +1776,56 @@ footer p { margin: 0; }
 
   .wind-dial { margin-top: 8px; }
 
-  .boat-view,
-  .boat-canvas,
-  .boat-canvas > svg {
-    min-height: 490px;
+  .boat-view { min-height: 875px; }
+
+  .boat-canvas {
+    min-height: 745px;
+    padding: 7px 7px 0;
+  }
+
+  .projection-grid {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 435px 245px;
+    min-height: 688px;
+    height: 688px;
+    flex: 0 0 auto;
+  }
+
+  .projection-top {
+    grid-row: 1;
+    grid-column: 1 / -1;
+  }
+
+  .projection-side {
+    grid-row: 2;
+    grid-column: 1;
+  }
+
+  .projection-aft {
+    grid-row: 2;
+    grid-column: 2;
+  }
+
+  .projection-caption {
+    min-height: 42px;
+    padding: 6px 7px;
+  }
+
+  .projection-caption strong {
+    font-size: 0.56rem;
+  }
+
+  .projection-caption small {
+    font-size: 0.44rem;
+  }
+
+  .projection-guide {
+    grid-template-columns: 1fr;
+  }
+
+  .projection-guide span {
+    padding: 4px 7px;
+    border-right: 0;
   }
 
   .boat-view-head { padding: 13px; }

@@ -61,6 +61,14 @@ type MainCrossWidth = {
   widthMm: number
 }
 
+export type SailOutlineStation = {
+  height: number
+  /** Chord as a ratio of the measured foot. */
+  chordRatio: number
+  /** Aft rake of the luff as a ratio of the measured foot. */
+  luffRakeRatio: number
+}
+
 type BattenStation = {
   height: number
   startU: number
@@ -71,6 +79,7 @@ type ClassSailSpecification = {
     leechMm: number
     footMm: number
     crossWidths: MainCrossWidth[]
+    outline: SailOutlineStation[]
     battens: BattenStation[]
   }
   jib: {
@@ -78,14 +87,18 @@ type ClassSailSpecification = {
     leechMm: number
     footMm: number
     topWidthMm: number
+    tackFromMastMm: number
+    outline: SailOutlineStation[]
     battens: BattenStation[]
   }
 }
 
 /**
- * Representative planforms taken from the current World Sailing class-rule
- * measurement envelopes. Cross widths are placed at their ERS leech stations.
- * They define the flat sail outline; depth and twist remain the live trim model.
+ * The rule dimensions remain the hard dimensional envelope. The outline stations
+ * are normalized from the current North Sails M-12 (420) and N16-L18 (470)
+ * product silhouettes. This is deliberately separate from ERS cross widths:
+ * quarter/half widths are measured from leech points and are not horizontal
+ * chords at 25/50/75% height.
  */
 export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification> = {
   '420': {
@@ -100,6 +113,25 @@ export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification
         { height: 1 - 600 / 5400, widthMm: 480 },
         { height: 1, widthMm: 115 },
       ],
+      outline: [
+        { height: 0, chordRatio: 1, luffRakeRatio: 0 },
+        { height: 0.0625, chordRatio: 0.967, luffRakeRatio: 0.004 },
+        { height: 0.125, chordRatio: 0.926, luffRakeRatio: 0.009 },
+        { height: 0.1875, chordRatio: 0.884, luffRakeRatio: 0.017 },
+        { height: 0.25, chordRatio: 0.842, luffRakeRatio: 0.024 },
+        { height: 0.3125, chordRatio: 0.794, luffRakeRatio: 0.033 },
+        { height: 0.375, chordRatio: 0.748, luffRakeRatio: 0.040 },
+        { height: 0.4375, chordRatio: 0.699, luffRakeRatio: 0.051 },
+        { height: 0.5, chordRatio: 0.649, luffRakeRatio: 0.061 },
+        { height: 0.5625, chordRatio: 0.599, luffRakeRatio: 0.072 },
+        { height: 0.625, chordRatio: 0.544, luffRakeRatio: 0.083 },
+        { height: 0.6875, chordRatio: 0.483, luffRakeRatio: 0.094 },
+        { height: 0.75, chordRatio: 0.421, luffRakeRatio: 0.107 },
+        { height: 0.8125, chordRatio: 0.351, luffRakeRatio: 0.120 },
+        { height: 0.875, chordRatio: 0.246, luffRakeRatio: 0.134 },
+        { height: 0.9375, chordRatio: 0.142, luffRakeRatio: 0.149 },
+        { height: 1, chordRatio: 115 / 1920, luffRakeRatio: 0.167 },
+      ],
       battens: [
         { height: 1 - 4220 / 5400, startU: 0.74 },
         { height: 1 - 3220 / 5400, startU: 0.59 },
@@ -112,6 +144,26 @@ export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification
       leechMm: 3200,
       footMm: 1750,
       topWidthMm: 40,
+      tackFromMastMm: -1205,
+      outline: [
+        { height: 0, chordRatio: 1, luffRakeRatio: 0 },
+        { height: 0.0625, chordRatio: 0.939, luffRakeRatio: 0 },
+        { height: 0.125, chordRatio: 0.878, luffRakeRatio: 0 },
+        { height: 0.1875, chordRatio: 0.817, luffRakeRatio: 0 },
+        { height: 0.25, chordRatio: 0.756, luffRakeRatio: 0 },
+        { height: 0.3125, chordRatio: 0.695, luffRakeRatio: 0 },
+        { height: 0.375, chordRatio: 0.634, luffRakeRatio: 0 },
+        { height: 0.4375, chordRatio: 0.573, luffRakeRatio: 0 },
+        { height: 0.5, chordRatio: 0.511, luffRakeRatio: 0 },
+        { height: 0.5625, chordRatio: 0.45, luffRakeRatio: 0 },
+        { height: 0.625, chordRatio: 0.389, luffRakeRatio: 0 },
+        { height: 0.6875, chordRatio: 0.328, luffRakeRatio: 0 },
+        { height: 0.75, chordRatio: 0.267, luffRakeRatio: 0 },
+        { height: 0.8125, chordRatio: 0.206, luffRakeRatio: 0 },
+        { height: 0.875, chordRatio: 0.145, luffRakeRatio: 0 },
+        { height: 0.9375, chordRatio: 0.084, luffRakeRatio: 0 },
+        { height: 1, chordRatio: 40 / 1750, luffRakeRatio: 0 },
+      ],
       battens: [
         { height: 0.25, startU: 0.8 },
         { height: 0.5, startU: 0.8 },
@@ -130,6 +182,25 @@ export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification
         { height: 0.75, widthMm: 1050 },
         { height: 1, widthMm: 140 },
       ],
+      outline: [
+        { height: 0, chordRatio: 1, luffRakeRatio: 0 },
+        { height: 0.0625, chordRatio: 0.978, luffRakeRatio: 0.007 },
+        { height: 0.125, chordRatio: 0.945, luffRakeRatio: 0.010 },
+        { height: 0.1875, chordRatio: 0.909, luffRakeRatio: 0.014 },
+        { height: 0.25, chordRatio: 0.874, luffRakeRatio: 0.020 },
+        { height: 0.3125, chordRatio: 0.823, luffRakeRatio: 0.027 },
+        { height: 0.375, chordRatio: 0.773, luffRakeRatio: 0.035 },
+        { height: 0.4375, chordRatio: 0.722, luffRakeRatio: 0.045 },
+        { height: 0.5, chordRatio: 0.672, luffRakeRatio: 0.053 },
+        { height: 0.5625, chordRatio: 0.604, luffRakeRatio: 0.065 },
+        { height: 0.625, chordRatio: 0.534, luffRakeRatio: 0.078 },
+        { height: 0.6875, chordRatio: 0.464, luffRakeRatio: 0.093 },
+        { height: 0.75, chordRatio: 0.393, luffRakeRatio: 0.108 },
+        { height: 0.8125, chordRatio: 0.304, luffRakeRatio: 0.123 },
+        { height: 0.875, chordRatio: 0.211, luffRakeRatio: 0.139 },
+        { height: 0.9375, chordRatio: 0.115, luffRakeRatio: 0.157 },
+        { height: 1, chordRatio: 140 / 2200, luffRakeRatio: 0.181 },
+      ],
       battens: [
         { height: 0.25, startU: 0.58 },
         { height: 0.5, startU: 0.48 },
@@ -141,6 +212,26 @@ export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification
       leechMm: 3750,
       footMm: 1955,
       topWidthMm: 30,
+      tackFromMastMm: -1545,
+      outline: [
+        { height: 0, chordRatio: 1, luffRakeRatio: 0 },
+        { height: 0.0625, chordRatio: 0.938, luffRakeRatio: 0 },
+        { height: 0.125, chordRatio: 0.877, luffRakeRatio: 0 },
+        { height: 0.1875, chordRatio: 0.815, luffRakeRatio: 0 },
+        { height: 0.25, chordRatio: 0.754, luffRakeRatio: 0 },
+        { height: 0.3125, chordRatio: 0.692, luffRakeRatio: 0 },
+        { height: 0.375, chordRatio: 0.631, luffRakeRatio: 0 },
+        { height: 0.4375, chordRatio: 0.569, luffRakeRatio: 0 },
+        { height: 0.5, chordRatio: 0.508, luffRakeRatio: 0 },
+        { height: 0.5625, chordRatio: 0.446, luffRakeRatio: 0 },
+        { height: 0.625, chordRatio: 0.385, luffRakeRatio: 0 },
+        { height: 0.6875, chordRatio: 0.323, luffRakeRatio: 0 },
+        { height: 0.75, chordRatio: 0.262, luffRakeRatio: 0 },
+        { height: 0.8125, chordRatio: 0.2, luffRakeRatio: 0 },
+        { height: 0.875, chordRatio: 0.138, luffRakeRatio: 0 },
+        { height: 0.9375, chordRatio: 0.077, luffRakeRatio: 0 },
+        { height: 1, chordRatio: 30 / 1955, luffRakeRatio: 0 },
+      ],
       battens: [
         { height: 0.25, startU: 0.8 },
         { height: 0.5, startU: 0.8 },
@@ -150,7 +241,7 @@ export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification
   },
 }
 
-const ROW_HEIGHTS = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]
+const ROW_HEIGHTS = Array.from({ length: 17 }, (_, index) => index / 16)
 const POINT_COUNT = 25
 
 const LEVEL_HEIGHTS: Record<SailLevel, number> = {
@@ -199,14 +290,18 @@ function chordSample(column: number, peakPosition: number) {
       (1 - peakPosition)
 }
 
-function piecewiseWidth(stations: MainCrossWidth[], height: number) {
+function stationAtHeight(stations: SailOutlineStation[], height: number) {
   const h = clamp(height, 0, 1)
   const upperIndex = stations.findIndex((station) => station.height >= h)
-  if (upperIndex <= 0) return stations[0].widthMm
+  if (upperIndex <= 0) return stations[0]
   const lower = stations[upperIndex - 1]
   const upper = stations[upperIndex]
   const amount = (h - lower.height) / (upper.height - lower.height)
-  return lerp(lower.widthMm, upper.widthMm, amount)
+  return {
+    height: h,
+    chordRatio: lerp(lower.chordRatio, upper.chordRatio, amount),
+    luffRakeRatio: lerp(lower.luffRakeRatio, upper.luffRakeRatio, amount),
+  }
 }
 
 function jibTriangle(specification: ClassSailSpecification['jib']) {
@@ -236,25 +331,27 @@ function planform(
   const specification = CLASS_SAIL_SPECIFICATIONS[boat]
 
   if (sail === 'main') {
-    const luffX = -mastBend * Math.sin(Math.PI * height)
-    const measuredWidth = piecewiseWidth(specification.main.crossWidths, height)
+    const outline = stationAtHeight(specification.main.outline, height)
+    const foot = specification.main.footMm / SAIL_GEOMETRY_UNIT_MM
+    const luffX =
+      foot * outline.luffRakeRatio - mastBend * Math.sin(Math.PI * height)
     return {
       luffX,
       luffY: 0,
       z: (height * specification.main.leechMm) / SAIL_GEOMETRY_UNIT_MM,
-      chord: measuredWidth / SAIL_GEOMETRY_UNIT_MM - luffX * 0.35,
+      chord: foot * outline.chordRatio,
     }
   }
 
   const jib = specification.jib
   const triangle = jibTriangle(jib)
-  const foot = jib.footMm / SAIL_GEOMETRY_UNIT_MM
-  const tackX = 0.05 - foot
+  const outline = stationAtHeight(jib.outline, height)
+  const tackX = jib.tackFromMastMm / SAIL_GEOMETRY_UNIT_MM
   return {
     luffX: tackX + (triangle.headOffsetMm / SAIL_GEOMETRY_UNIT_MM) * height,
     luffY: 0,
     z: 0.04 + (triangle.headHeightMm / SAIL_GEOMETRY_UNIT_MM) * height,
-    chord: lerp(jib.footMm, jib.topWidthMm, height) / SAIL_GEOMETRY_UNIT_MM,
+    chord: (jib.footMm / SAIL_GEOMETRY_UNIT_MM) * outline.chordRatio,
   }
 }
 
@@ -372,32 +469,38 @@ export function projectSurface(
   surface: SailSurface,
   view: ProjectionView,
 ): ProjectedSurface {
-  const oblique = (SIDE_OBLIQUE_DEGREES * Math.PI) / 180
-  const elevation = (SIDE_ELEVATION_DEGREES * Math.PI) / 180
-  const aftOblique = (AFT_OBLIQUE_DEGREES * Math.PI) / 180
   return {
     sail: surface.sail,
     view,
     rows: surface.rows.map((row) => ({
       ...row,
-      points: row.points.map((point): ProjectedPoint => {
-        if (view === 'top') return { ...point, x: point.x, y: point.y }
-        if (view === 'side') {
-          return {
-            ...point,
-            x: point.x * Math.cos(oblique) + point.y * Math.sin(oblique),
-            y:
-              -point.x * Math.sin(elevation) * Math.sin(oblique) +
-              point.y * Math.sin(elevation) * Math.cos(oblique) +
-              point.z * Math.cos(elevation),
-          }
-        }
-        return {
-          ...point,
-          x: point.y * Math.cos(aftOblique) + point.x * Math.sin(aftOblique),
-          y: point.z,
-        }
-      }),
+      points: row.points.map((point): ProjectedPoint => ({
+        ...point,
+        ...projectCoordinate(point, view),
+      })),
     })),
+  }
+}
+
+export function projectCoordinate(
+  point: { x: number; y: number; z: number },
+  view: ProjectionView,
+) {
+  const oblique = (SIDE_OBLIQUE_DEGREES * Math.PI) / 180
+  const elevation = (SIDE_ELEVATION_DEGREES * Math.PI) / 180
+  const aftOblique = (AFT_OBLIQUE_DEGREES * Math.PI) / 180
+  if (view === 'top') return { x: point.x, y: point.y }
+  if (view === 'side') {
+    return {
+      x: point.x * Math.cos(oblique) + point.y * Math.sin(oblique),
+      y:
+        -point.x * Math.sin(elevation) * Math.sin(oblique) +
+        point.y * Math.sin(elevation) * Math.cos(oblique) +
+        point.z * Math.cos(elevation),
+    }
+  }
+  return {
+    x: point.y * Math.cos(aftOblique) + point.x * Math.sin(aftOblique),
+    y: point.z,
   }
 }

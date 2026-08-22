@@ -10,6 +10,12 @@ import {
   SAIL_GEOMETRY_UNIT_MM,
 } from '../domain/sailGeometry'
 import {
+  buildHullGeometry,
+  HULL_SPECIFICATIONS,
+  projectHullPoint,
+  type HullPoint,
+} from '../domain/hullGeometry'
+import {
   compareShapeChange,
   focusForControl,
 } from '../domain/shapeComparison'
@@ -87,6 +93,7 @@ function createMapper(
   height: number,
   view: ProjectionView,
   boat: BoatClass,
+  framePoints: Array<{ x: number; y: number }> = [],
 ): Mapper {
   const points = surfaces.flatMap((surface) =>
     surface.rows.flatMap((row) => row.points),
@@ -98,7 +105,7 @@ function createMapper(
     : view === 'side'
       ? [{ x: -1.12 * classScale, y: -0.16 }, { x: 1.28 * classScale, y: rigHeight + 0.1 }]
       : [{ x: -0.58, y: -0.16 }, { x: 0.66, y: rigHeight + 0.1 }]
-  const all = [...points, ...extra]
+  const all = [...points, ...framePoints, ...extra]
   const minX = Math.min(...all.map((point) => point.x))
   const maxX = Math.max(...all.map((point) => point.x))
   const minY = Math.min(...all.map((point) => point.y))
@@ -119,7 +126,7 @@ function createMapper(
   })
 }
 
-function path(points: ProjectedPoint[], map: Mapper, close = false) {
+function path(points: Array<{ x: number; y: number }>, map: Mapper, close = false) {
   const mapped = points.map(map)
   if (mapped.length === 0) return ''
   return `M${mapped.map((point) => `${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join('L')}${close ? 'Z' : ''}`
@@ -134,45 +141,46 @@ function outlinePoints(surface: ProjectedSurface) {
   return [...lower, ...leech, ...top, ...luff]
 }
 
-function projectedRigGuides(view: ProjectionView, map: Mapper, boat: BoatClass) {
-  const classScale = boat === '470' ? 1.12 : 1
-  const rigHeight = CLASS_SAIL_SPECIFICATIONS[boat].main.leechMm / SAIL_GEOMETRY_UNIT_MM
-  const line = (points: Array<{ x: number; y: number }>) => {
-    const mapped = points.map(map)
-    return `M${mapped.map((point) => `${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join('L')}`
-  }
+function projectHullLine(points: HullPoint[], view: ProjectionView) {
+  return points.map((point) => {
+    const projected = projectHullPoint(point, view)
+    return { x: projected.screenX, y: projected.screenY }
+  })
+}
 
-  if (view === 'top') {
-    return {
-      hull: line([
-        { x: -1.1 * classScale, y: 0 }, { x: -0.86 * classScale, y: -0.12 },
-        { x: 1.02 * classScale, y: -0.11 }, { x: 1.24 * classScale, y: 0 },
-        { x: 1.02 * classScale, y: 0.11 }, { x: -0.86 * classScale, y: 0.12 },
-        { x: -1.1 * classScale, y: 0 },
-      ]),
-      mast: line([{ x: 0, y: -0.15 }, { x: 0, y: 0.15 }]),
-      water: '',
-    }
-  }
-  if (view === 'side') {
-    return {
-      hull: line([
-        { x: -1.08 * classScale, y: -0.02 }, { x: -0.68 * classScale, y: -0.12 },
-        { x: 1.02 * classScale, y: -0.11 }, { x: 1.24 * classScale, y: -0.02 },
-        { x: -1.08 * classScale, y: -0.02 },
-      ]),
-      mast: line([{ x: 0, y: -0.02 }, { x: 0, y: rigHeight }]),
-      water: line([{ x: -1.12 * classScale, y: -0.14 }, { x: 1.28 * classScale, y: -0.14 }]),
-    }
-  }
-  return {
-    hull: line([
-      { x: -0.42, y: -0.02 }, { x: -0.26, y: -0.14 },
-      { x: 0.24, y: -0.13 }, { x: 0.46, y: -0.02 }, { x: -0.42, y: -0.02 },
-    ]),
-    mast: line([{ x: 0, y: -0.02 }, { x: 0, y: rigHeight }]),
-    water: line([{ x: -0.58, y: -0.15 }, { x: 0.66, y: -0.15 }]),
-  }
+function HullLayer({
+  boat,
+  view,
+  map,
+}: {
+  boat: BoatClass
+  view: ProjectionView
+  map: Mapper
+}) {
+  const hull = buildHullGeometry(boat)
+  const panels = hull.panels.map((panel) => projectHullLine(panel, view))
+  const stationLines = hull.stationLines.map((line) => projectHullLine(line, view))
+  const deckOutline = projectHullLine(hull.deckOutline, view)
+  const cockpitOutline = projectHullLine(hull.cockpitOutline, view)
+  const centerline = projectHullLine(hull.centerline, view)
+  const mastBase = projectHullLine([hull.mastBase], view)[0]
+  const jibTack = projectHullLine([hull.jibTack], view)[0]
+
+  return (
+    <g className={`geometry-hull-model is-${view}`}>
+      {panels.map((panel, index) => (
+        <path key={`panel-${index}`} className="geometry-hull-panel" d={path(panel, map, true)} />
+      ))}
+      <path className="geometry-hull-deck" d={path(deckOutline, map, true)} />
+      {stationLines.map((line, index) => (
+        <path key={`station-${index}`} className="geometry-hull-station" d={path(line, map)} />
+      ))}
+      <path className="geometry-hull-centerline" d={path(centerline, map)} />
+      <path className="geometry-cockpit" d={path(cockpitOutline, map, true)} />
+      <circle className="geometry-hardpoint" cx={map(mastBase).x} cy={map(mastBase).y} r="2.8" />
+      <circle className="geometry-hardpoint is-jib" cx={map(jibTack).x} cy={map(jibTack).y} r="2.4" />
+    </g>
+  )
 }
 
 function SurfaceLayer({
@@ -299,14 +307,23 @@ function ProjectionPanel({
     projectSurface(reference.jib, view),
     projectSurface(reference.main, view),
   ]
+  const hull = buildHullGeometry(boat)
+  const projectedHullPoints = [
+    ...hull.deckOutline,
+    ...hull.cockpitOutline,
+    ...hull.sections.flat(),
+  ].map((point) => {
+    const projected = projectHullPoint(point, view)
+    return { x: projected.screenX, y: projected.screenY }
+  })
   const map = createMapper(
     [...actualProjected, ...referenceProjected],
     width,
     height,
     view,
     boat,
+    projectedHullPoints,
   )
-  const guides = projectedRigGuides(view, map, boat)
   const meta = VIEW_META[view]
   const classSails = CLASS_SAIL_SPECIFICATIONS[boat]
   const actualMast = actualProjected
@@ -315,6 +332,24 @@ function ProjectionPanel({
   const referenceMast = referenceProjected
     .find((surface) => surface.sail === 'main')!
     .rows.map((row) => row.points[0])
+  const actualJibLuff = actualProjected
+    .find((surface) => surface.sail === 'jib')!
+    .rows.map((row) => row.points[0])
+  const specification = HULL_SPECIFICATIONS[boat]
+  const water = view === 'top' ? [] : projectHullLine([
+    {
+      id: `${boat}:water-a`,
+      x: (specification.mastFromAftMm - specification.lengthMm - 120) / SAIL_GEOMETRY_UNIT_MM,
+      y: 0,
+      z: -0.24,
+    },
+    {
+      id: `${boat}:water-b`,
+      x: (specification.mastFromAftMm + 120) / SAIL_GEOMETRY_UNIT_MM,
+      y: 0,
+      z: -0.24,
+    },
+  ], view)
 
   return (
     <figure className={`geometry-panel geometry-panel-${view}`}>
@@ -330,9 +365,9 @@ function ProjectionPanel({
         role="img"
         aria-label={`${meta.view}。単一の3Dセール面を投影し、${meta.note}。`}
       >
-        {guides.water ? <path className="geometry-waterline" d={guides.water} /> : null}
-        <path className="geometry-hull" d={guides.hull} />
-        <path className="geometry-mast-reference" d={guides.mast} />
+        {water.length ? <path className="geometry-waterline" d={path(water, map)} /> : null}
+        <HullLayer boat={boat} view={view} map={map} />
+        <path className="geometry-forestay" d={path(actualJibLuff, map)} />
         <path className={`geometry-mast-target is-${referenceMode}`} d={path(referenceMast, map)} />
         <path className="geometry-mast" d={path(actualMast, map)} />
         {referenceProjected.map((surface) => (
@@ -488,6 +523,9 @@ export function BoatView({
     comparisonMode === 'previous' ? previousResult.actual : result.target,
   )
   const referenceLabel = comparisonMode === 'previous' ? '操作前' : '基準形'
+  const geometryReference = boat === '420'
+    ? 'WS DRAWING #5J · NORTH M-12'
+    : 'WS 470-003 · NORTH N16-L18'
 
   return (
     <section className="boat-view geometry-view" aria-labelledby="boat-view-title">
@@ -495,12 +533,12 @@ export function BoatView({
         <div className="section-heading light-heading">
           <span className="section-index">B</span>
           <div>
-            <p>CLASS-RULE SAIL PLAN / THREE CAMERAS</p>
-            <h2 id="boat-view-title">420 / 470を、三方向で見てトリム</h2>
+            <p>OFFICIAL HULL PLAN + SAILMAKER SILHOUETTE / THREE CAMERAS</p>
+            <h2 id="boat-view-title">{boat}実艇形状を、三方向で見てトリム</h2>
           </div>
         </div>
         <div className="geometry-head-tools">
-          <span className="geometry-condition">{boat} · TWA {angle}° · {windSpeed} kt</span>
+          <span className="geometry-condition">{geometryReference} · TWA {angle}° · {windSpeed} kt</span>
           <div className="geometry-legend" aria-label="形状の凡例">
             <span><i className="legend-main" />メイン</span>
             <span><i className="legend-jib" />ジブ</span>

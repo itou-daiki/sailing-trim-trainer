@@ -4079,6 +4079,73 @@ footer p { margin: 0; }
   vector-effect: non-scaling-stroke;
 }
 
+.geometry-hull-panel,
+.geometry-hull-deck,
+.geometry-hull-station,
+.geometry-hull-centerline,
+.geometry-cockpit,
+.geometry-forestay {
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-hull-panel {
+  fill: rgba(183, 201, 198, 0.34);
+  stroke: rgba(70, 96, 101, 0.3);
+  stroke-width: 0.55;
+}
+
+.geometry-hull-deck {
+  fill: rgba(229, 235, 230, 0.78);
+  stroke: #3f5f65;
+  stroke-width: 1.55;
+}
+
+.geometry-hull-station {
+  fill: none;
+  stroke: #829795;
+  stroke-width: 0.55;
+  opacity: 0.72;
+}
+
+.geometry-hull-centerline {
+  fill: none;
+  stroke: #607b7d;
+  stroke-width: 0.7;
+  stroke-dasharray: 5 4;
+}
+
+.geometry-cockpit {
+  fill: rgba(83, 111, 113, 0.3);
+  stroke: #4a696d;
+  stroke-width: 1.1;
+}
+
+.geometry-hardpoint {
+  fill: #e45e32;
+  stroke: #fffdf5;
+  stroke-width: 0.9;
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-hardpoint.is-jib {
+  fill: #168077;
+}
+
+.geometry-forestay {
+  fill: none;
+  stroke: #536f73;
+  stroke-width: 1;
+}
+
+.geometry-hull-model.is-top .geometry-hull-panel {
+  fill: rgba(171, 195, 191, 0.18);
+}
+
+.geometry-hull-model.is-aft .geometry-hull-station {
+  stroke-width: 0.8;
+  opacity: 0.78;
+}
+
 .geometry-mast {
   fill: none;
   stroke: #183f48;

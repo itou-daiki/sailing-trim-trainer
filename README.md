@@ -14,8 +14,9 @@ Created by Dit-Lab.
 - バング、カニンガム、アウトホールを操作
 - 420固有のチョック、ジブ高さを操作
 - 470固有のフォア／アフタープラー、ジブリード前後を操作
-- 420／470を別々のクラスルール実寸比（メインのクロス幅・リーチ・フット、ジブ三辺、420は4本／470は3本のメインバテン、両艇3本のジブバテン）で造形
-- 一つの陰影付き3Dセール面を上・斜め横・後ろ斜め35°の正投影カメラへ同時表示し、操作盤の横で形を見ながらトリム
+- 420／470を別々の公式建造仕様図から座標化（船長・最大幅・マスト／ジブタック位置・平面輪郭・キール／シアー線・コックピット）
+- 420 M-12／470 N16-L18の製品シルエットを16断面へ正規化し、クラス規則のリーチ・フット・トップ幅・ジブ三辺・バテン構成で拘束
+- 一つの陰影付き3D船体／セール面を上・斜め横・後ろ斜め35°の正投影カメラへ同時表示し、操作盤の横で形を見ながらトリム
 - 現在形と基準形を三面図へ重ね、すべてのカメラで同じ頂点・同じドラフトストライプを比較
 - 一本を動かす直前の形を自動保存し、三面図と断面へ「操作前」のゴーストとして重ねる
 - 操作前後の深さ・最大ドラフト位置・ツイストを、変化方向と数値差で即時表示
@@ -65,7 +66,11 @@ Viteの `base` は `/sailing-trim-trainer/` に設定済みです。mainブラ�
 
 本アプリはリアルタイムCFDではありません。形状操作からドラフト・ツイスト・推定艇速までを学習用に結ぶ準定常の応答モデルです。基本角度、艇バランス、センターボードは自動で最適と仮定し、波、セールカット、艤装差による実艇差はモデル化していません。
 
-メイン／ジブそれぞれに一つの3Dセール面があり、上部75%・中部50%・下部25%の断面が独立した深さ、最大深さ位置、ツイストを持ちます。平面輪郭は現行クラスルールの計測上限から420／470別に作り、メインのバテン本数と位置も区別します。これは特定メーカーの製品カットそのものではなく、クラス内で形状を学ぶための代表輪郭です。メインのラフにはマストベンドも反映します。三方向図は別々のイラストではなく、この共通面を異なるカメラ基底へ投影したものです。後ろ方向はクローズでもコードとリーチを読めるよう、艇尾の風下側35°からの正投影として明示しています。各断面の揚力・抗力・前進力の代理値を高さ方向へ積分して適合度と推定艇速を算出し、操作優先順位は各コントロールを基準へ戻した場合の適合度上昇で並べます。マスト曲がりは差を読み取れるよう強調した表示で、実艇のプリベンド実測値ではありません。用語は [`CONTEXT.md`](./CONTEXT.md) に定義しています。
+メイン／ジブそれぞれに一つの3Dセール面があり、上部75%・中部50%・下部25%の断面が独立した深さ、最大深さ位置、ツイストを持ちます。セール外形は420 M-12と470 N16-L18の公開製品シルエットを16断面へ正規化し、現行クラス規則の実寸上限で拘束します。ERSの1/4・1/2・3/4幅を同じ高さの水平コードとして扱わず、外形校正値として分離しています。メインのラフにはマストレーキとマストベンドも反映します。
+
+船体はWorld Sailingの420 Building Specification Drawing 5 Issue Jと470 Building Specification Plan 470-003にある平面図・側面図を、420は12、470は11の異なる長手ステーションへ座標化しています。船長、最大幅、マスト、ジブタック、ブレークウォーター、コックピット開口を実寸で拘束し、断面間をフェアリングした共通3D船体です。三方向図は別々のイラストではなく、船体とセールの同じ頂点を異なるカメラ基底へ投影します。公開図面にないメーカー固有の型断面や製造CADを再現したものではありません。
+
+後ろ方向はクローズでもコードとリーチを読めるよう、艇尾の風下側35°からの正投影として明示しています。各断面の揚力・抗力・前進力の代理値を高さ方向へ積分して適合度と推定艇速を算出し、操作優先順位は各コントロールを基準へ戻した場合の適合度上昇で並べます。マスト曲がりは差を読み取れるよう強調した表示で、実艇のプリベンド実測値ではありません。用語は [`CONTEXT.md`](./CONTEXT.md) に定義しています。
 
 基準づくりには以下を参照しています。
 
@@ -74,7 +79,11 @@ Viteの `base` は `/sailing-trim-trainer/` に設定済みです。mainブラ�
 - [North Sails — 420 Tuning Guide](https://www.northsails.com/en-fr/blogs/north-sails-blog/420-tuning-guide)
 - [North Sails Japan — 420 M11 / M12 Tuning Guide](https://www.northsails.co.jp/wordpress/wp-content/uploads/2026/03/420-M12-Tuning-Guide_j.pdf)
 - [World Sailing — International 420 Class Rules 2026](https://media.sailing.org/sailing/wp-content/uploads/2022/03/17092130/420_CR_2026-03-31.pdf)
+- [World Sailing — 420 Building Specification, Drawing 5 Issue J](https://media.sailing.org/sailing/wp-content/uploads/2022/07/02133245/420_BuildingSpec_2022-09Sep-01.pdf)
 - [World Sailing — International 470 Class Rules 2025](https://www.sailing.org/wp-content/uploads/2022/03/470_CR_2025-09-01-II.pdf)
+- [World Sailing — 470 Building Specification Plan 470-003](https://media.sailing.org/sailing/wp-content/uploads/2023/01/19160058/470_005_080623_GA.pdf)
+- [North Sails — 420 M-12 Mainsail](https://www.northsails.com/products/420-m-12-mainsail)
+- [North Sails Japan — 470 sails](https://www.northsails.co.jp/one-design/od470/)
 - [North Sails — 470 Speed Guide](https://www.northsails.com/en-ca/blogs/north-sails-blog/470-speed-guide)
 - [World Sailing — 2025 Performance Scholarship 420 / 470 Tuning and Speed Guide](https://www.sailing.org/document/2025-performance-scholarship-420-470-tuning-and-speed-guide/)
 - [Science of the 470 Sailing Performance](https://doksi.net/en/get.php?lid=34356)
@@ -98,7 +107,7 @@ TRIM NOTEは、汎用クルーザーやレースゲームではなく、**420/47
 
 ## 品質基準
 
-- Vitest: 54テスト（420／470別のクラスルール輪郭・バテン数、3D断面の幾何一致、入口／出口角、三カメラの頂点同一性、操作前差分、共有URL、420／470のマストベンド因果、優先順位の再計算一致、艇種・風向・風速・極端設定を横断する形状／空力不変条件を含む）
+- Vitest: 59テスト（420／470別の船長・最大幅・マスト／ジブタック位置・船体ステーション、公式図面由来の共通3D船体、M-12／N16-L18の標本輪郭、ジブ外形のフェアネス、クラス規則、バテン数、3D断面の幾何一致、入口／出口角、三カメラの頂点同一性、操作前差分、共有URL、420／470のマストベンド因果、優先順位の再計算一致、艇種・風向・風速・極端設定を横断する形状／空力不変条件を含む）
 - Lighthouse 13（production build / mobile）: Performance 100、Accessibility 100、Best Practices 100、SEO 100
 - FCP 1.4秒、LCP 1.5秒、TBT 0ms、CLS 0（production build / mobileのローカル計測値）
 - `npm audit --omit=dev`: 既知の脆弱性0件

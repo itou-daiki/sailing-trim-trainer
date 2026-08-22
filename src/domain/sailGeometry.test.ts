@@ -15,7 +15,40 @@ import {
 const LEVELS = ['lower', 'middle', 'upper'] as const
 
 describe('single sail surface geometry', () => {
-  it('uses the class-rule planform dimensions and batten counts for 420 and 470', () => {
+  it('matches the sampled M-12 and N16-L18 product silhouettes', () => {
+    const reference = {
+      '420': [
+        [0.125, 0.926], [0.25, 0.842], [0.5, 0.649], [0.75, 0.421], [0.875, 0.246],
+      ],
+      '470': [
+        [0.125, 0.945], [0.25, 0.874], [0.5, 0.672], [0.75, 0.393], [0.875, 0.211],
+      ],
+    } as const
+
+    for (const boat of ['420', '470'] as const) {
+      for (const [height, expectedRatio] of reference[boat]) {
+        const station = CLASS_SAIL_SPECIFICATIONS[boat].main.outline.find(
+          (candidate) => candidate.height === height,
+        )
+        expect(station?.chordRatio).toBeCloseTo(expectedRatio, 3)
+      }
+    }
+  })
+
+  it('keeps the class-rule jib outline fair between its straight luff and leech', () => {
+    for (const boat of ['420', '470'] as const) {
+      const ratios = CLASS_SAIL_SPECIFICATIONS[boat].jib.outline.map(
+        (station) => station.chordRatio,
+      )
+      const stepChanges = ratios.slice(2).map((ratio, index) =>
+        Math.abs((ratio - ratios[index + 1]) - (ratios[index + 1] - ratios[index])),
+      )
+      expect(Math.max(...stepChanges)).toBeLessThan(0.0021)
+      expect(ratios.every((ratio, index) => index === 0 || ratio < ratios[index - 1])).toBe(true)
+    }
+  })
+
+  it('keeps rule dimensions while using the sailmaker silhouette as horizontal chords', () => {
     for (const boat of ['420', '470'] as const) {
       const result = calculateTrim(boat, 45, 12, targetControls(boat, 45, 12))
       const pair = {
@@ -35,7 +68,8 @@ describe('single sail surface geometry', () => {
         10,
       )
       expect(chordLength(getLevelRow(surfaces.main, 'middle'))).toBeCloseTo(
-        specification.main.crossWidths.find((station) => station.height === 0.5)!.widthMm /
+        specification.main.footMm *
+          specification.main.outline.find((station) => station.height === 0.5)!.chordRatio /
           SAIL_GEOMETRY_UNIT_MM,
         10,
       )
@@ -72,7 +106,7 @@ describe('single sail surface geometry', () => {
 
     expect(height(fourSeventy.main) / height(fourTwenty.main)).toBeCloseTo(6265 / 5400, 10)
     expect(chord(fourSeventy.main, 'middle') / chord(fourTwenty.main, 'middle')).toBeCloseTo(
-      1790 / 1630,
+      (2200 * 0.672) / (1920 * 0.649),
       10,
     )
     expect(fourTwenty.main.rows.filter((row) => row.battenStartU !== undefined)).toHaveLength(4)

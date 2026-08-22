@@ -14,9 +14,9 @@ Created by Dit-Lab.
 - バング、カニンガム、アウトホールを操作
 - 420固有のチョック、ジブ高さを操作
 - 470固有のフォア／アフタープラー、ジブリード前後を操作
-- 操作盤の横に固定した上面・側面・後面の三面図で、形を見ながらトリム
-- 現在形と基準形を三面図へ重ね、上面のふくらみ・側面のドラフトストライプ・後面のツイストを比較
-- メイン／ジブと上・中・下を選び、1本の断面を大きく表示
+- 一つの3Dセール面を上・斜め横・後ろの正投影カメラへ同時表示し、操作盤の横で形を見ながらトリム
+- 現在形と基準形を三面図へ重ね、すべてのカメラで同じ頂点・同じドラフトストライプを比較
+- 操作したコントロールに応じて観察すべきメイン／ジブ・上／中／下を自動選択し、同じメッシュ断面を大きく表示
 - ラフ、リーチ、コード、深さ、最大深さ位置を図中で直接測定
 - 現在形、基準帯、数値差、前後／深浅の判定を同時表示
 - 現在のずれから、操作方向を含む修正順序を影響の大きい順に表示
@@ -59,7 +59,7 @@ Viteの `base` は `/sailing-trim-trainer/` に設定済みです。mainブラ�
 
 本アプリはリアルタイムCFDではありません。形状操作からドラフト・ツイスト・推定艇速までを学習用に結ぶ準定常の応答モデルです。基本角度、艇バランス、センターボードは自動で最適と仮定し、波、セールカット、艤装差による実艇差はモデル化していません。
 
-セール全体へ一つの係数を当てるのではなく、メイン／ジブそれぞれに上部75%・中部50%・下部25%のドラフトストライプ断面を持たせています。各断面が独立した深さ、最大深さ位置、ツイストを持ちます。適合度と操作優先順位はコントロール位置そのものではなく、基準形からの断面差と、その操作を直したときに減る形状差から算出します。用語は [`CONTEXT.md`](./CONTEXT.md) に定義しています。
+メイン／ジブそれぞれに一つの3Dセール面があり、上部75%・中部50%・下部25%の断面が独立した深さ、最大深さ位置、ツイストを持ちます。三方向図は別々のイラストではなく、この共通面を異なるカメラ基底へ投影したものです。各断面の揚力・抗力・前進力の代理値を高さ方向へ積分して適合度と推定艇速を算出し、操作優先順位は各コントロールを基準へ戻した場合の適合度上昇で並べます。用語は [`CONTEXT.md`](./CONTEXT.md) に定義しています。
 
 基準づくりには以下を参照しています。
 
@@ -70,6 +70,8 @@ Viteの `base` は `/sailing-trim-trainer/` に設定済みです。mainブラ�
 - [Science of the 470 Sailing Performance](https://doksi.net/en/get.php?lid=34356)
 - [UK Sailmakers — Draft Stripes](https://www.uksailmakers.com/racing/draft-stripes-2/)
 - [Curtin University CMST — SailTool](https://cmst.curtin.edu.au/products/sailtool-software/)
+- [NASA Glenn — The Lift Coefficient](https://www.grc.nasa.gov/WWW/k-12/FoilSim/Manual/fsim0007.htm)
+- [NASA Glenn — Induced Drag Coefficient](https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/induced-drag-coefficient/)
 
 ## 競合調査からの位置づけ
 
@@ -86,7 +88,7 @@ TRIM NOTEは、汎用クルーザーやレースゲームではなく、**420/47
 
 ## 品質基準
 
-- Vitest: 37テスト（代表例に加え、艇種・風向・風速・極端設定を横断する形状不変条件を含む）
+- Vitest: 45テスト（3D断面の幾何一致、三カメラの頂点同一性、優先順位の再計算一致、艇種・風向・風速・極端設定を横断する形状／空力不変条件を含む）
 - Lighthouse 13（production build / mobile）: Performance 100、Accessibility 100、Best Practices 100、SEO 100
-- FCP 0.8秒、LCP 1.5秒、TBT 0ms、CLS 0（ローカル計測値）
+- FCP 1.4秒、LCP 1.5秒、TBT 0ms、CLS 0（production build / mobileのローカル計測値）
 - `npm audit --omit=dev`: 既知の脆弱性0件

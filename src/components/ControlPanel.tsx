@@ -61,7 +61,7 @@ function ControlSlider({
       {action ? (
         <span className="control-priority">
           <strong>優先 {rank}</strong>
-          <span>{action.direction}</span>
+          <span>{action.direction} · 適合度 +{action.gain.toFixed(1)}</span>
         </span>
       ) : null}
       <span className="control-title">

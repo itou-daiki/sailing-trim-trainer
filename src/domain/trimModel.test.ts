@@ -225,4 +225,32 @@ describe('trim model', () => {
     expect(result.actual.main.draftDepth).toBeGreaterThan(0)
     expect(Number.isFinite(result.apparentWindSpeed)).toBe(true)
   })
+
+  it('orders every recommendation by simulated aerodynamic improvement', () => {
+    const scenarios = [
+      { boat: '420' as const, angle: 45, wind: 16, controls: { vang: 0, cunningham: 0, outhaul: 0, chock: 0, jibHeight: 100 } },
+      { boat: '470' as const, angle: 45, wind: 16, controls: { vang: 100, cunningham: 0, outhaul: 0, forePuller: 0, aftPuller: 100, jibLeadForeAft: 0 } },
+      { boat: '470' as const, angle: 140, wind: 12, controls: targetControls('470', 45, 12) },
+    ]
+
+    for (const scenario of scenarios) {
+      const baseline = targetControls(scenario.boat, scenario.angle, scenario.wind)
+      const controls = { ...baseline, ...scenario.controls }
+      const result = calculateTrim(scenario.boat, scenario.angle, scenario.wind, controls)
+
+      for (let index = 1; index < result.actions.length; index += 1) {
+        expect(result.actions[index - 1].gain).toBeGreaterThanOrEqual(result.actions[index].gain)
+      }
+
+      const first = result.actions[0]
+      if (!first) continue
+      const corrected = calculateTrim(scenario.boat, scenario.angle, scenario.wind, {
+        ...controls,
+        [first.control]: result.targetControls[first.control],
+      })
+      const measuredGain = corrected.metrics.efficiency - result.metrics.efficiency
+      expect(first.gain).toBeCloseTo(measuredGain, 1)
+      expect(measuredGain).toBeGreaterThan(0)
+    }
+  })
 })

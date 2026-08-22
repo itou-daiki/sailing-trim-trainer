@@ -23,14 +23,14 @@ const Metric = ({
 )
 
 export function MetricsRail({ result }: MetricsRailProps) {
-  const { metrics, actual } = result
+  const { metrics } = result
   return (
     <div className="metrics-rail" aria-label="セール形状と推定性能">
       <Metric
         label="SHAPE FIT"
         value={Math.round(metrics.efficiency).toString()}
         unit="%"
-        detail="基準形状との近さ"
+        detail="断面ポーラの総合適合"
       />
       <Metric
         label="EST. SPEED"
@@ -39,16 +39,16 @@ export function MetricsRail({ result }: MetricsRailProps) {
         detail="形状差による推定変化"
       />
       <Metric
-        label="MAIN SHAPE"
-        value={(actual.main.draftDepth * 100).toFixed(1)}
+        label="FORWARD DRIVE"
+        value={Math.round(metrics.drive).toString()}
         unit="%"
-        detail={`最大深さ位置 ${Math.round(actual.main.draftPosition * 100)}%`}
+        detail="同条件の基準形との比"
       />
       <Metric
-        label="JIB SHAPE"
-        value={(actual.jib.draftDepth * 100).toFixed(1)}
-        unit="%"
-        detail={`最大深さ位置 ${Math.round(actual.jib.draftPosition * 100)}%`}
+        label="SECTION L / D"
+        value={metrics.liftToDrag.toFixed(1)}
+        unit=""
+        detail={`揚力 ${metrics.liftCoefficient.toFixed(2)} / 抗力 ${metrics.dragCoefficient.toFixed(2)}`}
       />
     </div>
   )

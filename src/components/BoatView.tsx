@@ -1,351 +1,335 @@
-import type { BoatClass, TrimControls, TrimResult } from '../domain/types'
+import {
+  buildRigSurfaces,
+  DRAFT_PEAK_COLUMN,
+  getLevelRow,
+  measureSurfaceRow,
+  projectSurface,
+} from '../domain/sailGeometry'
+import type {
+  ProjectedPoint,
+  ProjectedSurface,
+  ProjectionView,
+  RigSurfaces,
+  SurfaceRow,
+} from '../domain/sailGeometry'
+import type {
+  BoatClass,
+  ControlKey,
+  SailLevel,
+  TrimResult,
+} from '../domain/types'
 
 type BoatViewProps = {
   boat: BoatClass
   angle: number
   windSpeed: number
-  controls: TrimControls
   result: TrimResult
   courseNotice: string
+  focusControl?: ControlKey
+  showTarget: boolean
+  onToggleTarget: () => void
 }
 
-type ProjectionProps = {
-  boat: BoatClass
-  controls: TrimControls
-  result: TrimResult
+type Focus = { sail: 'main' | 'jib'; level: SailLevel }
+
+const CONTROL_FOCUS: Partial<Record<ControlKey, Focus>> = {
+  vang: { sail: 'main', level: 'upper' },
+  cunningham: { sail: 'main', level: 'middle' },
+  outhaul: { sail: 'main', level: 'lower' },
+  chock: { sail: 'main', level: 'lower' },
+  forePuller: { sail: 'main', level: 'middle' },
+  aftPuller: { sail: 'main', level: 'middle' },
+  jibHeight: { sail: 'jib', level: 'upper' },
+  jibLeadForeAft: { sail: 'jib', level: 'upper' },
 }
 
-const pointFromAngle = (
-  originX: number,
-  originY: number,
-  length: number,
-  degrees: number,
-) => {
-  const radians = (degrees * Math.PI) / 180
+const VIEW_META: Record<
+  ProjectionView,
+  { index: string; view: string; title: string; note: string }
+> = {
+  top: {
+    index: '01',
+    view: 'PLAN / 上から',
+    title: '開きとドラフト',
+    note: '高さごとの曲線を重ねて見る',
+  },
+  side: {
+    index: '02',
+    view: 'SIDE / 斜め横',
+    title: 'ラフからリーチ',
+    note: '横18°・上12°から深さを残す',
+  },
+  aft: {
+    index: '03',
+    view: 'AFT / 後ろから',
+    title: '高さごとのツイスト',
+    note: '上・中・下の開き角を比べる',
+  },
+}
+
+const LEVEL_LABELS: Record<SailLevel, string> = {
+  upper: '上部 75%',
+  middle: '中部 50%',
+  lower: '下部 25%',
+}
+
+type Mapper = (point: { x: number; y: number }) => { x: number; y: number }
+
+function createMapper(
+  surfaces: ProjectedSurface[],
+  width: number,
+  height: number,
+  view: ProjectionView,
+): Mapper {
+  const points = surfaces.flatMap((surface) =>
+    surface.rows.flatMap((row) => row.points),
+  )
+  const extra = view === 'top'
+    ? [{ x: -1.08, y: -0.22 }, { x: 1.22, y: 0.22 }]
+    : view === 'side'
+      ? [{ x: -1.08, y: -0.14 }, { x: 1.22, y: 1.28 }]
+      : [{ x: -0.32, y: -0.14 }, { x: 1.05, y: 1.28 }]
+  const all = [...points, ...extra]
+  const minX = Math.min(...all.map((point) => point.x))
+  const maxX = Math.max(...all.map((point) => point.x))
+  const minY = Math.min(...all.map((point) => point.y))
+  const maxY = Math.max(...all.map((point) => point.y))
+  const padding = 18
+  const scale = Math.min(
+    (width - padding * 2) / Math.max(0.01, maxX - minX),
+    (height - padding * 2) / Math.max(0.01, maxY - minY),
+  )
+  const usedWidth = (maxX - minX) * scale
+  const usedHeight = (maxY - minY) * scale
+  const offsetX = (width - usedWidth) / 2
+  const offsetY = (height - usedHeight) / 2
+
+  return (point) => ({
+    x: offsetX + (point.x - minX) * scale,
+    y: height - offsetY - (point.y - minY) * scale,
+  })
+}
+
+function path(points: ProjectedPoint[], map: Mapper, close = false) {
+  const mapped = points.map(map)
+  if (mapped.length === 0) return ''
+  return `M${mapped.map((point) => `${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join('L')}${close ? 'Z' : ''}`
+}
+
+function outlinePoints(surface: ProjectedSurface) {
+  const rows = surface.rows
+  const lower = rows[0].points
+  const leech = rows.slice(1).map((row) => row.points.at(-1) as ProjectedPoint)
+  const top = [...rows.at(-1)!.points].reverse().slice(1)
+  const luff = [...rows].reverse().slice(1, -1).map((row) => row.points[0])
+  return [...lower, ...leech, ...top, ...luff]
+}
+
+function projectedRigGuides(view: ProjectionView, map: Mapper) {
+  const line = (points: Array<{ x: number; y: number }>) => {
+    const mapped = points.map(map)
+    return `M${mapped.map((point) => `${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join('L')}`
+  }
+
+  if (view === 'top') {
+    return {
+      hull: line([
+        { x: -1.05, y: 0 }, { x: -0.82, y: -0.12 },
+        { x: 0.98, y: -0.11 }, { x: 1.18, y: 0 },
+        { x: 0.98, y: 0.11 }, { x: -0.82, y: 0.12 }, { x: -1.05, y: 0 },
+      ]),
+      mast: line([{ x: 0, y: -0.15 }, { x: 0, y: 0.15 }]),
+      water: '',
+    }
+  }
+  if (view === 'side') {
+    return {
+      hull: line([
+        { x: -1.02, y: -0.02 }, { x: -0.65, y: -0.12 },
+        { x: 0.96, y: -0.11 }, { x: 1.18, y: -0.02 }, { x: -1.02, y: -0.02 },
+      ]),
+      mast: line([{ x: 0, y: -0.02 }, { x: -0.018, y: 1.22 }]),
+      water: line([{ x: -1.08, y: -0.14 }, { x: 1.22, y: -0.14 }]),
+    }
+  }
   return {
-    x: originX + Math.sin(radians) * length,
-    y: originY + Math.cos(radians) * length,
+    hull: line([
+      { x: -0.3, y: -0.02 }, { x: -0.2, y: -0.13 },
+      { x: 0.2, y: -0.13 }, { x: 0.3, y: -0.02 }, { x: -0.3, y: -0.02 },
+    ]),
+    mast: line([{ x: 0, y: -0.02 }, { x: 0, y: 1.22 }]),
+    water: line([{ x: -0.32, y: -0.14 }, { x: 1.05, y: -0.14 }]),
   }
 }
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, value))
-
-function curvedPlanPath(
-  originX: number,
-  originY: number,
-  endX: number,
-  endY: number,
-  depth: number,
-  position: number,
-) {
-  const points: string[] = []
-  const dx = endX - originX
-  const dy = endY - originY
-  const chord = Math.hypot(dx, dy)
-  const peakPosition = clamp(position, 0.05, 0.95)
-  const normalX = dy / chord
-  const normalY = -dx / chord
-
-  for (let index = 0; index <= 24; index += 1) {
-    const ratio = index / 24
-    const rise = ratio <= peakPosition
-      ? Math.sin((ratio / peakPosition) * (Math.PI / 2))
-      : Math.sin(((1 - ratio) / (1 - peakPosition)) * (Math.PI / 2))
-    const camber = rise * depth * chord
-    points.push(`${originX + dx * ratio + normalX * camber},${originY + dy * ratio + normalY * camber}`)
-  }
-
-  return `M${points.join(' L')}`
-}
-
-function ProjectionCaption({
-  view,
-  title,
-  value,
+function SurfaceLayer({
+  surface,
+  map,
+  active,
+  target,
 }: {
-  view: string
-  title: string
-  value: string
+  surface: ProjectedSurface
+  map: Mapper
+  active: Focus
+  target: boolean
 }) {
-  return (
-    <figcaption className="projection-caption">
-      <span>{view}</span>
-      <strong>{title}</strong>
-      <small>{value}</small>
-    </figcaption>
-  )
-}
-
-function TopProjection({
-  boat,
-  angle,
-  windSpeed,
-  result,
-}: ProjectionProps & { angle: number; windSpeed: number }) {
-  const mainEnd = pointFromAngle(260, 215, 196, result.actual.main.angle)
-  const jibEnd = pointFromAngle(260, 203, 108, result.actual.jib.angle)
-  const targetMainEnd = pointFromAngle(260, 215, 196, result.target.main.angle)
-  const targetJibEnd = pointFromAngle(260, 203, 108, result.target.jib.angle)
-  const mainCurve = curvedPlanPath(
-    260,
-    215,
-    mainEnd.x,
-    mainEnd.y,
-    result.actual.main.draftDepth,
-    result.actual.main.draftPosition,
-  )
-  const jibCurve = curvedPlanPath(
-    260,
-    203,
-    jibEnd.x,
-    jibEnd.y,
-    result.actual.jib.draftDepth,
-    result.actual.jib.draftPosition,
-  )
-  const targetMainCurve = curvedPlanPath(
-    260,
-    215,
-    targetMainEnd.x,
-    targetMainEnd.y,
-    result.target.main.draftDepth,
-    result.target.main.draftPosition,
-  )
-  const targetJibCurve = curvedPlanPath(
-    260,
-    203,
-    targetJibEnd.x,
-    targetJibEnd.y,
-    result.target.jib.draftDepth,
-    result.target.jib.draftPosition,
-  )
-  const driveLength = 42 + result.metrics.drive * 0.8
+  const spanColumns = [0, 5, DRAFT_PEAK_COLUMN, 15, 20, 24]
+  const prefix = target ? 'geometry-target' : 'geometry-current'
 
   return (
-    <figure className="projection-frame projection-top">
-      <ProjectionCaption
-        view="01 / TOP"
-        title="平面のふくらみ"
-        value={`深さ ${(result.actual.main.draftDepth * 100).toFixed(1)}% · 位置 ${Math.round(result.actual.main.draftPosition * 100)}%`}
-      />
-      <svg viewBox="0 0 560 520" role="img" aria-label={`${boat}を上から見たセールのふくらみ。深さ${(result.actual.main.draftDepth * 100).toFixed(1)}%、最大深さ位置${Math.round(result.actual.main.draftPosition * 100)}%`}>
-        <defs>
-          <marker id="force-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" />
-          </marker>
-          <marker id="side-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" />
-          </marker>
-          <marker id="wind-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" />
-          </marker>
-        </defs>
-
-        <g className="water-traces" aria-hidden="true">
-          <path d="M62 80H162M45 111H141M390 380H504M414 410H532M52 458H177" />
-        </g>
-
-        <g className="true-wind" transform={`rotate(${-angle + 14} 92 112)`}>
-          {[0, 24, 48].map((offset) => (
-            <path key={offset} d={`M${58 + offset} 166V58`} markerEnd="url(#wind-head)" />
-          ))}
-        </g>
-        <text x="46" y="194" className="svg-caption">TRUE WIND {windSpeed} KT</text>
-
+    <g className={`${prefix} geometry-${surface.sail}`}>
+      <path className="geometry-sail-fill" d={path(outlinePoints(surface), map, true)} />
+      <path className="geometry-sail-outline" d={path(outlinePoints(surface), map, true)} />
+      {!target ? spanColumns.map((column) => (
         <path
-          className="hull-shadow"
-          d="M260 52C224 87 219 354 248 454H272C301 354 296 87 260 52Z"
+          key={column}
+          className="geometry-span-line"
+          d={path(surface.rows.map((row) => row.points[column]), map)}
         />
+      )) : null}
+      {!target ? surface.rows.map((row) => (
         <path
-          className="hull"
-          d="M260 48C224 83 219 350 248 450H272C301 350 296 83 260 48Z"
+          key={row.height}
+          className={row.level ? 'geometry-chord-line is-draft-row' : 'geometry-chord-line'}
+          d={path(row.points, map)}
         />
-        <path className="cockpit" d="M238 238Q260 216 282 238L277 376Q260 396 243 376Z" />
-        <path className="deck-line" d="M260 62V444M230 205H290" />
-        <circle cx="260" cy="215" r="8" className="mast" />
-
-        <path className="projection-target-shape" d={targetJibCurve} />
-        <path className="projection-target-shape" d={targetMainCurve} />
-        <path
-          className="jib-sail"
-          d={`${jibCurve}L260 203Z`}
-        />
-        <path
-          className="main-sail"
-          d={`${mainCurve}L260 215Z`}
-        />
-        <path className="boom" d={`M260 215L${mainEnd.x} ${mainEnd.y}`} />
-        <path className="jib-foot" d={`M260 203L${jibEnd.x} ${jibEnd.y}`} />
-
-        <g className={result.metrics.efficiency > 88 ? 'telltales is-flowing' : 'telltales'}>
-          <path d={`M${jibEnd.x - 29} ${jibEnd.y - 20}l28 -2`} />
-          <path d={`M${jibEnd.x - 38} ${jibEnd.y - 38}l27 5`} />
-          <path d={`M${mainEnd.x - 42} ${mainEnd.y - 22}l30 2`} />
-        </g>
-
-        <g className="force-vectors">
-          <path d={`M275 272V${272 - driveLength}`} markerEnd="url(#force-arrow)" />
-          <text x="286" y={250 - driveLength} className="force-label">前へ進む力</text>
-        </g>
-
-        <text x="260" y="486" textAnchor="middle" className="boat-class-label">
-          {boat} / STARBOARD TACK MODEL
-        </text>
-      </svg>
-
-      <div className="canvas-key" aria-label="上面図の凡例">
-        <span><i className="key-drive" />前へ進む力</span>
-        <span><i className="key-sail" />曲線＝現在のふくらみ</span>
-      </div>
-    </figure>
-  )
-}
-
-function SideProjection({ boat, controls, result }: ProjectionProps) {
-  const main = result.actual.main
-  const jib = result.actual.jib
-  const targetMain = result.target.main
-  const targetJib = result.target.jib
-  const mastBend = boat === '420'
-    ? 5 + (100 - controls.chock) * 0.1
-    : 7 + (controls.forePuller - controls.aftPuller) * 0.08
-  const mastTopX = 188 + clamp(mastBend, -4, 18)
-  const mainLevels = [
-    { level: 'upper', y: 76 },
-    { level: 'middle', y: 126 },
-    { level: 'lower', y: 176 },
-  ] as const
-  const jibLevels = [
-    { level: 'upper', y: 105 },
-    { level: 'lower', y: 153 },
-  ] as const
-
-  const mainStripe = (shape: typeof main, level: (typeof mainLevels)[number]['level'], y: number) => {
-    const section = shape.sections[level]
-    const ratio = (y - 34) / 168
-    const luffX = mastTopX + (190 - mastTopX) * ratio
-    const leechX = mastTopX + (360 - mastTopX) * ratio
-    const chord = leechX - luffX
-    const peakX = luffX + chord * section.draftPosition
-    const bow = section.draftDepth * 150 * (0.82 + ratio * 0.2)
-    return `M${luffX} ${y} Q${peakX} ${y + bow} ${leechX} ${y}`
-  }
-
-  const jibStripe = (shape: typeof jib, level: (typeof jibLevels)[number]['level'], y: number) => {
-    const section = shape.sections[level]
-    const ratio = (y - 50) / 150
-    const luffX = mastTopX + (68 - mastTopX) * ratio
-    const leechX = mastTopX + (174 - mastTopX) * ratio
-    const chord = leechX - luffX
-    const peakX = luffX + chord * section.draftPosition
-    return `M${luffX} ${y} Q${peakX} ${y + section.draftDepth * 120} ${leechX} ${y}`
-  }
-
-  return (
-    <figure className="projection-frame projection-side">
-      <ProjectionCaption
-        view="02 / SIDE"
-        title="ドラフト"
-        value={`${(main.draftDepth * 100).toFixed(1)}% · 位置 ${Math.round(main.draftPosition * 100)}%`}
-      />
-      <svg viewBox="0 0 430 270" role="img" aria-label={`${boat}を横から見たセール全体とドラフトストライプ`}>
-        <path className="side-waterline" d="M18 224H414" />
-        <path className="side-hull-shadow" d="M38 207Q138 247 345 228L403 203Q310 215 82 199Z" />
-        <path className="side-hull" d="M32 202Q132 239 339 222L397 198Q306 207 79 194Z" />
-        <path className="side-cockpit" d="M167 199Q241 174 318 199" />
-
-        <path className="side-jib" d={`M${mastTopX} 48L68 195L174 195Z`} />
-        <path
-          className="side-main"
-          d={`M${mastTopX} 34Q${204 + mastBend} 105 190 202L360 202Q337 108 ${mastTopX} 34Z`}
-        />
-        <path className="side-mast-reference" d="M190 202V30" />
-        <path className="side-mast" d={`M190 205Q${190 + mastBend * 0.25} 112 ${mastTopX} 29`} />
-        <path className="side-boom" d="M190 202H363" />
-        <path className="side-vang" d="M210 202L249 183" />
-        <path className="side-forestay" d={`M${mastTopX} 45L67 197`} />
-
-        <g className="draft-stripes projection-target-stripes">
-          {mainLevels.map((stripe) => <path key={stripe.level} d={mainStripe(targetMain, stripe.level, stripe.y)} />)}
-          {jibLevels.map((stripe) => <path key={`jib-${stripe.level}`} d={jibStripe(targetJib, stripe.level, stripe.y)} />)}
-        </g>
-        <g className="draft-stripes draft-main">
-          {mainLevels.map((stripe) => <path key={stripe.level} d={mainStripe(main, stripe.level, stripe.y)} />)}
-        </g>
-        <g className="draft-stripes draft-jib">
-          {jibLevels.map((stripe) => <path key={stripe.level} d={jibStripe(jib, stripe.level, stripe.y)} />)}
-        </g>
-
-        <text x="201" y="43" className="sail-plan-label">LUFF</text>
-        <text x="344" y="164" className="sail-plan-label">LEECH</text>
-        <text x="251" y="218" className="sail-plan-label">FOOT</text>
-
-        <g className="side-telltales">
-          <path d="M320 108l23 4M339 155l24 2M351 190l23 1" />
-        </g>
-
-        <path className="shape-callout-line" d={`M${188 + (360 - 188) * main.draftPosition} 126L290 66H370`} />
-        <circle
-          className="shape-callout-dot"
-          cx={188 + (360 - 188) * main.draftPosition}
-          cy={126 + main.draftDepth * 150}
-          r="4"
-        />
-        <text x="293" y="58" className="shape-callout">最大ドラフト位置</text>
-        <text x="293" y="73" className="shape-callout-value">{Math.round(main.draftPosition * 100)}% LUFF</text>
-        <text x="28" y="252" className="projection-note">曲線＝セール面のふくらみ / 3本を同時比較</text>
-      </svg>
-    </figure>
-  )
-}
-
-function AftProjection({ result }: ProjectionProps) {
-  const main = result.actual.main
-  const target = result.target.main
-  const boomProjection = clamp(18 + (main.angle + main.sections.lower.twist) * 1.25, 25, 122)
-  const middleProjection = clamp(12 + (main.angle + main.sections.middle.twist) * 0.9, 20, 100)
-  const upperProjection = clamp(7 + (main.angle + main.sections.upper.twist) * 0.62, 15, 82)
-  const targetBoomProjection = clamp(18 + (target.angle + target.sections.lower.twist) * 1.25, 25, 122)
-  const targetMiddleProjection = clamp(12 + (target.angle + target.sections.middle.twist) * 0.9, 20, 100)
-  const targetUpperProjection = clamp(7 + (target.angle + target.sections.upper.twist) * 0.62, 15, 82)
-
-  return (
-    <figure className="projection-frame projection-aft">
-      <ProjectionCaption
-        view="03 / AFT"
-        title="ツイスト"
-        value={`UPPER ${Math.round(main.sections.upper.twist)}°`}
-      />
-      <svg viewBox="0 0 300 270" role="img" aria-label={`後ろから見たメインセール上部のツイスト ${Math.round(main.sections.upper.twist)}度。艇は水平に保たれる前提`}>
-        <path className="aft-waterline" d="M12 220H288" />
-        <g className="aft-heel-group">
-          <path
-            className="aft-target-shape"
-            d={`M150 36L150 202L${150 + targetBoomProjection} 202Q${150 + targetMiddleProjection + 18} 128 ${150 + targetUpperProjection} 62Q158 40 150 36Z`}
-          />
-          <path
-            className="aft-main"
-            d={`M150 36L150 202L${150 + boomProjection} 202Q${150 + middleProjection + 18} 128 ${150 + upperProjection} 62Q158 40 150 36Z`}
-          />
-          <path className="aft-mast" d="M150 210V31" />
-          <path className="aft-boom" d={`M150 202H${150 + boomProjection + 4}`} />
-          <path className="aft-leech" d={`M${150 + upperProjection} 62Q${150 + middleProjection + 18} 128 ${150 + boomProjection} 202`} />
-          <g className="aft-stripes">
-            <path d={`M150 82H${150 + upperProjection + 7}`} />
-            <path d={`M150 132H${150 + middleProjection + 14}`} />
-            <path d={`M150 181H${150 + boomProjection - 12}`} />
+      )) : null}
+      {surface.rows.filter((row) => row.level).map((row) => {
+        const selected = row.level === active.level && surface.sail === active.sail
+        const peak = map(row.points[DRAFT_PEAK_COLUMN])
+        return (
+          <g key={`draft-${row.level}`} className={selected ? 'geometry-draft-row is-selected' : 'geometry-draft-row'}>
+            <path d={path(row.points, map)} />
+            {!target ? <circle cx={peak.x} cy={peak.y} r={selected ? 4.2 : 2.7} /> : null}
           </g>
-          <path className="aft-hull-shadow" d="M86 194Q150 244 214 194L199 224Q150 249 101 224Z" />
-          <path className="aft-hull" d="M83 188Q150 234 217 188L201 218Q150 241 99 218Z" />
-          <path className="aft-deck" d="M91 191Q150 212 209 191" />
-        </g>
+        )
+      })}
+    </g>
+  )
+}
 
-        <path className="twist-callout" d={`M${150 + upperProjection} 64H267`} />
-        <text x="207" y="56" className="shape-callout">上部が開く量</text>
-        <text x="207" y="71" className="shape-callout-value">{Math.round(main.sections.upper.twist)}° TWIST</text>
-        <text x="18" y="252" className="projection-note">艇は水平に保たれる前提 / 上部の開きだけを比較</text>
+function ProjectionPanel({
+  view,
+  actual,
+  target,
+  active,
+  showTarget,
+}: {
+  view: ProjectionView
+  actual: RigSurfaces
+  target: RigSurfaces
+  active: Focus
+  showTarget: boolean
+}) {
+  const width = 400
+  const height = 245
+  const actualProjected = [
+    projectSurface(actual.jib, view),
+    projectSurface(actual.main, view),
+  ]
+  const targetProjected = [
+    projectSurface(target.jib, view),
+    projectSurface(target.main, view),
+  ]
+  const map = createMapper(
+    [...actualProjected, ...targetProjected],
+    width,
+    height,
+    view,
+  )
+  const guides = projectedRigGuides(view, map)
+  const meta = VIEW_META[view]
+
+  return (
+    <figure className={`geometry-panel geometry-panel-${view}`}>
+      <figcaption>
+        <span>{meta.index}</span>
+        <div><strong>{meta.view}</strong><small>{meta.title}</small></div>
+      </figcaption>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label={`${meta.view}。単一の3Dセール面を投影し、${meta.note}。`}
+      >
+        {guides.water ? <path className="geometry-waterline" d={guides.water} /> : null}
+        <path className="geometry-hull" d={guides.hull} />
+        <path className="geometry-mast" d={guides.mast} />
+        {showTarget ? targetProjected.map((surface) => (
+          <SurfaceLayer key={`target-${surface.sail}`} surface={surface} map={map} active={active} target />
+        )) : null}
+        {actualProjected.map((surface) => (
+          <SurfaceLayer key={surface.sail} surface={surface} map={map} active={active} target={false} />
+        ))}
+        <text x="14" y="232" className="geometry-camera-note">{meta.note}</text>
       </svg>
     </figure>
+  )
+}
+
+function profilePath(row: SurfaceRow) {
+  const luff = row.points[0]
+  const leech = row.points.at(-1)!
+  const chordX = leech.x - luff.x
+  const chordY = leech.y - luff.y
+  const chord = Math.hypot(chordX, chordY)
+  const unitX = chordX / chord
+  const unitY = chordY / chord
+  const normalX = -unitY
+  const normalY = unitX
+  const points = row.points.map((point) => {
+    const offsetX = point.x - luff.x
+    const offsetY = point.y - luff.y
+    const u = (offsetX * unitX + offsetY * unitY) / chord
+    const depth = (offsetX * normalX + offsetY * normalY) / chord
+    return { x: 18 + u * 284, y: 70 - depth * 310 }
+  })
+  return `M${points.map((point) => `${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join('L')}`
+}
+
+function SectionInspector({
+  active,
+  actual,
+  target,
+  showTarget,
+}: {
+  active: Focus
+  actual: RigSurfaces
+  target: RigSurfaces
+  showTarget: boolean
+}) {
+  const currentRow = getLevelRow(actual[active.sail], active.level)
+  const targetRow = getLevelRow(target[active.sail], active.level)
+  const current = measureSurfaceRow(currentRow, 0)
+  const reference = measureSurfaceRow(targetRow, 0)
+  const currentPeak = currentRow.points[DRAFT_PEAK_COLUMN]
+  const targetPeak = targetRow.points[DRAFT_PEAK_COLUMN]
+  const currentPeakX = 18 + currentPeak.u * 284
+  const targetPeakX = 18 + targetPeak.u * 284
+  const currentPeakY = 70 - current.draftDepth * 310
+  const targetPeakY = 70 - reference.draftDepth * 310
+  const sailLabel = active.sail === 'main' ? 'メイン' : 'ジブ'
+
+  return (
+    <div className="geometry-inspector" aria-live="polite">
+      <div className="geometry-profile-title">
+        <span>SELECTED STRIPE</span>
+        <strong>{sailLabel}・{LEVEL_LABELS[active.level]}</strong>
+        <small>三面図の太線と同じ断面</small>
+      </div>
+      <svg viewBox="0 0 320 92" role="img" aria-label={`${sailLabel}${LEVEL_LABELS[active.level]}の水平断面`}>
+        <path className="geometry-profile-chord" d="M18 70H302" />
+        {showTarget ? <path className="geometry-profile-target" d={profilePath(targetRow)} /> : null}
+        <path className="geometry-profile-current" d={profilePath(currentRow)} />
+        {showTarget ? <circle className="geometry-profile-target-point" cx={targetPeakX} cy={targetPeakY} r="3.2" /> : null}
+        <circle className="geometry-profile-current-point" cx={currentPeakX} cy={currentPeakY} r="3.7" />
+        <text x="18" y="86">LUFF 0%</text><text x="302" y="86" textAnchor="end">LEECH 100%</text>
+      </svg>
+      <div className="geometry-readings">
+        <div><span>深さ</span><strong>{(current.draftDepth * 100).toFixed(1)}%</strong><small>基準 {(reference.draftDepth * 100).toFixed(1)}%</small></div>
+        <div><span>最大位置</span><strong>{Math.round(current.draftPosition * 100)}%</strong><small>基準 {Math.round(reference.draftPosition * 100)}%</small></div>
+        <div><span>ツイスト</span><strong>{currentRow.section.twist.toFixed(1)}°</strong><small>基準 {targetRow.section.twist.toFixed(1)}°</small></div>
+      </div>
+    </div>
   )
 }
 
@@ -353,47 +337,63 @@ export function BoatView({
   boat,
   angle,
   windSpeed,
-  controls,
   result,
   courseNotice,
+  focusControl,
+  showTarget,
+  onToggleTarget,
 }: BoatViewProps) {
+  const active = CONTROL_FOCUS[focusControl ?? 'cunningham'] ?? {
+    sail: 'main',
+    level: 'middle',
+  }
+  const actualSurfaces = buildRigSurfaces(boat, result.actual)
+  const targetSurfaces = buildRigSurfaces(boat, result.target)
+
   return (
-    <section className="boat-view" aria-labelledby="boat-view-title">
-      <div className="boat-view-head">
+    <section className="boat-view geometry-view" aria-labelledby="boat-view-title">
+      <div className="boat-view-head geometry-view-head">
         <div className="section-heading light-heading">
           <span className="section-index">B</span>
           <div>
-            <p>LIVE THREE-VIEW</p>
-            <h2 id="boat-view-title">三方向を見ながら動かす</h2>
+            <p>ONE SURFACE / THREE CAMERAS</p>
+            <h2 id="boat-view-title">同じセール面を三方向から測る</h2>
           </div>
         </div>
-        <div className="projection-live-key" aria-label="三方向図の凡例">
-          <span><i className="current-shape-key" />現在形</span>
-          <span><i className="reference-shape-key" />基準形</span>
+        <div className="geometry-head-tools">
+          <span className="geometry-condition">{boat} · TWA {angle}° · {windSpeed} kt</span>
+          <div className="geometry-legend" aria-label="形状の凡例">
+            <span><i className="legend-main" />メイン</span>
+            <span><i className="legend-jib" />ジブ</span>
+          </div>
+          <button type="button" className={showTarget ? 'geometry-target-toggle is-active' : 'geometry-target-toggle'} aria-pressed={showTarget} onClick={onToggleTarget}>
+            <i />基準形
+          </button>
         </div>
       </div>
 
-      <div className="boat-canvas">
-        <div className="projection-grid">
-          <TopProjection
-            boat={boat}
-            angle={angle}
-            windSpeed={windSpeed}
-            controls={controls}
-            result={result}
+      <div className="geometry-stage">
+        {(['top', 'side', 'aft'] as const).map((view) => (
+          <ProjectionPanel
+            key={view}
+            view={view}
+            actual={actualSurfaces}
+            target={targetSurfaces}
+            active={active}
+            showTarget={showTarget}
           />
-          <SideProjection boat={boat} controls={controls} result={result} />
-          <AftProjection boat={boat} controls={controls} result={result} />
-        </div>
-        <div className="projection-guide" aria-label="三面図で確認する項目">
-          <span><strong>TOP</strong> 平面のふくらみと最大深さ位置</span>
-          <span><strong>SIDE</strong> ドラフトの深さと位置</span>
-          <span><strong>AFT</strong> 上・中・下のツイスト</span>
-        </div>
+        ))}
       </div>
 
-      <div className="course-notice" aria-live="polite">
-        <span>COURSE CHANGE</span>
+      <SectionInspector
+        active={active}
+        actual={actualSurfaces}
+        target={targetSurfaces}
+        showTarget={showTarget}
+      />
+
+      <div className="course-notice geometry-course-notice">
+        <span>LIVE CAUSE → SHAPE</span>
         <p>{courseNotice}</p>
       </div>
     </section>

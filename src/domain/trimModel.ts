@@ -1,4 +1,5 @@
 import { BOATS } from '../data/boats'
+import { evaluateAero } from './aeroModel'
 import type {
   BoatClass,
   ControlKey,
@@ -127,9 +128,9 @@ function sailShapes(
 
   const bend = boat === '420'
     ? {
-        lower: clamp(0.38 + vang * 0.2 - chock * 0.3, 0.08, 0.78),
-        middle: clamp(0.4 + vang * 0.34 - chock * 0.18, 0.12, 0.86),
-        upper: clamp(0.38 + vang * 0.42 - chock * 0.05, 0.16, 0.9),
+        lower: clamp(0.38 + vang * 0.2 - chock * 0.5, 0.08, 0.78),
+        middle: clamp(0.4 + vang * 0.34 - chock * 0.3, 0.12, 0.86),
+        upper: clamp(0.38 + vang * 0.42 - chock * 0.06, 0.16, 0.9),
       }
     : {
         lower: clamp(0.34 + forePuller * 0.45 - aftPuller * 0.35 + vang * 0.16, 0.08, 0.9),
@@ -141,7 +142,7 @@ function sailShapes(
     lower: {
       height: 0.25,
       draftDepth: clamp(
-        0.165 - (outhaul - 0.5) * 0.065 - bend.lower * 0.028 - cunningham * 0.01 + windLoad * 0.007,
+        0.165 - (outhaul - 0.5) * 0.065 - bend.lower * 0.05 - cunningham * 0.01 + windLoad * 0.007,
         0.075,
         0.19,
       ),
@@ -155,7 +156,7 @@ function sailShapes(
     middle: {
       height: 0.5,
       draftDepth: clamp(
-        0.145 - (outhaul - 0.5) * 0.02 - bend.middle * 0.045 - cunningham * 0.009 + windLoad * 0.01,
+        0.145 - (outhaul - 0.5) * 0.02 - bend.middle * 0.065 - cunningham * 0.009 + windLoad * 0.01,
         0.07,
         0.17,
       ),
@@ -169,7 +170,7 @@ function sailShapes(
     upper: {
       height: 0.75,
       draftDepth: clamp(
-        0.118 - (outhaul - 0.5) * 0.004 - bend.upper * 0.038 - cunningham * 0.006 + windLoad * 0.012,
+        0.118 - (outhaul - 0.5) * 0.004 - bend.upper * 0.045 - cunningham * 0.006 + windLoad * 0.012,
         0.06,
         0.145,
       ),
@@ -264,38 +265,6 @@ function controlErrors(
   }))
 }
 
-const SAIL_LEVELS = ['lower', 'middle', 'upper'] as const
-
-function shapeMismatch(actual: SailPair, target: SailPair) {
-  let weightedSquares = 0
-  let totalWeight = 0
-
-  for (const sailKey of ['main', 'jib'] as const) {
-    const sailWeight = sailKey === 'main' ? 1 : 0.78
-    for (const level of SAIL_LEVELS) {
-      const levelWeight = level === 'middle' ? 1 : level === 'lower' ? 0.92 : 0.88
-      const weight = sailWeight * levelWeight
-      const actualSection = actual[sailKey].sections[level]
-      const targetSection = target[sailKey].sections[level]
-      const depthTolerance = sailKey === 'main' ? 0.009 : 0.01
-      const positionTolerance = 0.022
-      const twistTolerance = level === 'upper' ? 2.2 : level === 'middle' ? 1.5 : 0.8
-      const errors = [
-        (actualSection.draftDepth - targetSection.draftDepth) / depthTolerance,
-        (actualSection.draftPosition - targetSection.draftPosition) / positionTolerance,
-        (actualSection.twist - targetSection.twist) / twistTolerance,
-      ]
-
-      for (const error of errors) {
-        weightedSquares += Math.min(3.5, Math.abs(error)) ** 2 * weight
-        totalWeight += weight
-      }
-    }
-  }
-
-  return Math.sqrt(weightedSquares / totalWeight)
-}
-
 const ACTION_DIRECTIONS: Record<
   ControlKey,
   { increase: string; decrease: string }
@@ -340,19 +309,28 @@ function prioritizedActions(
   controls: TrimControls,
   target: TrimControls,
   windSpeed: number,
+  trueWindAngle: number,
 ): TrimAction[] {
   const targetShape = sailShapes(boat, target, windSpeed)
-  const currentMismatch = shapeMismatch(sailShapes(boat, controls, windSpeed), targetShape)
+  const currentScore = evaluateAero(
+    sailShapes(boat, controls, windSpeed),
+    targetShape,
+    trueWindAngle,
+  ).efficiency
 
   return controlErrors(boat, controls, target)
     .filter((item) => item.severity >= 0.35)
     .map((item) => {
       const corrected = { ...controls, [item.key]: target[item.key] }
-      const correctedMismatch = shapeMismatch(sailShapes(boat, corrected, windSpeed), targetShape)
-      return { ...item, benefit: Math.max(0, currentMismatch - correctedMismatch) }
+      const correctedScore = evaluateAero(
+        sailShapes(boat, corrected, windSpeed),
+        targetShape,
+        trueWindAngle,
+      ).efficiency
+      return { ...item, benefit: Math.max(0, correctedScore - currentScore) }
     })
-    .filter((item) => item.benefit > 0.005)
-    .sort((a, b) => b.benefit * b.weight - a.benefit * a.weight)
+    .filter((item) => item.benefit > 0.1)
+    .sort((a, b) => b.benefit - a.benefit || b.severity * b.weight - a.severity * a.weight)
     .slice(0, 5)
     .map((item) => ({
       control: item.key,
@@ -362,6 +340,7 @@ function prioritizedActions(
           : ACTION_DIRECTIONS[item.key].decrease,
       reason: ACTION_REASONS[item.key],
       delta: Math.round(Math.abs(item.delta)),
+      gain: Math.round(item.benefit * 10) / 10,
       urgency: item.severity >= 1.15 ? 'large' : 'small',
     }))
 }
@@ -373,22 +352,24 @@ function metrics(
   actualShape: SailPair,
   targetShape: SailPair,
 ): TrimMetrics {
-  const mismatch = shapeMismatch(actualShape, targetShape)
-  const efficiency = clamp(100 - mismatch * 24, 34, 100)
-  const angleRad = (trueWindAngle * Math.PI) / 180
-  const coursePower = clamp(0.44 + Math.sin(angleRad) * 0.24, 0.43, 0.69)
-  const speed = clamp(
-    windSpeed * coursePower * BOATS[boat].hullSpeedFactor * (0.55 + efficiency / 220),
-    0,
-    boat === '470' ? 7.8 : 7.2,
-  )
+  const aero = evaluateAero(actualShape, targetShape, trueWindAngle)
+  const speedLimit = boat === '470' ? 7.8 : 7.2
+  const unboundedSpeed =
+    windSpeed *
+    0.72 *
+    BOATS[boat].hullSpeedFactor *
+    Math.sqrt(aero.driveCoefficient)
+  const speed = speedLimit * Math.tanh(unboundedSpeed / speedLimit)
   return {
-    efficiency,
+    efficiency: aero.efficiency,
     speed,
     heel: 0,
     leeway: 0,
-    drive: clamp(efficiency * coursePower * 1.32, 25, 100),
+    drive: aero.driveRatio,
     balance: 100,
+    liftCoefficient: aero.liftCoefficient,
+    dragCoefficient: aero.dragCoefficient,
+    liftToDrag: aero.liftToDrag,
   }
 }
 
@@ -498,7 +479,13 @@ export function calculateTrim(
   const target = sailShapes(boat, targets, windSpeed)
   const trimMetrics = metrics(boat, trueWindAngle, windSpeed, actual, target)
   const apparent = apparentWind(trueWindAngle, windSpeed, trimMetrics.speed)
-  const actions = prioritizedActions(boat, shapeControls, targets, windSpeed)
+  const actions = prioritizedActions(
+    boat,
+    shapeControls,
+    targets,
+    windSpeed,
+    trueWindAngle,
+  )
 
   return {
     actual,

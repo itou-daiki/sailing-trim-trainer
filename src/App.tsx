@@ -7,7 +7,6 @@ import { ControlPanel } from './components/ControlPanel'
 import { CourseBoard } from './components/CourseBoard'
 import { Masthead } from './components/Masthead'
 import { MetricsRail } from './components/MetricsRail'
-import { ShapeLab } from './components/ShapeLab'
 import { BOATS } from './data/boats'
 import { buildChallengeSetup, getChallenge, TRIM_CHALLENGES } from './domain/challenges'
 import { courseName } from './domain/course'
@@ -44,7 +43,6 @@ function App() {
   )
   const [lastControl, setLastControl] = useState<ControlKey>('cunningham')
   const [showTarget, setShowTarget] = useState(true)
-  const [visualMode, setVisualMode] = useState<'section' | 'three'>('three')
   const [phase, setPhase] = useState<ChallengePhase>('preview')
   const [prediction, setPrediction] = useState<ControlKey>()
   const [moveCount, setMoveCount] = useState(0)
@@ -309,47 +307,16 @@ function App() {
 
           <div className="trim-workbench">
             <div className="live-visual-column">
-              <div className="visual-mode-switch" role="group" aria-label="観察モニターの切り替え">
-                <span>LIVE OBSERVATION</span>
-                <button
-                  type="button"
-                  className={visualMode === 'section' ? 'is-active' : ''}
-                  aria-pressed={visualMode === 'section'}
-                  onClick={() => setVisualMode('section')}
-                >
-                  水平断面
-                </button>
-                <button
-                  type="button"
-                  className={visualMode === 'three' ? 'is-active' : ''}
-                  aria-pressed={visualMode === 'three'}
-                  onClick={() => setVisualMode('three')}
-                >
-                  上・横・後ろ
-                </button>
-              </div>
-
-              <div className="visual-panel" hidden={visualMode !== 'section'}>
-                <ShapeLab
-                  key={activeChallenge.id}
-                  actual={result.actual}
-                  target={result.target}
-                  showTarget={showTarget}
-                  focusControl={lastControl}
-                  onToggleTarget={() => setShowTarget((shown) => !shown)}
-                />
-              </div>
-
-              <div className="visual-panel" hidden={visualMode !== 'three'}>
-                <BoatView
-                  boat={boat}
-                  angle={angle}
-                  windSpeed={windSpeed}
-                  controls={controls}
-                  result={result}
-                  courseNotice={courseNotice}
-                />
-              </div>
+              <BoatView
+                boat={boat}
+                angle={angle}
+                windSpeed={windSpeed}
+                result={result}
+                courseNotice={courseNotice}
+                focusControl={lastControl}
+                showTarget={showTarget}
+                onToggleTarget={() => setShowTarget((shown) => !shown)}
+              />
               <MetricsRail result={result} />
             </div>
 
@@ -379,7 +346,7 @@ function App() {
         <section className="model-note" aria-label="モデルについて">
           <span>MODEL NOTE</span>
           <p>
-            速度は形状差による学習用の推定値です。基本角度、艇バランス、センターボードは常に最適と仮定します。波、個体差、セールカットで実艇の最適範囲は変わります。
+            速度は上・中・下の断面から揚力・抗力・前進力を積分した学習用の推定値です。実測ポーラやCFDではありません。基本角度、艇バランス、センターボードは常に最適と仮定します。
           </p>
         </section>
 
@@ -387,12 +354,14 @@ function App() {
           <summary>詳しく見る：このモデルの考え方と参考資料</summary>
           <div>
             <p>
-              このMVPはCFDではなく、<strong>形状コントロール → セール形状 → 推定艇速</strong>を即時に比べるための準定常モデルです。基本角度・艇バランス・センターボードは自動で最適とし、基準値は一点の正解ではなく適正範囲として扱います。
+              一つの3Dセール面に上・中・下の断面形状を与え、上・斜め横・後ろの三台の正投影カメラで観察します。各断面の深さ・最大深さ位置・ツイストから揚力係数、抗力係数、前進力の代理値を積分し、推定艇速へ変換します。<strong>形状コントロール → 同じセール面 → 断面性能 → 推定艇速</strong>の因果を比べる準定常の学習モデルで、実艇の実測ポーラやCFDではありません。
             </p>
             <ul>
               <li><a href="https://www.northsails.co.jp/wordpress/wp-content/uploads/2026/03/420-M12-Tuning-Guide_j.pdf" target="_blank" rel="noreferrer">North Sails Japan — 420 M11 / M12 Tuning Guide</a></li>
               <li><a href="https://www.northsails.com/en-fr/blogs/north-sails-blog/420-tuning-guide" target="_blank" rel="noreferrer">North Sails — 420 Tuning Guide</a></li>
               <li><a href="https://www.northsails.com/en-ca/blogs/north-sails-blog/470-speed-guide" target="_blank" rel="noreferrer">North Sails — 470 Speed Guide</a></li>
+              <li><a href="https://www.grc.nasa.gov/WWW/k-12/FoilSim/Manual/fsim0007.htm" target="_blank" rel="noreferrer">NASA Glenn — The Lift Coefficient</a></li>
+              <li><a href="https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/induced-drag-coefficient/" target="_blank" rel="noreferrer">NASA Glenn — Induced Drag Coefficient</a></li>
               <li><a href="https://doksi.net/en/get.php?lid=34356" target="_blank" rel="noreferrer">Science of the 470 Sailing Performance — VPP / experimental study</a></li>
             </ul>
           </div>
@@ -400,7 +369,7 @@ function App() {
       </main>
 
       <footer>
-        <span>TRIM NOTE / TRAINING BUILD 0.4</span>
+        <span>TRIM NOTE / TRAINING BUILD 0.5</span>
         <span className="footer-credit">Created by Dit-Lab.</span>
         <p>タック、ジャイブ、レース戦術を扱わず、420 / 470のセール形状づくりに集中しています。</p>
       </footer>

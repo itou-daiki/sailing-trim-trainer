@@ -3845,3 +3845,453 @@ footer p { margin: 0; }
     display: none;
   }
 }
+
+/* Geometry bench: one measured sail surface, observed by three cameras. */
+.live-visual-column .geometry-view {
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+  color: #17343b;
+  background: #f7f9f6;
+  border: 1px solid #71898b;
+}
+
+.live-visual-column .geometry-view::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cpath d='M28 0H0v28' fill='none' stroke='%23d5dfdc' stroke-width='.55'/%3E%3C/svg%3E");
+  opacity: 0.48;
+}
+
+.geometry-view-head {
+  min-height: 58px;
+  padding: 9px 12px;
+  background: #edf2ef;
+  border-bottom: 1px solid #819697;
+}
+
+.geometry-view-head .section-heading h2 {
+  font-size: clamp(0.86rem, 1.2vw, 1.12rem);
+}
+
+.geometry-head-tools {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.geometry-condition {
+  color: #476267;
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.geometry-legend {
+  display: flex;
+  gap: 8px;
+  color: #50686c;
+  font-family: var(--mono);
+  font-size: 0.5rem;
+}
+
+.geometry-legend span {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.geometry-legend i {
+  display: inline-block;
+  width: 15px;
+  border-top: 3px solid;
+}
+
+.geometry-legend .legend-main { border-color: #d64e2d; }
+.geometry-legend .legend-jib { border-color: #176d76; }
+
+.geometry-target-toggle {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 32px;
+  padding: 5px 8px;
+  color: #3f5a5f;
+  background: #f8faf7;
+  border: 1px solid #8da09f;
+  cursor: pointer;
+  font-size: 0.58rem;
+  font-weight: 800;
+}
+
+.geometry-target-toggle i {
+  width: 16px;
+  border-top: 2px dashed #168077;
+}
+
+.geometry-target-toggle.is-active {
+  color: #f8faf7;
+  background: #176d67;
+  border-color: #176d67;
+}
+
+.geometry-target-toggle.is-active i { border-color: #c8efe8; }
+
+.geometry-stage {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-height: 318px;
+  background: #87999a;
+  gap: 1px;
+}
+
+.geometry-panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  margin: 0;
+  background: rgba(250, 251, 247, 0.97);
+}
+
+.geometry-panel figcaption {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 7px;
+  align-items: center;
+  min-height: 48px;
+  padding: 6px 8px;
+  background: #e8eeeb;
+  border-bottom: 1px solid #a7b6b4;
+}
+
+.geometry-panel figcaption > span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: #f9faf6;
+  background: #183f48;
+  font-family: var(--mono);
+  font-size: 0.57rem;
+  font-weight: 900;
+}
+
+.geometry-panel figcaption strong,
+.geometry-panel figcaption small {
+  display: block;
+}
+
+.geometry-panel figcaption strong {
+  color: #183b43;
+  font-family: var(--mono);
+  font-size: 0.61rem;
+  letter-spacing: 0.02em;
+}
+
+.geometry-panel figcaption small {
+  margin-top: 2px;
+  color: #5c7174;
+  font-size: 0.53rem;
+}
+
+.geometry-panel > svg {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+}
+
+.geometry-waterline {
+  fill: none;
+  stroke: #9cb3b2;
+  stroke-width: 1.1;
+  stroke-dasharray: 7 5;
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-hull {
+  fill: #dde5e1;
+  stroke: #4f696e;
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-mast {
+  fill: none;
+  stroke: #183f48;
+  stroke-width: 2.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-sail-fill {
+  stroke: none;
+}
+
+.geometry-current.geometry-main .geometry-sail-fill { fill: rgba(255, 254, 246, 0.8); }
+.geometry-current.geometry-jib .geometry-sail-fill { fill: rgba(215, 234, 232, 0.62); }
+.geometry-target .geometry-sail-fill { fill: none; }
+.geometry-panel-top .geometry-sail-fill { fill: none !important; }
+.geometry-panel-top .geometry-span-line,
+.geometry-panel-top .geometry-chord-line { stroke: #809b9b; stroke-width: 0.9; opacity: 0.95; }
+
+.geometry-sail-outline,
+.geometry-span-line,
+.geometry-chord-line,
+.geometry-draft-row path {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-current .geometry-sail-outline {
+  stroke: #415b60;
+  stroke-width: 1.25;
+}
+
+.geometry-current.geometry-jib .geometry-sail-outline { stroke: #416f73; }
+
+.geometry-span-line,
+.geometry-chord-line {
+  stroke: #9caeaa;
+  stroke-width: 0.72;
+  opacity: 0.8;
+}
+
+.geometry-chord-line.is-draft-row { opacity: 0; }
+
+.geometry-current .geometry-draft-row path {
+  stroke-width: 1.8;
+  opacity: 0.62;
+}
+
+.geometry-current.geometry-main .geometry-draft-row path {
+  stroke: #d64e2d;
+  fill: none;
+}
+
+.geometry-current.geometry-main .geometry-draft-row circle {
+  fill: #d64e2d;
+}
+
+.geometry-current.geometry-jib .geometry-draft-row path {
+  stroke: #176d76;
+  fill: none;
+}
+
+.geometry-current.geometry-jib .geometry-draft-row circle {
+  fill: #176d76;
+}
+
+.geometry-current .geometry-draft-row.is-selected path {
+  stroke-width: 3.5;
+  opacity: 1;
+}
+
+.geometry-current .geometry-draft-row circle {
+  stroke-width: 0;
+  opacity: 0.8;
+}
+
+.geometry-current .geometry-draft-row.is-selected circle {
+  stroke: #f8faf7;
+  stroke-width: 1.5;
+  opacity: 1;
+}
+
+.geometry-target .geometry-sail-outline,
+.geometry-target .geometry-draft-row path {
+  stroke: #168077;
+  stroke-width: 1.4;
+  stroke-dasharray: 6 4;
+  opacity: 0.78;
+}
+
+.geometry-target .geometry-draft-row.is-selected path {
+  stroke-width: 2.2;
+  opacity: 1;
+}
+
+.geometry-camera-note {
+  fill: #61777a;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.geometry-inspector {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(135px, 0.55fr) minmax(230px, 1fr) minmax(255px, 1.18fr);
+  min-height: 105px;
+  background: #eef2ef;
+  border-top: 1px solid #7f9394;
+}
+
+.geometry-profile-title {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px 12px;
+  border-right: 1px solid #adbbb8;
+}
+
+.geometry-profile-title span {
+  color: #176d67;
+  font-family: var(--mono);
+  font-size: 0.48rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.geometry-profile-title strong {
+  margin: 5px 0 3px;
+  font-size: 0.77rem;
+}
+
+.geometry-profile-title small {
+  color: #627578;
+  font-size: 0.52rem;
+}
+
+.geometry-inspector > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 4px 8px;
+  background: #fafbf7;
+  border-right: 1px solid #adbbb8;
+}
+
+.geometry-profile-chord,
+.geometry-profile-current,
+.geometry-profile-target {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-profile-chord { stroke: #829493; stroke-width: 1; }
+.geometry-profile-current { stroke: #d64e2d; stroke-width: 3; }
+.geometry-profile-target { stroke: #168077; stroke-width: 2; stroke-dasharray: 6 4; }
+.geometry-profile-current-point { fill: #d64e2d; stroke: #fff; stroke-width: 1.2; }
+.geometry-profile-target-point { fill: #168077; stroke: #fff; stroke-width: 1; }
+
+.geometry-inspector svg text {
+  fill: #667b7d;
+  font-family: var(--mono);
+  font-size: 7px;
+  font-weight: 700;
+}
+
+.geometry-readings {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.geometry-readings > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 9px;
+  border-right: 1px solid #c0cbc8;
+}
+
+.geometry-readings > div:last-child { border-right: 0; }
+
+.geometry-readings span,
+.geometry-readings small {
+  color: #5c7073;
+  font-size: 0.5rem;
+}
+
+.geometry-readings strong {
+  margin: 3px 0;
+  font-family: var(--mono);
+  font-size: clamp(0.82rem, 1.25vw, 1.05rem);
+}
+
+.geometry-course-notice {
+  min-height: 43px;
+  padding: 7px 12px;
+  background: #cce9e3;
+  border-top-color: #88c7bd;
+}
+
+.geometry-course-notice p { font-size: 0.65rem; }
+
+@media (max-width: 1120px) {
+  .geometry-view-head .section-heading p,
+  .geometry-condition,
+  .geometry-camera-note {
+    display: none;
+  }
+
+  .geometry-stage { min-height: 285px; }
+  .geometry-panel figcaption { grid-template-columns: 24px 1fr; min-height: 42px; padding: 5px; }
+  .geometry-panel figcaption > span { width: 22px; height: 22px; }
+  .geometry-inspector { grid-template-columns: 125px minmax(205px, 0.9fr) minmax(225px, 1fr); }
+}
+
+@media (max-width: 720px) {
+  .live-visual-column .geometry-view {
+    height: 286px;
+    min-height: 286px;
+    border-top: 5px solid var(--orange);
+  }
+
+  .geometry-view-head {
+    min-height: 38px;
+    padding: 4px 6px;
+  }
+
+  .geometry-view-head .section-index,
+  .geometry-view-head .section-heading p,
+  .geometry-condition,
+  .geometry-legend,
+  .geometry-course-notice,
+  .geometry-camera-note {
+    display: none;
+  }
+
+  .geometry-view-head .section-heading h2 { font-size: 0.67rem; }
+  .geometry-head-tools { margin-left: auto; }
+  .geometry-target-toggle { min-height: 28px; padding: 3px 6px; font-size: 0.5rem; }
+
+  .geometry-stage {
+    min-height: 137px;
+    height: 137px;
+  }
+
+  .geometry-panel figcaption {
+    display: block;
+    min-height: 31px;
+    padding: 3px 4px;
+  }
+
+  .geometry-panel figcaption > span,
+  .geometry-panel figcaption small {
+    display: none;
+  }
+
+  .geometry-panel figcaption strong {
+    overflow: hidden;
+    font-size: 0.45rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .geometry-inspector {
+    grid-template-columns: minmax(115px, 1fr) minmax(165px, 1.4fr);
+    min-height: 105px;
+  }
+
+  .geometry-profile-title { display: none; }
+  .geometry-inspector > svg { padding: 2px 4px; }
+  .geometry-readings > div { padding: 5px 4px; }
+  .geometry-readings span,
+  .geometry-readings small { font-size: 0.41rem; }
+  .geometry-readings strong { font-size: 0.7rem; }
+}

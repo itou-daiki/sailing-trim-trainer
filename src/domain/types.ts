@@ -48,6 +48,9 @@ export type TrimMetrics = {
   leeway: number
   drive: number
   balance: number
+  liftCoefficient: number
+  dragCoefficient: number
+  liftToDrag: number
 }
 
 export type Guidance = {
@@ -64,6 +67,7 @@ export type TrimAction = {
   direction: string
   reason: string
   delta: number
+  gain: number
   urgency: 'large' | 'small'
 }
 

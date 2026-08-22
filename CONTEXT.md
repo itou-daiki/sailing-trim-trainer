@@ -31,3 +31,19 @@ _Avoid_: Every control on the boat
 **Control response**:
 The direction and relative vertical distribution of a shape change caused by one control. It represents a pedagogical sensitivity, not a force or rig load.
 _Avoid_: Physics coefficient, measured load
+
+**Sail surface**:
+A single three-dimensional form of one sail whose horizontal sections carry the observed depth, draft position, and twist. Every camera view is an observation of this same form.
+_Avoid_: Separate drawings for each view, decorative sail curve
+
+**Sail projection**:
+An orthographic observation of a sail surface from above, from an oblique side angle, or from astern. A projection may hide a dimension but must not invent a different shape.
+_Avoid_: Independent top, side, and aft models
+
+**Section polar proxy**:
+A dimensionless learning estimate of lift, drag, and forward drive for one draft stripe. It compares trim changes consistently but is not a measured sail polar or CFD result.
+_Avoid_: Aerodynamic truth, measured coefficient
+
+**Shape efficiency**:
+The integrated quality of the current section polar proxies relative to the reference shape in the same wind and course. A value of 100 means the reference response, not universal maximum boat speed.
+_Avoid_: Percent of real-world performance, control-position score

@@ -114,15 +114,17 @@ function planform(
   boat: BoatClass,
   sail: SailKey,
   height: number,
+  mastBend: number,
 ) {
   const classScale = boat === '470' ? 1.035 : 1
 
   if (sail === 'main') {
+    const luffX = -mastBend * Math.sin(Math.PI * height)
     return {
-      luffX: -0.018 * height ** 2,
+      luffX,
       luffY: 0,
       z: height * 1.2 * classScale,
-      chord: Math.max(0.075, 1 - 0.925 * height ** 1.12) * classScale,
+      chord: (Math.max(0.075, 1 - 0.925 * height ** 1.12) - luffX * 0.35) * classScale,
     }
   }
 
@@ -141,7 +143,7 @@ export function buildSailSurface(
 ): SailSurface {
   const rows = ROW_HEIGHTS.map((height, rowIndex): SurfaceRow => {
     const section = sectionAtHeight(shape, height)
-    const rig = planform(boat, sail, height)
+    const rig = planform(boat, sail, height, shape.mastBend)
     const angle = ((shape.angle + section.twist) * Math.PI) / 180
     const chordX = Math.cos(angle)
     const chordY = Math.sin(angle)

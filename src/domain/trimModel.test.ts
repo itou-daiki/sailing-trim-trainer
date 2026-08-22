@@ -21,6 +21,15 @@ describe('trim model', () => {
     expect(reach.actual.jib.angle).toBe(reach.target.jib.angle)
     expect(reach.actions.map((action) => action.control)).not.toContain('mainSheet')
     expect(reach.actions.map((action) => action.control)).not.toContain('jibSheet')
+    expect(reach.actions.map((action) => action.control)).toContain('vang')
+    expect(reach.actions.map((action) => action.control)).toContain('outhaul')
+    expect(reach.guidance.tone).not.toBe('good')
+
+    const close470 = targetControls('470', 45, 8)
+    const reach470 = calculateTrim('470', 90, 8, close470)
+    expect(reach470.actions.map((action) => action.control)).toContain('vang')
+    expect(reach470.actions.map((action) => action.control)).toContain('outhaul')
+    expect(reach470.guidance.tone).not.toBe('good')
   })
 
   it('ignores balance, centerboard, and basic-angle controls in shape scoring', () => {
@@ -131,6 +140,15 @@ describe('trim model', () => {
     expect(forward.actual.main.sections.middle.draftDepth).toBeLessThan(
       aft.actual.main.sections.middle.draftDepth,
     )
+    expect(forward.actual.main.mastBend).toBeGreaterThan(aft.actual.main.mastBend)
+  })
+
+  it('shows the 420 chock resisting lower-mast bend', () => {
+    const controls = targetControls('420', 45, 16)
+    const unsupported = calculateTrim('420', 45, 16, { ...controls, vang: 90, chock: 0 })
+    const supported = calculateTrim('420', 45, 16, { ...controls, vang: 90, chock: 100 })
+
+    expect(supported.actual.main.mastBend).toBeLessThan(unsupported.actual.main.mastBend)
   })
 
   it('opens or closes the jib leech through class-specific vertical lead controls', () => {

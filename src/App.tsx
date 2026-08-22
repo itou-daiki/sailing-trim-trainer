@@ -251,7 +251,7 @@ function App() {
 
   return (
     <div className="app-shell" id="top">
-      <a className="skip-link" href="#challenge-title">今日の課題へスキップ</a>
+      <a className="skip-link" href="#simulator">セール形状モデルへスキップ</a>
       <Masthead
         boat={boat}
         lesson={`DRILL ${String(activeChallenge.order).padStart(2, '0')}`}
@@ -272,28 +272,6 @@ function App() {
             <span>予想</span><i>→</i><span>動かす</span><i>→</i><span>形を見る</span><i>→</i><span>理由を言う</span>
           </div>
         </section>
-
-        <ChallengeDeck
-          challenges={TRIM_CHALLENGES}
-          active={activeChallenge}
-          progress={progress}
-          phase={phase}
-          prediction={prediction}
-          moveCount={moveCount}
-          startEfficiency={startEfficiency}
-          currentEfficiency={result.metrics.efficiency}
-          hintLevel={hintLevel}
-          moveFeedback={moveFeedback}
-          shareStatus={shareStatus}
-          assisted={assisted}
-          onSelect={selectChallenge}
-          onPredict={setPrediction}
-          onStart={startChallenge}
-          onHint={showHint}
-          onRetry={retryChallenge}
-          onNext={nextChallenge}
-          onShare={shareChallenge}
-        />
 
         <section className="live-training-area" id="simulator" aria-label="セール形状とトリム操作">
           <div className="condition-bar">
@@ -343,10 +321,41 @@ function App() {
           </div>
         </section>
 
+        <section className="practice-library" aria-label="練習課題">
+          <div className="practice-library-head">
+            <span>AFTER THE SHAPE BENCH</span>
+            <div>
+              <h2>形が読めたら、課題で確かめる</h2>
+              <p>まず上のモデルを自由に動かし、その後に予想 → 一本動かす → 理由を言う練習へ進みます。</p>
+            </div>
+          </div>
+          <ChallengeDeck
+            challenges={TRIM_CHALLENGES}
+            active={activeChallenge}
+            progress={progress}
+            phase={phase}
+            prediction={prediction}
+            moveCount={moveCount}
+            startEfficiency={startEfficiency}
+            currentEfficiency={result.metrics.efficiency}
+            hintLevel={hintLevel}
+            moveFeedback={moveFeedback}
+            shareStatus={shareStatus}
+            assisted={assisted}
+            onSelect={selectChallenge}
+            onPredict={setPrediction}
+            onStart={startChallenge}
+            onHint={showHint}
+            onRetry={retryChallenge}
+            onNext={nextChallenge}
+            onShare={shareChallenge}
+          />
+        </section>
+
         <section className="model-note" aria-label="モデルについて">
           <span>MODEL NOTE</span>
           <p>
-            速度は上・中・下の断面から揚力・抗力・前進力を積分した学習用の推定値です。実測ポーラやCFDではありません。基本角度、艇バランス、センターボードは常に最適と仮定します。
+            速度は上・中・下の断面から揚力・抗力・前進力を積分した学習用の推定値です。実測ポーラやCFDではありません。基本角度、艇バランス、センターボードは常に最適と仮定し、マスト曲がりは差を読み取れるよう強調表示します。
           </p>
         </section>
 
@@ -354,7 +363,7 @@ function App() {
           <summary>詳しく見る：このモデルの考え方と参考資料</summary>
           <div>
             <p>
-              一つの3Dセール面に上・中・下の断面形状を与え、上・斜め横・後ろの三台の正投影カメラで観察します。各断面の深さ・最大深さ位置・ツイストから揚力係数、抗力係数、前進力の代理値を積分し、推定艇速へ変換します。<strong>形状コントロール → 同じセール面 → 断面性能 → 推定艇速</strong>の因果を比べる準定常の学習モデルで、実艇の実測ポーラやCFDではありません。
+              一つの3Dセール面に上・中・下の断面形状とマストベンドを与え、上・斜め横・後ろの三台の正投影カメラで観察します。各断面の深さ・最大深さ位置・ツイストから揚力係数、抗力係数、前進力の代理値を積分し、推定艇速へ変換します。<strong>形状コントロール → 同じセール面 → 断面性能 → 推定艇速</strong>の因果を比べる準定常の学習モデルで、実艇の実測ポーラやCFDではありません。マスト曲がりの表示量は読み取り用に強調しており、チューニングゲージの実測mmとは対応しません。
             </p>
             <ul>
               <li><a href="https://www.northsails.co.jp/wordpress/wp-content/uploads/2026/03/420-M12-Tuning-Guide_j.pdf" target="_blank" rel="noreferrer">North Sails Japan — 420 M11 / M12 Tuning Guide</a></li>
@@ -369,7 +378,7 @@ function App() {
       </main>
 
       <footer>
-        <span>TRIM NOTE / TRAINING BUILD 0.5</span>
+        <span>TRIM NOTE / TRAINING BUILD 0.6</span>
         <span className="footer-credit">Created by Dit-Lab.</span>
         <p>タック、ジャイブ、レース戦術を扱わず、420 / 470のセール形状づくりに集中しています。</p>
       </footer>

@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import {
   buildRigSurfaces,
   DRAFT_PEAK_COLUMN,
@@ -167,18 +168,48 @@ function SurfaceLayer({
   map,
   active,
   target,
+  view,
 }: {
   surface: ProjectedSurface
   map: Mapper
   active: Focus
   target: boolean
+  view: ProjectionView
 }) {
   const spanColumns = [0, 5, DRAFT_PEAK_COLUMN, 15, 20, 24]
   const prefix = target ? 'geometry-target' : 'geometry-current'
+  const activeRow = surface.rows.find((row) => row.level === active.level)
+  const peakPoints = surface.rows.map((row) => row.points[DRAFT_PEAK_COLUMN])
+
+  const faces = target ? [] : surface.rows.slice(0, -1).flatMap((row, rowIndex) => {
+    const nextRow = surface.rows[rowIndex + 1]
+    return row.points.slice(0, -1).map((point, column) => {
+      const nextPoint = row.points[column + 1]
+      const upperNext = nextRow.points[column + 1]
+      const upperPoint = nextRow.points[column]
+      const midpoint = (point.u + nextPoint.u) / 2
+      const crown = Math.sin(midpoint * Math.PI)
+      const heightBias = 0.76 + row.height * 0.24
+      const viewBias = view === 'top' ? 0.78 : view === 'aft' ? 1.08 : 1
+      const opacity = Math.min(
+        0.42,
+        (0.09 + crown * (0.12 + row.section.draftDepth * 1.65)) * heightBias * viewBias,
+      )
+      return (
+        <path
+          key={`face-${rowIndex}-${column}`}
+          className="geometry-sail-face"
+          d={path([point, nextPoint, upperNext, upperPoint], map, true)}
+          style={{ '--face-opacity': opacity } as CSSProperties}
+        />
+      )
+    })
+  })
 
   return (
     <g className={`${prefix} geometry-${surface.sail}`}>
       <path className="geometry-sail-fill" d={path(outlinePoints(surface), map, true)} />
+      {faces}
       <path className="geometry-sail-outline" d={path(outlinePoints(surface), map, true)} />
       {!target ? spanColumns.map((column) => (
         <path
@@ -194,16 +225,24 @@ function SurfaceLayer({
           d={path(row.points, map)}
         />
       )) : null}
+      {!target ? (
+        <path className="geometry-draft-spine" d={path(peakPoints, map)} />
+      ) : null}
       {surface.rows.filter((row) => row.level).map((row) => {
         const selected = row.level === active.level && surface.sail === active.sail
         const peak = map(row.points[DRAFT_PEAK_COLUMN])
         return (
           <g key={`draft-${row.level}`} className={selected ? 'geometry-draft-row is-selected' : 'geometry-draft-row'}>
+            {selected && !target ? <path className="geometry-section-band" d={path(row.points, map)} /> : null}
             <path d={path(row.points, map)} />
             {!target ? <circle cx={peak.x} cy={peak.y} r={selected ? 4.2 : 2.7} /> : null}
           </g>
         )
       })}
+      {!target && activeRow && surface.sail === active.sail ? (() => {
+        const peak = map(activeRow.points[DRAFT_PEAK_COLUMN])
+        return <text className="geometry-peak-label" x={peak.x + 7} y={peak.y - 7}>最大ドラフト</text>
+      })() : null}
     </g>
   )
 }
@@ -221,8 +260,12 @@ function ProjectionPanel({
   active: Focus
   showTarget: boolean
 }) {
-  const width = 400
-  const height = 245
+  const dimensions: Record<ProjectionView, { width: number; height: number }> = {
+    top: { width: 760, height: 160 },
+    side: { width: 520, height: 300 },
+    aft: { width: 300, height: 300 },
+  }
+  const { width, height } = dimensions[view]
   const actualProjected = [
     projectSurface(actual.jib, view),
     projectSurface(actual.main, view),
@@ -239,6 +282,12 @@ function ProjectionPanel({
   )
   const guides = projectedRigGuides(view, map)
   const meta = VIEW_META[view]
+  const actualMast = actualProjected
+    .find((surface) => surface.sail === 'main')!
+    .rows.map((row) => row.points[0])
+  const targetMast = targetProjected
+    .find((surface) => surface.sail === 'main')!
+    .rows.map((row) => row.points[0])
 
   return (
     <figure className={`geometry-panel geometry-panel-${view}`}>
@@ -253,14 +302,16 @@ function ProjectionPanel({
       >
         {guides.water ? <path className="geometry-waterline" d={guides.water} /> : null}
         <path className="geometry-hull" d={guides.hull} />
-        <path className="geometry-mast" d={guides.mast} />
+        <path className="geometry-mast-reference" d={guides.mast} />
+        {showTarget ? <path className="geometry-mast-target" d={path(targetMast, map)} /> : null}
+        <path className="geometry-mast" d={path(actualMast, map)} />
         {showTarget ? targetProjected.map((surface) => (
-          <SurfaceLayer key={`target-${surface.sail}`} surface={surface} map={map} active={active} target />
+          <SurfaceLayer key={`target-${surface.sail}`} surface={surface} map={map} active={active} target view={view} />
         )) : null}
         {actualProjected.map((surface) => (
-          <SurfaceLayer key={surface.sail} surface={surface} map={map} active={active} target={false} />
+          <SurfaceLayer key={surface.sail} surface={surface} map={map} active={active} target={false} view={view} />
         ))}
-        <text x="14" y="232" className="geometry-camera-note">{meta.note}</text>
+        <text x="14" y={height - 10} className="geometry-camera-note">{meta.note}</text>
       </svg>
     </figure>
   )
@@ -356,8 +407,8 @@ export function BoatView({
         <div className="section-heading light-heading">
           <span className="section-index">B</span>
           <div>
-            <p>ONE SURFACE / THREE CAMERAS</p>
-            <h2 id="boat-view-title">同じセール面を三方向から測る</h2>
+            <p>SAILMAKER'S SHAPE BENCH / THREE CAMERAS</p>
+            <h2 id="boat-view-title">動かしながら、同じ断面を三方向で見る</h2>
           </div>
         </div>
         <div className="geometry-head-tools">
@@ -365,6 +416,7 @@ export function BoatView({
           <div className="geometry-legend" aria-label="形状の凡例">
             <span><i className="legend-main" />メイン</span>
             <span><i className="legend-jib" />ジブ</span>
+            <span><i className="legend-draft" />最大ドラフト線</span>
           </div>
           <button type="button" className={showTarget ? 'geometry-target-toggle is-active' : 'geometry-target-toggle'} aria-pressed={showTarget} onClick={onToggleTarget}>
             <i />基準形

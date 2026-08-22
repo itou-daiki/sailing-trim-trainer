@@ -214,10 +214,12 @@ function sailShapes(
   }
   const inboard = boat === '420' ? controls.windwardSheet : controls.jibLeadInOut
   const jibAngle = clamp(69 - controls.jibSheet * 0.57 - inboard * 0.12, 5, 70)
+  const mastBend = clamp(0.008 + bend.middle * 0.072, 0.012, 0.078)
 
   return {
     main: {
       angle: mainAngle,
+      mastBend,
       draftDepth: mainSections.middle.draftDepth,
       draftPosition: mainSections.middle.draftPosition,
       twist: mainSections.upper.twist,
@@ -225,6 +227,7 @@ function sailShapes(
     },
     jib: {
       angle: jibAngle,
+      mastBend: 0,
       draftDepth: jibSections.middle.draftDepth,
       draftPosition: jibSections.middle.draftPosition,
       twist: jibSections.upper.twist,
@@ -385,7 +388,7 @@ function guidance(
   )
   const biggest = errors.find((error) => error.key === actions[0]?.control) ?? errors[0]
 
-  if (efficiency >= 93) {
+  if (efficiency >= 97 && actions.length === 0) {
     return {
       tone: 'good',
       label: 'IN THE GROOVE',

@@ -20,6 +20,10 @@ _Avoid_: Draft as an unlocated amount
 The opening angle of a section relative to the lower reference section. Upper, middle, and lower twist are observed separately.
 _Avoid_: Heel, boom angle
 
+**Mast bend**:
+The forward deflection pattern of the main-sail luff relative to a straight mast reference. It explains how the chock or fore/aft pullers redistribute depth through the lower and middle sail. The visual trace emphasizes change and is not a millimetre tuning-gauge reading.
+_Avoid_: A permanently straight luff, measured rig load, exact pre-bend millimetres
+
 **Reference shape**:
 A comparison shape for one boat class, wind speed, and true-wind angle. It is a useful starting range, not a single universally correct race setting.
 _Avoid_: Perfect shape, absolute correct trim

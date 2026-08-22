@@ -30,6 +30,8 @@ export type SailSection = {
 
 export type SailShape = {
   angle: number
+  /** Normalized forward deflection at the middle of the mast. */
+  mastBend: number
   draftDepth: number
   draftPosition: number
   twist: number

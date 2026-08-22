@@ -75,7 +75,7 @@ export function CourseBoard({
           min="40"
           max="150"
           value={angle}
-          onChange={(event) => onCourseChange(Number(event.target.value))}
+          onInput={(event) => onCourseChange(Number(event.currentTarget.value))}
         />
         <small><span>上る</span><span>ベアする</span></small>
       </label>
@@ -92,7 +92,7 @@ export function CourseBoard({
           max="18"
           step="1"
           value={windSpeed}
-          onChange={(event) => onWindChange(Number(event.target.value))}
+          onInput={(event) => onWindChange(Number(event.currentTarget.value))}
         />
         <small><span>LIGHT</span><span>FRESH</span></small>
       </label>

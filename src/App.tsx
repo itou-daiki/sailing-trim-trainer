@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { BoatView } from './components/BoatView'
+import { ChallengeDeck } from './components/ChallengeDeck'
+import type { ChallengePhase } from './components/ChallengeDeck'
 import { CoachPanel } from './components/CoachPanel'
 import { ControlPanel } from './components/ControlPanel'
 import { CourseBoard } from './components/CourseBoard'
@@ -7,22 +9,50 @@ import { Masthead } from './components/Masthead'
 import { MetricsRail } from './components/MetricsRail'
 import { ShapeLab } from './components/ShapeLab'
 import { BOATS } from './data/boats'
+import { buildChallengeSetup, getChallenge, TRIM_CHALLENGES } from './domain/challenges'
 import { courseName } from './domain/course'
-import { calculateTrim, targetControls } from './domain/trimModel'
+import { loadProgress, saveProgress, updateRecord } from './domain/progress'
+import { calculateTrim, CONTROL_LABELS, targetControls } from './domain/trimModel'
 import type { BoatClass, ControlKey, TrimControls } from './domain/types'
 
 const INITIAL_ANGLE = 45
 const INITIAL_WIND = 8
 
+function browserStorage() {
+  if (typeof window === 'undefined') return undefined
+  try {
+    return window.localStorage
+  } catch {
+    return undefined
+  }
+}
+
+function challengeFromUrl() {
+  if (typeof window === 'undefined') return TRIM_CHALLENGES[0]
+  const id = new URLSearchParams(window.location.search).get('challenge')
+  return getChallenge(id) ?? TRIM_CHALLENGES[0]
+}
+
 function App() {
-  const [boat, setBoat] = useState<BoatClass>('420')
+  const [activeChallengeId, setActiveChallengeId] = useState(() => challengeFromUrl().id)
+  const activeChallenge = getChallenge(activeChallengeId) ?? TRIM_CHALLENGES[0]
+  const [boat, setBoat] = useState<BoatClass>(() => challengeFromUrl().boat)
   const [angle, setAngle] = useState(INITIAL_ANGLE)
   const [windSpeed, setWindSpeed] = useState(INITIAL_WIND)
   const [controls, setControls] = useState<TrimControls>(() =>
-    targetControls('420', INITIAL_ANGLE, INITIAL_WIND),
+    targetControls(challengeFromUrl().boat, INITIAL_ANGLE, INITIAL_WIND),
   )
   const [lastControl, setLastControl] = useState<ControlKey>('mainSheet')
   const [showTarget, setShowTarget] = useState(true)
+  const [phase, setPhase] = useState<ChallengePhase>('preview')
+  const [prediction, setPrediction] = useState<ControlKey>()
+  const [moveCount, setMoveCount] = useState(0)
+  const [startEfficiency, setStartEfficiency] = useState(100)
+  const [hintLevel, setHintLevel] = useState(0)
+  const [moveFeedback, setMoveFeedback] = useState('')
+  const [assisted, setAssisted] = useState(false)
+  const [shareStatus, setShareStatus] = useState('')
+  const [progress, setProgress] = useState(() => loadProgress(browserStorage()))
   const [courseNotice, setCourseNotice] = useState(
     'クローズの基準トリムです。ビームを選び、シートを動かさずに変化を見てください。',
   )
@@ -32,12 +62,75 @@ function App() {
     [angle, boat, controls, windSpeed],
   )
 
+  useEffect(() => {
+    saveProgress(progress, browserStorage())
+  }, [progress])
+
+  const resetAttemptState = () => {
+    setPhase('preview')
+    setPrediction(undefined)
+    setMoveCount(0)
+    setHintLevel(0)
+    setMoveFeedback('')
+    setAssisted(false)
+    setShareStatus('')
+  }
+
+  const selectChallenge = (id: string) => {
+    const nextChallenge = getChallenge(id)
+    if (!nextChallenge) return
+    setActiveChallengeId(nextChallenge.id)
+    setBoat(nextChallenge.boat)
+    setControls(targetControls(nextChallenge.boat, angle, windSpeed))
+    setCourseNotice(
+      `${BOATS[nextChallenge.boat].name}の基準トリムで課題を確認します。予想後に崩れた条件を読み込みます。`,
+    )
+    resetAttemptState()
+  }
+
+  const recordCompletion = (moves: number) => {
+    setProgress((current) => updateRecord(current, activeChallenge.id, (record) => ({
+      ...record,
+      completed: true,
+      assisted: record.assisted || assisted,
+      bestMoves: record.bestMoves === undefined ? moves : Math.min(record.bestMoves, moves),
+    })))
+  }
+
+  const startChallenge = () => {
+    if (!prediction) return
+    const setup = buildChallengeSetup(activeChallenge)
+    const startingResult = calculateTrim(setup.boat, setup.angle, setup.windSpeed, setup.controls)
+    setBoat(setup.boat)
+    setAngle(setup.angle)
+    setWindSpeed(setup.windSpeed)
+    setControls(setup.controls)
+    setLastControl(activeChallenge.prediction.correctControl)
+    setPhase('practice')
+    setMoveCount(0)
+    setStartEfficiency(startingResult.metrics.efficiency)
+    setHintLevel(0)
+    setMoveFeedback('予想を残しました。下のコントロールを一本だけ動かし、変化を確かめます。')
+    setAssisted(false)
+    setCourseNotice(
+      `${activeChallenge.boat} / 真風角 ${setup.angle}° / ${setup.windSpeed} kt。あえて崩れたトリムから始めます。`,
+    )
+    setProgress((current) => updateRecord(current, activeChallenge.id, (record) => ({
+      ...record,
+      attempts: record.attempts + 1,
+      predictionCorrect: prediction === activeChallenge.prediction.correctControl,
+    })))
+  }
+
   const changeBoat = (nextBoat: BoatClass) => {
     setBoat(nextBoat)
     setControls(targetControls(nextBoat, angle, windSpeed))
     setCourseNotice(
       `${BOATS[nextBoat].name}へ切り替えました。現在の風に合う基準トリムから始めます。`,
     )
+    if (phase === 'practice') {
+      setMoveFeedback(`チャレンジ指定は${activeChallenge.boat}です。戻すか、チャレンジをやり直してください。`)
+    }
   }
 
   const changeCourse = (nextAngle: number) => {
@@ -48,6 +141,9 @@ function App() {
     setCourseNotice(
       `${before}から${after}へ船首だけ変えました。まずメインとジブの風に対する角度を観察します。`,
     )
+    if (phase === 'practice' && nextAngle !== activeChallenge.setup.angle) {
+      setMoveFeedback(`指定条件は真風角${activeChallenge.setup.angle}°です。条件を変えた試行は自由練習として扱います。`)
+    }
   }
 
   const changeWind = (nextWind: number) => {
@@ -55,29 +151,119 @@ function App() {
     setCourseNotice(
       `風速を${nextWind} ktへ変えました。コントロールはそのままです。ドラフト位置とヒールを見比べてください。`,
     )
+    if (phase === 'practice' && nextWind !== activeChallenge.setup.windSpeed) {
+      setMoveFeedback(`指定条件は${activeChallenge.setup.windSpeed} ktです。条件を戻すと到達判定が再開します。`)
+    }
   }
 
   const changeControl = (control: ControlKey, value: number) => {
+    const nextControls = { ...controls, [control]: value }
     setLastControl(control)
-    setControls((current) => ({ ...current, [control]: value }))
+    setControls(nextControls)
+
+    if (phase !== 'practice') return
+
+    const nextResult = calculateTrim(boat, angle, windSpeed, nextControls)
+    const nextMoves = moveCount + 1
+    const change = nextResult.metrics.efficiency - result.metrics.efficiency
+    const nextAction = nextResult.actions[0]
+    const conditionsMatch =
+      boat === activeChallenge.boat &&
+      angle === activeChallenge.setup.angle &&
+      windSpeed === activeChallenge.setup.windSpeed
+
+    setMoveCount(nextMoves)
+
+    if (change > 0.7) {
+      setMoveFeedback(
+        `改善 +${change.toFixed(1)}%。${nextAction ? `次は${CONTROL_LABELS[nextAction.control]}を${nextAction.direction}。` : '三面図の現在形と基準形が近づきました。'}`,
+      )
+    } else if (change < -0.7) {
+      setMoveFeedback(
+        `適合度が${Math.abs(change).toFixed(1)}ポイント下がりました。${CONTROL_LABELS[control]}を前の位置へ戻し、優先順位の一番上を試します。`,
+      )
+      setHintLevel((current) => Math.max(current, 1))
+    } else {
+      setMoveFeedback(
+        `${CONTROL_LABELS[control]}の変化は小さめです。形が動いた場所を確認し、次の優先操作へ進みます。`,
+      )
+    }
+
+    if (nextMoves >= activeChallenge.moveBudget && nextResult.metrics.efficiency < 80) {
+      setHintLevel((current) => Math.max(current, 2))
+    }
+
+    if (conditionsMatch && nextResult.metrics.efficiency >= activeChallenge.threshold) {
+      setPhase('complete')
+      setCourseNotice('目標範囲へ戻りました。操作、形、艇の状態を一つの因果として振り返ります。')
+      recordCompletion(nextMoves)
+    }
   }
 
   const tryBaseline = () => {
     setControls(result.targetControls)
+    if (phase === 'practice') {
+      setAssisted(true)
+      setMoveFeedback('基準形を表示しました。自動で完了にはしません。形を観察した後、もう一度チャレンジしてください。')
+    }
     setCourseNotice(
       '比較用の基準トリムを入れました。断面の破線と現在形が重なる様子を確認してください。',
     )
   }
 
+  const showHint = () => {
+    setHintLevel((current) => Math.min(activeChallenge.hints.length, current + 1))
+    setAssisted(true)
+  }
+
+  const retryChallenge = () => {
+    startChallenge()
+  }
+
+  const nextChallenge = () => {
+    const activeIndex = TRIM_CHALLENGES.findIndex((challenge) => challenge.id === activeChallenge.id)
+    const following = TRIM_CHALLENGES[(activeIndex + 1) % TRIM_CHALLENGES.length]
+    selectChallenge(following.id)
+  }
+
+  const shareChallenge = async () => {
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    url.search = ''
+    url.hash = ''
+    url.searchParams.set('challenge', activeChallenge.id)
+
+    try {
+      await navigator.clipboard.writeText(url.toString())
+      setShareStatus('共有URLをコピーしました。同じ崩れ方と問いを開けます。')
+    } catch {
+      const copyField = document.createElement('textarea')
+      copyField.value = url.toString()
+      copyField.style.position = 'fixed'
+      copyField.style.opacity = '0'
+      document.body.append(copyField)
+      copyField.select()
+      const copied = document.execCommand('copy')
+      copyField.remove()
+      setShareStatus(copied ? '共有URLをコピーしました。' : `共有URL: ${url.toString()}`)
+    }
+  }
+
   return (
     <div className="app-shell" id="top">
-      <Masthead boat={boat} onBoatChange={changeBoat} />
+      <a className="skip-link" href="#challenge-title">今日の課題へスキップ</a>
+      <Masthead
+        boat={boat}
+        lesson={`DRILL ${String(activeChallenge.order).padStart(2, '0')}`}
+        lessonTitle={activeChallenge.title}
+        onBoatChange={changeBoat}
+      />
 
       <main>
         <section className="lesson-brief" aria-labelledby="lesson-title">
           <div>
-            <span className="lesson-kicker">TODAY'S QUESTION</span>
-            <h1 id="lesson-title">ベアしたのに、クローズのまま引いていないか。</h1>
+            <span className="lesson-kicker">TODAY'S QUESTION / {activeChallenge.boat}</span>
+            <h1 id="lesson-title">{activeChallenge.question}</h1>
           </div>
           <p>
             風向角が変わったら、セールにも新しい角度が必要です。まず予想し、一本動かし、形と艇速で確かめます。
@@ -87,7 +273,29 @@ function App() {
           </div>
         </section>
 
-        <div className="upper-workspace">
+        <ChallengeDeck
+          challenges={TRIM_CHALLENGES}
+          active={activeChallenge}
+          progress={progress}
+          phase={phase}
+          prediction={prediction}
+          moveCount={moveCount}
+          startEfficiency={startEfficiency}
+          currentEfficiency={result.metrics.efficiency}
+          hintLevel={hintLevel}
+          moveFeedback={moveFeedback}
+          shareStatus={shareStatus}
+          assisted={assisted}
+          onSelect={selectChallenge}
+          onPredict={setPrediction}
+          onStart={startChallenge}
+          onHint={showHint}
+          onRetry={retryChallenge}
+          onNext={nextChallenge}
+          onShare={shareChallenge}
+        />
+
+        <div className="upper-workspace" id="simulator">
           <CourseBoard
             angle={angle}
             windSpeed={windSpeed}
@@ -153,7 +361,7 @@ function App() {
       </main>
 
       <footer>
-        <span>TRIM NOTE / MVP 0.1</span>
+        <span>TRIM NOTE / TRAINING BUILD 0.2</span>
         <p>タック、ジャイブ、レース戦術を扱わず、セール形状と艇バランスの学習に集中しています。</p>
       </footer>
     </div>

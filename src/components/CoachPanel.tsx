@@ -30,7 +30,14 @@ export function CoachPanel({
         <span>{guidance.label}</span>
         <strong>{Math.round(efficiency)}%</strong>
       </div>
-      <div className="score-track" aria-label={`トリム適合度 ${Math.round(efficiency)}%`}>
+      <div
+        className="score-track"
+        role="progressbar"
+        aria-label="トリム適合度"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(efficiency)}
+      >
         <span style={{ width: `${efficiency}%` }} />
       </div>
 

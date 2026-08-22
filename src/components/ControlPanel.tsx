@@ -81,7 +81,7 @@ function ControlSlider({
           max="100"
           value={value}
           aria-label={CONTROL_LABELS[meta.key]}
-          onChange={(event) => onChange(Number(event.target.value))}
+          onInput={(event) => onChange(Number(event.currentTarget.value))}
         />
         <i className="target-notch" aria-hidden="true" />
       </span>

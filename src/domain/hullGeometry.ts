@@ -43,6 +43,8 @@ export type HullGeometry = {
   stationLines: HullPoint[][]
   /** Mast heel on the mast-step bearing surface. */
   mastBase: HullPoint
+  /** Visible mast entry point on the foredeck centreline. */
+  mastDeck: HullPoint
   /** Deck fitting below the adjustable jib tack. */
   jibTack: HullPoint
 }
@@ -219,6 +221,9 @@ export function buildHullGeometry(boat: BoatClass): HullGeometry {
     sheerZ(mastStation) -
     mastStation.keelBelowSheerMm / SAIL_GEOMETRY_UNIT_MM +
     (specification.keelsonHeightMm + 5) / SAIL_GEOMETRY_UNIT_MM
+  const mastDeckZ =
+    sheerZ(mastStation) +
+    Math.min(55, mastStation.halfBeamMm * 0.07) / SAIL_GEOMETRY_UNIT_MM
   const jibTackDeckZ =
     sheerZ(jibTackStation) +
     Math.min(55, jibTackStation.halfBeamMm * 0.07) / SAIL_GEOMETRY_UNIT_MM
@@ -232,6 +237,7 @@ export function buildHullGeometry(boat: BoatClass): HullGeometry {
     centerline,
     stationLines: sections.slice(0, -1),
     mastBase: { id: `${boat}:mast-heel`, x: 0, y: 0, z: mastStepBearingZ },
+    mastDeck: { id: `${boat}:mast-deck`, x: 0, y: 0, z: mastDeckZ },
     jibTack: {
       id: `${boat}:stemhead`,
       x: longitudinalX(specification, specification.jibTackFromAftMm),

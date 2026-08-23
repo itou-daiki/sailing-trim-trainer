@@ -3,9 +3,11 @@ import { calculateTrim, targetControls } from './trimModel'
 import {
   AFT_VIEW_DEGREES,
   buildBoomGeometry,
+  buildMastGeometry,
   buildRigHardpoints,
   buildRigSurfaces,
   CLASS_BOOM_SPECIFICATIONS,
+  CLASS_MAST_SPECIFICATIONS,
   CLASS_RIG_SPECIFICATIONS,
   CLASS_SAIL_SPECIFICATIONS,
   fitProjection,
@@ -298,6 +300,28 @@ describe('single sail surface geometry', () => {
           CLASS_BOOM_SPECIFICATIONS[boat].aftEndFittingMm,
         10,
       )
+    }
+  })
+
+  it('builds each mast as a class-sized closed spar instead of a display line', () => {
+    for (const boat of ['420', '470'] as const) {
+      const mast = buildMastGeometry(boat, 0.05)
+      const specification = CLASS_MAST_SPECIFICATIONS[boat]
+      const section = mast.sections[Math.floor(mast.sections.length / 2)]
+      const foreAftMm = (
+        Math.max(...section.map((point) => point.x)) -
+        Math.min(...section.map((point) => point.x))
+      ) * SAIL_GEOMETRY_UNIT_MM
+      const transverseMm = (
+        Math.max(...section.map((point) => point.y)) -
+        Math.min(...section.map((point) => point.y))
+      ) * SAIL_GEOMETRY_UNIT_MM
+
+      expect(foreAftMm).toBeCloseTo(specification.foreAftMm, 8)
+      expect(transverseMm).toBeCloseTo(specification.transverseMm, 8)
+      expect(mast.faces).toHaveLength((mast.sections.length - 1) * 12)
+      expect(mast.bottom).toHaveLength(12)
+      expect(mast.top).toHaveLength(12)
     }
   })
 

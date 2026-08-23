@@ -138,6 +138,28 @@ export type ClassBoomSpecification = {
   aftEndFittingMm: number
 }
 
+export type ClassMastSpecification = {
+  /** Representative legal fore-and-aft section inside the class-rule range. */
+  foreAftMm: number
+  /** Representative legal transverse section inside the class-rule range. */
+  transverseMm: number
+}
+
+export type MastPoint = {
+  id: string
+  x: number
+  y: number
+  z: number
+}
+
+export type MastGeometry = {
+  sections: MastPoint[][]
+  faces: MastPoint[][]
+  bottom: MastPoint[]
+  top: MastPoint[]
+  centreline: MastPoint[]
+}
+
 export type ClassRigSpecification = {
   /** ERS lower point measured from the mast heel datum. */
   lowerPointHeightMm: number
@@ -314,6 +336,23 @@ export const CLASS_BOOM_SPECIFICATIONS: Record<BoatClass, ClassBoomSpecification
     verticalMm: 63,
     transverseMm: 38,
     aftEndFittingMm: 70,
+  },
+}
+
+/**
+ * Representative aluminium spar sections inside the current class envelopes.
+ * The class rules constrain overall fore-aft/transverse dimensions but do not
+ * prescribe one manufacturer's extrusion profile, so the display uses the
+ * midpoint of each permitted range as a twelve-sided elliptical section.
+ */
+export const CLASS_MAST_SPECIFICATIONS: Record<BoatClass, ClassMastSpecification> = {
+  '420': {
+    foreAftMm: 62.5,
+    transverseMm: 60,
+  },
+  '470': {
+    foreAftMm: 70,
+    transverseMm: 65,
   },
 }
 
@@ -540,6 +579,94 @@ export function buildRigHardpoints(
     jibTack,
     jibHead,
     jibHalyardHoist: halyardHoistPoint,
+  }
+}
+
+const MAST_SECTION_POINT_COUNT = 12
+
+/**
+ * Builds the visible mast above the deck as one closed 3D spar. Cross-sections
+ * stay at class scale and follow the same live bend axis used by the mainsail;
+ * the stepped portion below deck is omitted rather than exposing a line
+ * through the hull.
+ */
+export function buildMastGeometry(
+  boat: BoatClass,
+  mastBend = 0,
+): MastGeometry {
+  const hull = buildHullGeometry(boat)
+  const sail = CLASS_SAIL_SPECIFICATIONS[boat].main
+  const rig = CLASS_RIG_SPECIFICATIONS[boat]
+  const section = CLASS_MAST_SPECIFICATIONS[boat]
+  const deckHeightMm =
+    (hull.mastDeck.z - hull.mastBase.z) * SAIL_GEOMETRY_UNIT_MM
+  const stationHeightsMm = [
+    deckHeightMm,
+    rig.lowerPointHeightMm,
+    ...ROW_HEIGHTS.slice(1).map(
+      (height) => rig.lowerPointHeightMm + height * sail.luffMm,
+    ),
+  ]
+
+  const centreline = stationHeightsMm.map((heightMm, stationIndex): MastPoint => {
+    if (heightMm <= rig.lowerPointHeightMm) {
+      const amount = clamp(
+        (heightMm - deckHeightMm) /
+          Math.max(1, rig.lowerPointHeightMm - deckHeightMm),
+        0,
+        1,
+      )
+      const tack = mainLuffPoint(boat, 0, mastBend)
+      return {
+        id: `${boat}:mast-axis:${stationIndex}`,
+        x: lerp(hull.mastDeck.x, tack.x, amount),
+        y: 0,
+        z: hull.mastBase.z + heightMm / SAIL_GEOMETRY_UNIT_MM,
+      }
+    }
+
+    const point = mainLuffPoint(
+      boat,
+      (heightMm - rig.lowerPointHeightMm) / sail.luffMm,
+      mastBend,
+    )
+    return {
+      id: `${boat}:mast-axis:${stationIndex}`,
+      ...point,
+    }
+  })
+
+  const foreAftRadius = section.foreAftMm / SAIL_GEOMETRY_UNIT_MM / 2
+  const transverseRadius = section.transverseMm / SAIL_GEOMETRY_UNIT_MM / 2
+  const sections = centreline.map((axis, stationIndex) =>
+    Array.from({ length: MAST_SECTION_POINT_COUNT }, (_, pointIndex): MastPoint => {
+      const angle = (pointIndex / MAST_SECTION_POINT_COUNT) * Math.PI * 2
+      return {
+        id: `${boat}:mast:${stationIndex}:${pointIndex}`,
+        x: axis.x + Math.cos(angle) * foreAftRadius,
+        y: axis.y + Math.sin(angle) * transverseRadius,
+        z: axis.z,
+      }
+    }),
+  )
+  const faces = sections.slice(0, -1).flatMap((lower, stationIndex) =>
+    lower.map((point, pointIndex) => {
+      const nextPointIndex = (pointIndex + 1) % MAST_SECTION_POINT_COUNT
+      return [
+        point,
+        lower[nextPointIndex],
+        sections[stationIndex + 1][nextPointIndex],
+        sections[stationIndex + 1][pointIndex],
+      ]
+    }),
+  )
+
+  return {
+    sections,
+    faces,
+    bottom: [...sections[0]].reverse(),
+    top: sections.at(-1)!,
+    centreline,
   }
 }
 

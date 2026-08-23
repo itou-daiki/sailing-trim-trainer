@@ -67,6 +67,8 @@ describe('class-specific hull geometry', () => {
         }
       }
       expect(hull.mastBase.y).toBe(0)
+      expect(hull.mastDeck.y).toBe(0)
+      expect(hull.mastDeck.z).toBeGreaterThan(hull.mastBase.z)
       expect(hull.jibTack.y).toBe(0)
     }
   })

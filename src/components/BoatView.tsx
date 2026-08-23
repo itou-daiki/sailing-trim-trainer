@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import {
   buildBoomGeometry,
+  buildMastGeometry,
   buildRigHardpoints,
   buildRigSurfaces,
   CLASS_SAIL_SPECIFICATIONS,
@@ -32,6 +33,7 @@ import type {
   RigSurfaces,
   SurfaceRow,
   BoomGeometry,
+  MastGeometry,
 } from '../domain/sailGeometry'
 import type {
   BoatClass,
@@ -248,6 +250,58 @@ function BoomLayer({
   )
 }
 
+function MastLayer({
+  mast,
+  view,
+  map,
+  aftAzimuthDegrees,
+  reference,
+  referenceMode,
+}: {
+  mast: MastGeometry
+  view: ProjectionView
+  map: Mapper
+  aftAzimuthDegrees?: number
+  reference: boolean
+  referenceMode?: ComparisonMode
+}) {
+  const project = (points: Array<{ x: number; y: number; z: number }>) =>
+    points.map((point) => projectCoordinate(point, view, aftAzimuthDegrees))
+  const stateClass = reference
+    ? `is-reference is-${referenceMode ?? 'target'}`
+    : 'is-actual'
+  const sectionPointCount = mast.sections[0]?.length ?? 12
+  const pointsPerShade = Math.ceil(sectionPointCount / 4)
+  const shadedFaces = Array.from({ length: 4 }, (_, shade) =>
+    mast.faces
+      .filter((_, index) =>
+        Math.floor((index % sectionPointCount) / pointsPerShade) === shade)
+      .map((face) => path(project(face), map, true))
+      .join(''),
+  )
+
+  return (
+    <g className={`geometry-mast-model ${stateClass} is-${view}`}>
+      <title>{reference ? '比較基準の立体マスト' : 'クラス寸法の立体マスト'}</title>
+      {shadedFaces.map((facePath, shade) => (
+        <path
+          key={`mast-shade-${shade}`}
+          className={`geometry-mast-face shade-${shade}`}
+          d={facePath}
+        />
+      ))}
+      <path className="geometry-mast-cap is-bottom" d={path(project(mast.bottom), map, true)} />
+      <path className="geometry-mast-cap is-top" d={path(project(mast.top), map, true)} />
+      {!reference ? (
+        <path
+          className="geometry-mast-groove"
+          d={path(project(mast.sections.map((section) => section[0])), map)}
+        />
+      ) : null}
+    </g>
+  )
+}
+
 function SurfaceLayer({
   surface,
   map,
@@ -351,6 +405,7 @@ function ProjectionPanel({
   referenceMode,
   boat,
   mastBend,
+  referenceMastBend,
 }: {
   view: ProjectionView
   actual: RigSurfaces
@@ -359,6 +414,7 @@ function ProjectionPanel({
   referenceMode: ComparisonMode
   boat: BoatClass
   mastBend: number
+  referenceMastBend: number
 }) {
   const dimensions: Record<ProjectionView, { width: number; height: number }> = {
     top: { width: 760, height: 160 },
@@ -367,6 +423,8 @@ function ProjectionPanel({
   }
   const { width, height } = dimensions[view]
   const boom = buildBoomGeometry(boat, actual.main)
+  const actualMastGeometry = buildMastGeometry(boat, mastBend)
+  const referenceMastGeometry = buildMastGeometry(boat, referenceMastBend)
   const [boomStart, boomEnd] = boom.centreline
   const boomAzimuthDegrees = view === 'aft'
     ? Math.atan2(boomEnd.y - boomStart.y, boomEnd.x - boomStart.x) * 180 / Math.PI
@@ -388,6 +446,10 @@ function ProjectionPanel({
     ...boom.aftEnd.inner,
     ...boom.centreline,
   ].map(project)
+  const projectedMastPoints = [
+    ...actualMastGeometry.sections.flat(),
+    ...referenceMastGeometry.sections.flat(),
+  ].map(project)
   const hull = buildHullGeometry(boat)
   const rigHardpoints = buildRigHardpoints(boat, mastBend)
   const projectedHullPoints = [
@@ -406,25 +468,17 @@ function ProjectionPanel({
     view,
     boat,
     view === 'aft'
-      ? projectedBoomPoints
-      : [...projectedHullPoints, ...projectedBoomPoints],
+      ? [...projectedBoomPoints, ...projectedMastPoints]
+      : [...projectedHullPoints, ...projectedBoomPoints, ...projectedMastPoints],
   )
   const meta = VIEW_META[view]
   const classSails = CLASS_SAIL_SPECIFICATIONS[boat]
-  const actualMast = actualProjected
-    .find((surface) => surface.sail === 'main')!
-    .rows.map((row) => row.points[0])
-  const referenceMast = referenceProjected
-    .find((surface) => surface.sail === 'main')!
-    .rows.map((row) => row.points[0])
   const actualJibLuff = actualProjected
     .find((surface) => surface.sail === 'jib')!
     .rows.map((row) => row.points[0])
-  const projectedMastHeel = project(hull.mastBase)
   const projectedStemhead = project(hull.jibTack)
   const projectedJibHalyardHoist = project(rigHardpoints.jibHalyardHoist)
-  const actualMastLine = [projectedMastHeel, ...actualMast]
-  const referenceMastLine = [projectedMastHeel, ...referenceMast]
+  const projectedMastAxis = actualMastGeometry.centreline.map(project)
   const jibTackStrop = [projectedStemhead, actualJibLuff[0]]
   const jibLuffAndHalyard = [
     projectedStemhead,
@@ -434,7 +488,7 @@ function ProjectionPanel({
   const aftCentreline = view === 'aft'
     ? [
         project({ x: 0, y: 0, z: hullBottom }),
-        { x: 0, y: Math.max(...actualMastLine.map((point) => point.y)) },
+        { x: 0, y: Math.max(...projectedMastAxis.map((point) => point.y)) },
       ]
     : []
   const specification = HULL_SPECIFICATIONS[boat]
@@ -479,8 +533,14 @@ function ProjectionPanel({
         />
         <path className="geometry-jib-tack-strop" d={path(jibTackStrop, map)} />
         <path className="geometry-forestay" d={path(jibLuffAndHalyard, map)} />
-        <path className={`geometry-mast-target is-${referenceMode}`} d={path(referenceMastLine, map)} />
-        <path className="geometry-mast" d={path(actualMastLine, map)} />
+        <MastLayer
+          mast={referenceMastGeometry}
+          view={view}
+          map={map}
+          aftAzimuthDegrees={boomAzimuthDegrees}
+          reference
+          referenceMode={referenceMode}
+        />
         {referenceProjected.map((surface) => (
           <SurfaceLayer
             key={`reference-${surface.sail}`}
@@ -495,6 +555,13 @@ function ProjectionPanel({
         {actualProjected.map((surface) => (
           <SurfaceLayer key={surface.sail} surface={surface} map={map} active={active} target={false} view={view} />
         ))}
+        <MastLayer
+          mast={actualMastGeometry}
+          view={view}
+          map={map}
+          aftAzimuthDegrees={boomAzimuthDegrees}
+          reference={false}
+        />
         <BoomLayer
           boom={boom}
           view={view}
@@ -672,6 +739,11 @@ export function BoatView({
             referenceMode={comparisonMode}
             boat={boat}
             mastBend={result.actual.main.mastBend}
+            referenceMastBend={
+              comparisonMode === 'previous'
+                ? previousResult.actual.main.mastBend
+                : result.target.main.mastBend
+            }
           />
         ))}
       </div>

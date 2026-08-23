@@ -4537,35 +4537,60 @@ footer p { margin: 0; }
   opacity: 0.78;
 }
 
-.geometry-mast {
+.geometry-mast-face,
+.geometry-mast-cap,
+.geometry-mast-groove {
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-mast-model.is-actual .geometry-mast-face {
+  stroke: none;
+}
+
+.geometry-mast-model.is-actual .geometry-mast-face.shade-0 {
+  fill: #dce3df;
+}
+
+.geometry-mast-model.is-actual .geometry-mast-face.shade-1 {
+  fill: #aebdba;
+}
+
+.geometry-mast-model.is-actual .geometry-mast-face.shade-2 {
+  fill: #758d90;
+}
+
+.geometry-mast-model.is-actual .geometry-mast-face.shade-3 {
+  fill: #bfcac6;
+}
+
+.geometry-mast-model.is-actual .geometry-mast-cap {
+  fill: #8da1a1;
+  stroke: #183f48;
+  stroke-width: 0.8;
+}
+
+.geometry-mast-model.is-actual .geometry-mast-groove {
   fill: none;
   stroke: #183f48;
-  stroke-width: 2.2;
-  vector-effect: non-scaling-stroke;
+  stroke-width: 0.7;
 }
 
-.geometry-mast-reference,
-.geometry-mast-target {
-  fill: none;
-  vector-effect: non-scaling-stroke;
-}
-
-.geometry-mast-target.is-previous {
-  stroke: #536d86;
-  stroke-dasharray: 3 4;
-}
-
-.geometry-mast-reference {
-  stroke: #789092;
-  stroke-width: 0.8;
+.geometry-mast-model.is-reference {
   opacity: 0.58;
 }
 
-.geometry-mast-target {
+.geometry-mast-model.is-reference .geometry-mast-face,
+.geometry-mast-model.is-reference .geometry-mast-cap {
+  fill: rgba(22, 128, 119, 0.12);
   stroke: #168077;
-  stroke-width: 1.6;
-  stroke-dasharray: 5 4;
-  opacity: 0.82;
+  stroke-width: 0.65;
+  stroke-dasharray: 3 3;
+}
+
+.geometry-mast-model.is-reference.is-previous .geometry-mast-face,
+.geometry-mast-model.is-reference.is-previous .geometry-mast-cap {
+  fill: rgba(83, 109, 134, 0.1);
+  stroke: #536d86;
 }
 
 .geometry-boom-face,

@@ -68,6 +68,10 @@ _Avoid_: Independent top, side, and aft models
 The class-controlled outer point is measured aft from the mast and limits the mainsail's aft extent. The physical aft end fitting can continue beyond it. The trainer keeps the two as separate 3D sections and shows the aft-end face directly in the boom-aligned camera.
 _Avoid_: Treating the clew, outer point, and physical boom end as the same point; drawing a view-specific boom icon
 
+**Mast spar volume**:
+A closed twelve-face elliptical spar that starts at the deck and follows the same live bend axis as the mainsail. Its representative 420 and 470 sections use the midpoint of each current class-rule fore-aft and transverse envelope. The actual extrusion profile remains manufacturer-specific, so the model does not claim to reproduce one proprietary section.
+_Avoid_: Drawing the mast as a stroked centreline, extending a visible line through the hull, inflating the section merely to make it readable
+
 **Automatic boom angle**:
 The angle between the boom and the hull centreline, with zero degrees on the centreline. It is solved from true wind plus estimated boat speed: close-hauled calibration follows the class guide, reaching trim keeps a 15-degree teaching angle to apparent wind, and broad trim stops at the representative shroud limit. A slower or faster shape therefore changes apparent wind and the automatically optimized angle.
 _Avoid_: One wind-independent angle; interpolating from true wind alone; confusing true wind angle with apparent wind or boom angle

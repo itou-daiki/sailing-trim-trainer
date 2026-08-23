@@ -57,12 +57,16 @@ The flat outline beneath the live three-dimensional shape. Main leech length, fo
 _Avoid_: Uniformly scaling one generic dinghy sail, claiming an exact M-12/N14 cut
 
 **Sail projection**:
-An orthographic observation of a sail surface from above, from an oblique side angle, or from directly astern on the hull centreline. The aft camera is explicitly labelled 0 degrees; a close-hauled sail is therefore correctly shown nearly edge-on. A projection may hide a dimension but must not invent a different shape.
+An orthographic observation of a sail surface from above, from an oblique side angle, or from the current boom end looking toward the mast. The boom-end projection follows the live boom azimuth and explicitly magnifies only the horizontal draft-depth axis by three so small camber changes remain readable.
 _Avoid_: Independent top, side, and aft models
 
 **Boom outer point / aft end**:
-The class-controlled outer point is measured aft from the mast and limits the mainsail's aft extent. The physical aft end fitting can continue beyond it. The trainer keeps the two as separate 3D sections and shows the aft-end face directly in the centreline aft camera.
+The class-controlled outer point is measured aft from the mast and limits the mainsail's aft extent. The physical aft end fitting can continue beyond it. The trainer keeps the two as separate 3D sections and shows the aft-end face directly in the boom-aligned camera.
 _Avoid_: Treating the clew, outer point, and physical boom end as the same point; drawing a view-specific boom icon
+
+**Automatic boom angle**:
+The angle between the boom and the hull centreline, with zero degrees on the centreline. Close-hauled calibration keeps the boom near the centreline through full power, allows a small light-air offset, and progressively eases it only after the boat is overpowered. Reaching angles then open continuously with true wind angle.
+_Avoid_: One wind-independent close-hauled angle; confusing true wind angle with boom angle
 
 **Section polar proxy**:
 A dimensionless learning estimate of lift, drag, and forward drive for one draft stripe. It compares trim changes consistently but is not a measured sail polar or CFD result.

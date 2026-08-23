@@ -633,7 +633,9 @@ export function BoatView({
           </div>
         </div>
         <div className="geometry-head-tools">
-          <span className="geometry-condition">{geometryReference} · TWA {angle}° · {windSpeed} kt</span>
+          <span className="geometry-condition">
+            {geometryReference} · TWA {angle}° · {windSpeed} kt · ブーム 中心線から {result.actual.main.angle.toFixed(1)}°
+          </span>
           <div className="geometry-legend" aria-label="形状の凡例">
             <span><i className="legend-main" />メイン</span>
             <span><i className="legend-jib" />ジブ</span>

@@ -22,6 +22,35 @@ const inverseLerp = (start: number, end: number, value: number) =>
 
 const courseBlend = (twa: number) => inverseLerp(42, 145, twa)
 
+function closeHauledBoomAngle(boat: BoatClass, windSpeed: number) {
+  const underpowered = 1 - inverseLerp(6, 10, windSpeed)
+  const overpowered = inverseLerp(12, 18, windSpeed)
+  const centrelineAllowance = boat === '420' ? 1.5 : 1
+  const lightAirEase = boat === '420' ? 2 : 4
+  const heavyAirEase = boat === '420' ? 9 : 8
+  return centrelineAllowance + underpowered * lightAirEase + overpowered * heavyAirEase
+}
+
+function automaticMainAngle(
+  boat: BoatClass,
+  trueWindAngle: number,
+  windSpeed: number,
+) {
+  const closeAngle = closeHauledBoomAngle(boat, windSpeed)
+  if (trueWindAngle <= 90) {
+    return lerp(closeAngle, 45, inverseLerp(55, 90, trueWindAngle))
+  }
+  return lerp(45, 78, inverseLerp(90, 150, trueWindAngle))
+}
+
+function mainAngleFromSheet(mainSheet: number) {
+  return clamp(80 - mainSheet * 0.8, 0, 80)
+}
+
+function mainSheetForAngle(angle: number) {
+  return clamp((80 - angle) / 0.8, 0, 100)
+}
+
 export const CONTROL_LABELS: Record<ControlKey, string> = {
   mainSheet: 'メインシート',
   jibSheet: 'ジブシート',
@@ -41,7 +70,7 @@ export const CONTROL_LABELS: Record<ControlKey, string> = {
 }
 
 export const CONTROL_EFFECTS: Record<ControlKey, string> = {
-  mainSheet: '引くほどメインの迎角が増え、上部リーチも閉じます。出すと風下へ開きます。',
+  mainSheet: '引くほどブームが艇の中心線へ近づき、上部リーチも閉じます。出すと風下へ開きます。',
   jibSheet: '引くほどジブの迎角が増え、リーチが閉じます。引きすぎると裏風と失速を招きます。',
   vang: '引くほどブームの浮き上がりを抑え、上部のツイストを減らします。',
   cunningham: '引くほどラフに張力がかかり、ドラフトのいちばん深い位置が前へ戻ります。',
@@ -92,9 +121,12 @@ export function targetControls(
     82,
   )
   const targetOuthaul = clamp(58 + powered * 32 - course * 25, 20, 92)
+  const targetMainSheet = mainSheetForAngle(
+    automaticMainAngle(boat, trueWindAngle, windSpeed),
+  )
 
   return {
-    mainSheet: Math.round(lerp(88, 16, course)),
+    mainSheet: Math.round(targetMainSheet),
     jibSheet: Math.round(lerp(84, 19, course)),
     vang: Math.round(targetVang),
     cunningham: Math.round(lerp(4, 78, overpowered) * lerp(1, 0.38, broad)),
@@ -182,7 +214,7 @@ function sailShapes(
       twist: clamp(20 - vang * 14 - sheet * 3 + bend.upper * 4.5 + cunningham * 2 + windLoad * 1.5, 4, 24),
     },
   }
-  const mainAngle = clamp(80 - controls.mainSheet * 0.72, 7, 80)
+  const mainAngle = mainAngleFromSheet(controls.mainSheet)
 
   const jibLeadClosure = clamp(
     boat === '420'

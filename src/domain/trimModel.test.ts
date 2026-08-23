@@ -32,6 +32,22 @@ describe('trim model', () => {
     expect(reach470.guidance.tone).not.toBe('good')
   })
 
+  it('keeps the close-hauled boom near the centreline until overpowered', () => {
+    for (const boat of ['420', '470'] as const) {
+      const light = calculateTrim(boat, 45, 4, targetControls(boat, 45, 4))
+      const fullPower = calculateTrim(boat, 45, 10, targetControls(boat, 45, 10))
+      const overpowered = calculateTrim(boat, 45, 18, targetControls(boat, 45, 18))
+      const beam = calculateTrim(boat, 90, 10, targetControls(boat, 90, 10))
+
+      expect(light.actual.main.angle).toBeLessThanOrEqual(5.5)
+      expect(fullPower.actual.main.angle).toBeLessThanOrEqual(2)
+      expect(overpowered.actual.main.angle).toBeGreaterThan(fullPower.actual.main.angle)
+      expect(overpowered.actual.main.angle).toBeLessThanOrEqual(11)
+      expect(beam.actual.main.angle).toBeGreaterThanOrEqual(44)
+      expect(beam.actual.main.angle).toBeLessThanOrEqual(46)
+    }
+  })
+
   it('ignores balance, centerboard, and basic-angle controls in shape scoring', () => {
     const controls = targetControls('420', 45, 8)
     controls.mainSheet = 0

@@ -10,15 +10,13 @@ import { Masthead } from './components/Masthead'
 import { MetricsRail } from './components/MetricsRail'
 import { BOATS } from './data/boats'
 import { buildChallengeSetup, getChallenge, TRIM_CHALLENGES } from './domain/challenges'
+import type { PredictionConfidence, ShapeEvidence } from './domain/challenges'
 import { courseName } from './domain/course'
 import { labSnapshotUrl, parseLabSnapshot } from './domain/labShare'
 import { loadProgress, saveProgress, updateRecord } from './domain/progress'
 import type { ControlMove } from './domain/shapeComparison'
 import { calculateTrim, CONTROL_LABELS, targetControls } from './domain/trimModel'
 import type { BoatClass, ControlKey, TrimControls } from './domain/types'
-
-const INITIAL_ANGLE = 45
-const INITIAL_WIND = 8
 
 function browserStorage() {
   if (typeof window === 'undefined') return undefined
@@ -37,19 +35,20 @@ function challengeFromUrl() {
 
 function initialSetup() {
   const challenge = challengeFromUrl()
+  const challengeSetup = buildChallengeSetup(challenge)
   const shared = typeof window === 'undefined'
     ? undefined
     : parseLabSnapshot(window.location.search)
-  const boat = shared?.boat ?? challenge.boat
-  const angle = shared?.angle ?? INITIAL_ANGLE
-  const windSpeed = shared?.windSpeed ?? INITIAL_WIND
+  const boat = shared?.boat ?? challengeSetup.boat
+  const angle = shared?.angle ?? challengeSetup.angle
+  const windSpeed = shared?.windSpeed ?? challengeSetup.windSpeed
   return {
     challenge,
     shared,
     boat,
     angle,
     windSpeed,
-    controls: shared?.controls ?? targetControls(boat, angle, windSpeed),
+    controls: shared?.controls ?? challengeSetup.controls,
   }
 }
 
@@ -66,9 +65,11 @@ function App() {
   const [lastMove, setLastMove] = useState<ControlMove>()
   const [comparisonMode, setComparisonMode] = useState<ComparisonMode>('target')
   const [labShareStatus, setLabShareStatus] = useState('')
-  const [labMode, setLabMode] = useState(Boolean(initial.shared))
+  const [workspaceMode, setWorkspaceMode] = useState<'challenge' | 'free' | 'shared'>(initial.shared ? 'shared' : 'challenge')
   const [phase, setPhase] = useState<ChallengePhase>('preview')
   const [prediction, setPrediction] = useState<ControlKey>()
+  const [confidence, setConfidence] = useState<PredictionConfidence>()
+  const [evidenceAnswer, setEvidenceAnswer] = useState<ShapeEvidence>()
   const [moveCount, setMoveCount] = useState(0)
   const [startEfficiency, setStartEfficiency] = useState(100)
   const [hintLevel, setHintLevel] = useState(0)
@@ -78,7 +79,7 @@ function App() {
   const [progress, setProgress] = useState(() => loadProgress(browserStorage()))
   const [courseNotice, setCourseNotice] = useState(initial.shared
     ? `共有された${initial.boat}の形を読み込みました。三面図と断面を見ながら、同じ条件から比較できます。`
-    : '基本角度・艇バランス・センターボードは自動で最適です。風を変え、形状コントロールだけを作り直します。')
+    : `真風角${initial.angle}° / ${initial.windSpeed} kt。予想用にあえて崩した形を表示しています。`)
   const controlStartRef = useRef<{ control: ControlKey; controls: TrimControls } | undefined>(undefined)
 
   const result = useMemo(
@@ -89,6 +90,9 @@ function App() {
     () => calculateTrim(boat, angle, windSpeed, previousControls),
     [angle, boat, previousControls, windSpeed],
   )
+  const challengeMode = workspaceMode === 'challenge'
+  const previewingChallenge = challengeMode && phase === 'preview'
+  const controlLocked = challengeMode && phase !== 'practice'
 
   useEffect(() => {
     saveProgress(progress, browserStorage())
@@ -97,6 +101,8 @@ function App() {
   const resetAttemptState = () => {
     setPhase('preview')
     setPrediction(undefined)
+    setConfidence(undefined)
+    setEvidenceAnswer(undefined)
     setMoveCount(0)
     setHintLevel(0)
     setMoveFeedback('')
@@ -115,15 +121,17 @@ function App() {
   const selectChallenge = (id: string) => {
     const nextChallenge = getChallenge(id)
     if (!nextChallenge) return
+    const setup = buildChallengeSetup(nextChallenge)
     setActiveChallengeId(nextChallenge.id)
-    setLabMode(false)
-    setBoat(nextChallenge.boat)
-    const nextControls = targetControls(nextChallenge.boat, angle, windSpeed)
-    setControls(nextControls)
-    resetShapeHistory(nextControls)
+    setWorkspaceMode('challenge')
+    setBoat(setup.boat)
+    setAngle(setup.angle)
+    setWindSpeed(setup.windSpeed)
+    setControls(setup.controls)
+    resetShapeHistory(setup.controls)
     setLastControl(nextChallenge.prediction.correctControl)
     setCourseNotice(
-      `${BOATS[nextChallenge.boat].name}の基準トリムで課題を確認します。予想後に崩れた条件を読み込みます。`,
+      `${BOATS[nextChallenge.boat].name} / 真風角${setup.angle}° / ${setup.windSpeed} kt。予想用にあえて崩した形を表示しています。`,
     )
     resetAttemptState()
   }
@@ -134,15 +142,16 @@ function App() {
       completed: true,
       assisted: record.assisted || assisted,
       bestMoves: record.bestMoves === undefined ? moves : Math.min(record.bestMoves, moves),
+      evidenceCorrect: true,
     })))
   }
 
   const startChallenge = () => {
-    if (!prediction) return
+    if (!prediction || !confidence) return
     const setup = buildChallengeSetup(activeChallenge)
     const startingResult = calculateTrim(setup.boat, setup.angle, setup.windSpeed, setup.controls)
     setBoat(setup.boat)
-    setLabMode(false)
+    setWorkspaceMode('challenge')
     setAngle(setup.angle)
     setWindSpeed(setup.windSpeed)
     setControls(setup.controls)
@@ -151,8 +160,12 @@ function App() {
     setPhase('practice')
     setMoveCount(0)
     setStartEfficiency(startingResult.metrics.efficiency)
-    setHintLevel(0)
-    setMoveFeedback('予想を残しました。優先順位の一番上を一本だけ動かし、大きな断面図の差を確かめます。')
+    const predictionCorrect = prediction === activeChallenge.prediction.correctControl
+    const highConfidenceMiss = !predictionCorrect && confidence === 'certain'
+    setHintLevel(highConfidenceMiss ? 1 : 0)
+    setMoveFeedback(highConfidenceMiss
+      ? `確信していた予想と形の因果が異なりました。まず観察場所を一つに絞ります：${activeChallenge.hints[0]}`
+      : '予想を残しました。優先順位の一番上を一本だけ動かし、大きな断面図の差を確かめます。')
     setAssisted(false)
     setCourseNotice(
       `${activeChallenge.boat} / 真風角 ${setup.angle}° / ${setup.windSpeed} kt。あえて崩れたトリムから始めます。`,
@@ -160,7 +173,8 @@ function App() {
     setProgress((current) => updateRecord(current, activeChallenge.id, (record) => ({
       ...record,
       attempts: record.attempts + 1,
-      predictionCorrect: prediction === activeChallenge.prediction.correctControl,
+      predictionCorrect,
+      predictionConfidence: confidence,
     })))
   }
 
@@ -259,9 +273,9 @@ function App() {
     }
 
     if (conditionsMatch && nextResult.metrics.efficiency >= activeChallenge.threshold) {
-      setPhase('complete')
-      setCourseNotice('目標範囲へ戻りました。操作、形、艇の状態を一つの因果として振り返ります。')
-      recordCompletion(nextMoves)
+      setPhase('reflect')
+      setEvidenceAnswer(undefined)
+      setCourseNotice('目標範囲へ戻りました。最後に、どの形が変わったかを操作前と比べます。')
     }
   }
 
@@ -287,6 +301,26 @@ function App() {
 
   const retryChallenge = () => {
     startChallenge()
+  }
+
+  const choosePrediction = (control: ControlKey) => {
+    setPrediction(control)
+    setConfidence(undefined)
+  }
+
+  const finishReflection = () => {
+    if (evidenceAnswer !== activeChallenge.evidence.correct) return
+    setPhase('complete')
+    setCourseNotice('操作と形の変化を一つの因果として説明できました。')
+    recordCompletion(moveCount)
+  }
+
+  const enterFreeLab = () => {
+    const nextControls = targetControls(boat, angle, windSpeed)
+    setWorkspaceMode('free')
+    setControls(nextControls)
+    resetShapeHistory(nextControls)
+    setCourseNotice('自由練習です。風と艇種を変え、一本ずつ動かして形の応答を見ます。')
   }
 
   const nextChallenge = () => {
@@ -343,24 +377,30 @@ function App() {
       <a className="skip-link" href="#simulator">セール形状モデルへスキップ</a>
       <Masthead
         boat={boat}
-        lesson={labMode ? 'SHARED LAB' : `DRILL ${String(activeChallenge.order).padStart(2, '0')}`}
-        lessonTitle={labMode ? '共有されたセール形状' : activeChallenge.title}
+        lesson={workspaceMode === 'shared' ? 'SHARED LAB' : workspaceMode === 'free' ? 'FREE LAB' : `DRILL ${String(activeChallenge.order).padStart(2, '0')}`}
+        lessonTitle={workspaceMode === 'shared' ? '共有されたセール形状' : workspaceMode === 'free' ? '自由練習' : activeChallenge.title}
+        locked={challengeMode}
         onBoatChange={changeBoat}
       />
 
       <main>
         <section className="lesson-brief" aria-labelledby="lesson-title">
           <div>
-            <span className="lesson-kicker">{labMode ? `SHARED SHAPE / ${boat}` : `TODAY'S QUESTION / ${activeChallenge.boat}`}</span>
-            <h1 id="lesson-title">{labMode ? `${boat}・${windSpeed} kt・TWA ${angle}°の形を同じ条件で比較する` : activeChallenge.question}</h1>
+            <span className="lesson-kicker">{workspaceMode === 'shared' ? `SHARED SHAPE / ${boat}` : workspaceMode === 'free' ? `FREE SHAPE LAB / ${boat}` : `TODAY'S QUESTION / ${activeChallenge.boat}`}</span>
+            <h1 id="lesson-title">{workspaceMode === 'shared' ? `${boat}・${windSpeed} kt・TWA ${angle}°の形を同じ条件で比較する` : workspaceMode === 'free' ? '風を変え、形状コントロールの効き方を自由に確かめる' : activeChallenge.question}</h1>
           </div>
           <p>
-            {labMode
+            {workspaceMode === 'shared'
               ? '艇種・風・形状コントロールを共有URLから復元しました。一本動かし、操作前との差を話し合えます。'
+              : workspaceMode === 'free'
+                ? '基本角度は自動。深さ・最大位置・ツイストの変化だけに集中できます。'
               : '基本角度と艇の姿勢は自動で最適に保ちます。形を予想し、一本動かし、断面と速度で確かめます。'}
           </p>
           <div className="lesson-loop" aria-label="学習の流れ">
-            <span>予想</span><i>→</i><span>動かす</span><i>→</i><span>形を見る</span><i>→</i><span>理由を言う</span>
+            <span>予想</span><i>→</i><span>動かす</span><i>→</i><span>形を見る</span><i>→</i><span>形で説明</span>
+            <button type="button" className="mode-switch" onClick={challengeMode ? enterFreeLab : () => selectChallenge(activeChallenge.id)}>
+              {challengeMode ? '自由練習へ' : '課題に戻る'}
+            </button>
           </div>
         </section>
 
@@ -369,6 +409,7 @@ function App() {
             <CourseBoard
               angle={angle}
               windSpeed={windSpeed}
+              locked={challengeMode}
               onCourseChange={changeCourse}
               onWindChange={changeWind}
             />
@@ -405,6 +446,8 @@ function App() {
               controls={controls}
               targets={result.targetControls}
               actions={result.actions}
+              locked={controlLocked}
+              revealGuidance={!previewingChallenge}
               onControlChangeStart={beginControlChange}
               onControlChange={changeControl}
             />
@@ -412,6 +455,7 @@ function App() {
                 guidance={result.guidance}
                 efficiency={result.metrics.efficiency}
                 actions={result.actions}
+                mode={previewingChallenge ? 'observe' : 'guide'}
                 onShowBaseline={tryBaseline}
               />
             </div>
@@ -423,7 +467,7 @@ function App() {
             <span>AFTER THE SHAPE BENCH</span>
             <div>
               <h2>形が読めたら、課題で確かめる</h2>
-              <p>まず上のモデルを自由に動かし、その後に予想 → 一本動かす → 理由を言う練習へ進みます。</p>
+              <p>基礎1–3 → 420 / 470固有4–8 → 別コースへ使い直す9の順で、予想と形の根拠を練習します。</p>
             </div>
           </div>
           <ChallengeDeck
@@ -432,6 +476,8 @@ function App() {
             progress={progress}
             phase={phase}
             prediction={prediction}
+            confidence={confidence}
+            evidenceAnswer={evidenceAnswer}
             moveCount={moveCount}
             startEfficiency={startEfficiency}
             currentEfficiency={result.metrics.efficiency}
@@ -440,10 +486,13 @@ function App() {
             shareStatus={shareStatus}
             assisted={assisted}
             onSelect={selectChallenge}
-            onPredict={setPrediction}
+            onPredict={choosePrediction}
+            onConfidence={setConfidence}
             onStart={startChallenge}
             onHint={showHint}
             onRetry={retryChallenge}
+            onEvidence={setEvidenceAnswer}
+            onFinishReflection={finishReflection}
             onNext={nextChallenge}
             onShare={shareChallenge}
           />
@@ -480,7 +529,7 @@ function App() {
       </main>
 
       <footer>
-        <span>TRIM NOTE / TRAINING BUILD 0.10.1</span>
+        <span>TRIM NOTE / TRAINING BUILD 0.11.0</span>
         <span className="footer-credit">Created by Dit-Lab.</span>
         <p>タック、ジャイブ、レース戦術を扱わず、420 / 470のセール形状づくりに集中しています。</p>
       </footer>

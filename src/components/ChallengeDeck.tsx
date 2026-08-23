@@ -2,9 +2,10 @@ import { useEffect, useRef } from 'react'
 import { CONTROL_LABELS } from '../domain/trimModel'
 import type { LearningProgress } from '../domain/progress'
 import type { ControlKey } from '../domain/types'
-import type { TrimChallenge } from '../domain/challenges'
+import { CHALLENGE_STAGE_LABELS, SHAPE_EVIDENCE_OPTIONS } from '../domain/challenges'
+import type { PredictionConfidence, ShapeEvidence, TrimChallenge } from '../domain/challenges'
 
-export type ChallengePhase = 'preview' | 'practice' | 'complete'
+export type ChallengePhase = 'preview' | 'practice' | 'reflect' | 'complete'
 
 type ChallengeDeckProps = {
   challenges: TrimChallenge[]
@@ -12,6 +13,8 @@ type ChallengeDeckProps = {
   progress: LearningProgress
   phase: ChallengePhase
   prediction?: ControlKey
+  confidence?: PredictionConfidence
+  evidenceAnswer?: ShapeEvidence
   moveCount: number
   startEfficiency: number
   currentEfficiency: number
@@ -21,19 +24,38 @@ type ChallengeDeckProps = {
   assisted: boolean
   onSelect: (id: string) => void
   onPredict: (control: ControlKey) => void
+  onConfidence: (confidence: PredictionConfidence) => void
   onStart: () => void
   onHint: () => void
   onRetry: () => void
+  onEvidence: (evidence: ShapeEvidence) => void
+  onFinishReflection: () => void
   onNext: () => void
   onShare: () => void
 }
 
-function StepRail({ phase, prediction }: { phase: ChallengePhase; prediction?: ControlKey }) {
-  const current = phase === 'complete' ? 4 : phase === 'practice' ? 3 : prediction ? 2 : 1
-  const labels = ['状況を読む', '一手を予想', '一本ずつ試す', '別条件へ']
+const CONFIDENCE_OPTIONS: Array<{
+  key: PredictionConfidence
+  label: string
+  description: string
+}> = [
+  { key: 'guess', label: '迷う', description: 'まだ根拠が弱い' },
+  { key: 'likely', label: 'たぶん', description: '見る場所は分かる' },
+  { key: 'certain', label: '確信', description: '図から説明できる' },
+]
+
+function StepRail({
+  phase,
+  prediction,
+}: {
+  phase: ChallengePhase
+  prediction?: ControlKey
+}) {
+  const current = phase === 'complete' ? 5 : phase === 'reflect' ? 4 : phase === 'practice' ? 3 : prediction ? 2 : 1
+  const labels = ['状況を読む', '一手を予想', '一本ずつ試す', '形で説明', '別条件へ']
 
   return (
-    <ol className="challenge-steps" aria-label={`学習段階 ${current} / 4`}>
+    <ol className="challenge-steps" aria-label={`学習段階 ${current} / 5`}>
       {labels.map((label, index) => (
         <li className={index + 1 <= current ? 'is-reached' : ''} aria-current={index + 1 === current ? 'step' : undefined} key={label}>
           <span>{index + 1}</span>
@@ -50,6 +72,8 @@ export function ChallengeDeck({
   progress,
   phase,
   prediction,
+  confidence,
+  evidenceAnswer,
   moveCount,
   startEfficiency,
   currentEfficiency,
@@ -59,9 +83,12 @@ export function ChallengeDeck({
   assisted,
   onSelect,
   onPredict,
+  onConfidence,
   onStart,
   onHint,
   onRetry,
+  onEvidence,
+  onFinishReflection,
   onNext,
   onShare,
 }: ChallengeDeckProps) {
@@ -69,6 +96,8 @@ export function ChallengeDeck({
   const completedCount = challenges.filter((challenge) => progress.records[challenge.id]?.completed).length
   const selectedOption = active.prediction.options.find((option) => option.control === prediction)
   const predictionCorrect = prediction === active.prediction.correctControl
+  const selectedEvidence = SHAPE_EVIDENCE_OPTIONS.find((option) => option.key === evidenceAnswer)
+  const evidenceCorrect = evidenceAnswer === active.evidence.correct
   const activeRecord = progress.records[active.id]
 
   useEffect(() => {
@@ -109,7 +138,7 @@ export function ChallengeDeck({
                   onClick={() => onSelect(challenge.id)}
                 >
                   <span>{String(challenge.order).padStart(2, '0')}</span>
-                  <span><strong>{challenge.title}</strong><small>{challenge.boat} / {challenge.band}</small></span>
+                  <span><strong>{challenge.title}</strong><small>{CHALLENGE_STAGE_LABELS[challenge.stage]} · {challenge.boat} / {challenge.band}</small></span>
                   <i aria-label={record?.completed ? '完了' : '未完了'}>{record?.completed ? '済' : '—'}</i>
                 </button>
               </li>
@@ -121,7 +150,7 @@ export function ChallengeDeck({
       <div className="challenge-sheet">
         <header className="challenge-sheet-head">
           <div>
-            <span className="challenge-number">DRILL {String(active.order).padStart(2, '0')} · {active.boat}</span>
+            <span className="challenge-number">DRILL {String(active.order).padStart(2, '0')} · {CHALLENGE_STAGE_LABELS[active.stage]} · {active.boat}</span>
             <h2 id="challenge-title" tabIndex={-1}>{active.title}</h2>
             <p>{active.question}</p>
           </div>
@@ -158,16 +187,36 @@ export function ChallengeDeck({
               </div>
             </fieldset>
 
-            {selectedOption ? (
+            {prediction ? (
+              <fieldset className="confidence-check">
+                <legend>その予想に、どのくらい自信がある？</legend>
+                <div className="confidence-options">
+                  {CONFIDENCE_OPTIONS.map((option) => (
+                    <button
+                      type="button"
+                      className={confidence === option.key ? 'is-selected' : ''}
+                      aria-pressed={confidence === option.key}
+                      onClick={() => onConfidence(option.key)}
+                      key={option.key}
+                    >
+                      <strong>{option.label}</strong>
+                      <small>{option.description}</small>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            ) : null}
+
+            {selectedOption && confidence ? (
               <div className={predictionCorrect ? 'prediction-response is-correct' : 'prediction-response is-misconception'} role="status">
                 <strong>{predictionCorrect ? '予想の筋が通っています' : 'ここを見分けよう'}</strong>
                 <p>{selectedOption.feedback}</p>
               </div>
-            ) : (
+            ) : !prediction ? (
               <p className="prediction-wait">操作する前に一つ選びます。正解暗記ではなく、何を先に直すかの予想です。</p>
-            )}
+            ) : <p className="prediction-wait">正解を見る前に、いまの確信度を選びます。</p>}
 
-            <button type="button" className="challenge-start" disabled={!prediction} onClick={onStart}>
+            <button type="button" className="challenge-start" disabled={!prediction || !confidence} onClick={onStart}>
               この条件で実験を始める
               <span aria-hidden="true">→</span>
             </button>
@@ -195,6 +244,45 @@ export function ChallengeDeck({
           </div>
         ) : null}
 
+        {phase === 'reflect' ? (
+          <div className="reflection-block" aria-live="polite">
+            <div className="reflection-head">
+              <span>SHAPE EVIDENCE / 形で説明</span>
+              <h3>基準範囲に戻った根拠は？</h3>
+              <p>三面図と大きな断面図の「操作前」と「現在」を比べます。</p>
+            </div>
+            <fieldset>
+              <legend>今回、直ったと判断する主な形の変化は？</legend>
+              <div className="evidence-options">
+                {SHAPE_EVIDENCE_OPTIONS.map((option) => (
+                  <button
+                    type="button"
+                    className={evidenceAnswer === option.key ? 'is-selected' : ''}
+                    aria-pressed={evidenceAnswer === option.key}
+                    onClick={() => onEvidence(option.key)}
+                    key={option.key}
+                  >
+                    <strong>{option.label}</strong>
+                    <small>{option.description}</small>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+            {selectedEvidence ? (
+              <div className={evidenceCorrect ? 'evidence-response is-correct' : 'evidence-response is-misconception'} role="status">
+                <strong>{evidenceCorrect ? '形を根拠にできました' : '成功条件と図を結び直そう'}</strong>
+                <p>{evidenceCorrect ? active.evidence.statement : `「${selectedEvidence.label}」は別の変化です。課題のSUCCESSに書かれた形と、選択中の断面をもう一度比べます。`}</p>
+              </div>
+            ) : (
+              <p className="prediction-wait">数字だけではなく、どの形が動いたかを選びます。</p>
+            )}
+            <button type="button" className="challenge-start" disabled={!evidenceCorrect} onClick={onFinishReflection}>
+              根拠を確定して完了
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        ) : null}
+
         {phase === 'complete' ? (
           <div className="challenge-complete" role="status">
             <div className="completion-stamp"><span>TRIMMED</span><strong>{Math.round(currentEfficiency)}%</strong></div>
@@ -203,7 +291,7 @@ export function ChallengeDeck({
               <h3>基準範囲へ戻せました</h3>
               <p>
                 {moveCount}回の操作で完了{assisted ? '（ヒント／基準形を使用）' : ''}。
-                同じ答えを繰り返さず、次は条件を変えて判断を使い直します。
+                根拠は「{active.evidence.statement}」次は条件を変えて判断を使い直します。
               </p>
               {activeRecord?.bestMoves ? <small>この端末の最少操作：{activeRecord.bestMoves}回</small> : null}
             </div>

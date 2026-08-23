@@ -7,9 +7,30 @@ export type PredictionOption = {
   feedback: string
 }
 
+export type ChallengeStage = 'foundation' | 'class' | 'transfer'
+export type PredictionConfidence = 'guess' | 'likely' | 'certain'
+export type ShapeEvidence = 'draftDepth' | 'draftPosition' | 'twist'
+
+export const CHALLENGE_STAGE_LABELS: Record<ChallengeStage, string> = {
+  foundation: '基礎',
+  class: '艇種別',
+  transfer: '応用',
+}
+
+export const SHAPE_EVIDENCE_OPTIONS: Array<{
+  key: ShapeEvidence
+  label: string
+  description: string
+}> = [
+  { key: 'draftDepth', label: '深さ（ふくらみ）', description: '断面のふくらみの大きさ' },
+  { key: 'draftPosition', label: '最大位置', description: 'ラフから一番深い点までの位置' },
+  { key: 'twist', label: 'ツイスト（上部の開き）', description: '上へ行くほどリーチが開く量' },
+]
+
 export type TrimChallenge = {
   id: string
   order: number
+  stage: ChallengeStage
   boat: BoatClass
   band: string
   title: string
@@ -30,6 +51,10 @@ export type TrimChallenge = {
     correctControl: ControlKey
     options: PredictionOption[]
   }
+  evidence: {
+    correct: ShapeEvidence
+    statement: string
+  }
   hints: [string, string, string]
 }
 
@@ -44,6 +69,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
   {
     id: 'draft-forward-470',
     order: 1,
+    stage: 'foundation',
     boat: '470',
     band: 'DRAFT POSITION',
     title: '後ろへ動いたドラフト',
@@ -62,6 +88,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
         { control: 'vang', label: 'バングを引く', feedback: 'バングは上部リーチとツイストの操作です。ドラフト位置とは分けて考えます。' },
       ],
     },
+    evidence: { correct: 'draftPosition', statement: '最大深さの点が、リーチ側から基準帯へ前進した。' },
     hints: [
       '中部断面の最大深さ点を見ます。現在の点が基準よりリーチ側です。',
       'ラフに沿う張力を増やすと、最大深さ位置が前へ戻ります。',
@@ -71,6 +98,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
   {
     id: 'depth-control-420',
     order: 2,
+    stage: 'foundation',
     boat: '420',
     band: 'DRAFT DEPTH',
     title: '深すぎるメイン下部',
@@ -89,6 +117,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
         { control: 'vang', label: 'バングを引く', feedback: 'ツイストを閉じる操作で、下部のふくらみを直接減らす操作ではありません。' },
       ],
     },
+    evidence: { correct: 'draftDepth', statement: 'メイン下部のふくらみが小さくなり、基準帯へ入った。' },
     hints: [
       '下部の断面だけを選び、基準帯より大きいふくらみを見ます。',
       'クリューを外へ引くコントロールを探します。',
@@ -98,6 +127,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
   {
     id: 'twist-control-420',
     order: 3,
+    stage: 'foundation',
     boat: '420',
     band: 'TWIST',
     title: '開きすぎた上部',
@@ -116,6 +146,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
         { control: 'cunningham', label: 'カニンガムを引く', feedback: '最大深さ位置は動きますが、ツイストを直接止めません。' },
       ],
     },
+    evidence: { correct: 'twist', statement: 'メイン上部の開きが減り、基準のツイストへ戻った。' },
     hints: [
       '断面の深さではなく、右側のツイスト角度図を見ます。',
       'ブームを下へ押さえる力が不足しています。',
@@ -125,6 +156,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
   {
     id: 'chock-shape-420',
     order: 4,
+    stage: 'class',
     boat: '420',
     band: '420 MAST',
     title: '曲がりすぎたロワーマスト',
@@ -143,6 +175,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
         { control: 'jibHeight', label: 'ジブを高くする', feedback: 'ジブのリード角に効く操作で、メインのマストベンドとは別です。' },
       ],
     },
+    evidence: { correct: 'draftDepth', statement: 'ロワーマストの過剰な曲がりが減り、メイン中部に深さが戻った。' },
     hints: [
       'メイン中部の深さと、420固有のマスト操作を結びます。',
       '薄いほどロワーマストが動きやすくなります。',
@@ -152,6 +185,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
   {
     id: 'jib-height-420',
     order: 5,
+    stage: 'class',
     boat: '420',
     band: '420 JIB SHAPE',
     title: '閉じすぎたジブ上部',
@@ -170,6 +204,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
         { control: 'chock', label: 'チョックを薄くする', feedback: 'メインのマストベンド操作で、ジブ上部の主操作ではありません。' },
       ],
     },
+    evidence: { correct: 'twist', statement: 'ジブ上部が開き、ツイストが基準帯へ戻った。' },
     hints: [
       'JIBを選び、右側のツイスト角度図を見ます。',
       '高くするとシートがより下へ引き、上部が閉じます。',
@@ -179,6 +214,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
   {
     id: 'fore-puller-470',
     order: 6,
+    stage: 'class',
     boat: '470',
     band: '470 MAST',
     title: '不足したフォアプラー',
@@ -197,6 +233,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
         { control: 'cunningham', label: 'カニンガムを引く', feedback: '位置は前へ動きますが、ロワーマスト設定の原因は残ります。' },
       ],
     },
+    evidence: { correct: 'draftDepth', statement: 'ロワーマストが前へ導かれ、メイン中部の過剰な深さが減った。' },
     hints: [
       '470固有のロワーマスト操作を見ます。',
       '名前ではなく、マストを前へ動かす方向で選びます。',
@@ -206,6 +243,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
   {
     id: 'aft-puller-470',
     order: 7,
+    stage: 'class',
     boat: '470',
     band: '470 MAST',
     title: '効きすぎたアフタープラー',
@@ -224,6 +262,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
         { control: 'outhaul', label: 'アウトホールを引く', feedback: '深さは減りますが、マスト設定の原因は残ります。' },
       ],
     },
+    evidence: { correct: 'draftDepth', statement: 'ロワーマストを後ろへ引く力が減り、メイン中部が基準の深さへ戻った。' },
     hints: [
       'フォア／アフターは名前より、ロワーマストが動く向きを見ます。',
       '今回は「後ろへ」の力が強すぎます。',
@@ -233,6 +272,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
   {
     id: 'jib-lead-470',
     order: 8,
+    stage: 'class',
     boat: '470',
     band: '470 JIB SHAPE',
     title: '開きすぎたジブ上部',
@@ -251,6 +291,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
         { control: 'vang', label: 'バングを引く', feedback: 'メインのツイスト操作で、ジブ上部には直接効きません。' },
       ],
     },
+    evidence: { correct: 'twist', statement: 'ジブ上部の開きが減り、ツイストが基準帯へ戻った。' },
     hints: [
       'JIBを選び、上部のツイスト角度を見ます。',
       'リードを前へ送ると、シートがジブをより下へ引きます。',
@@ -260,6 +301,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
   {
     id: 'broad-shape-470',
     order: 9,
+    stage: 'transfer',
     boat: '470',
     band: 'TRANSFER',
     title: 'ブロード用の形へ',
@@ -278,6 +320,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
         { control: 'vang', label: 'バングをさらに引く', feedback: 'この条件では基準より強すぎます。まず最大差のアウトホールから戻します。' },
       ],
     },
+    evidence: { correct: 'draftDepth', statement: 'クローズ用の平らな下部から、ブロード用の深さへ戻り始めた。' },
     hints: [
       '基本角度、艇バランス、センターは自動で最適です。形状差だけを見ます。',
       'クローズ形状はメイン下部が平らすぎます。',

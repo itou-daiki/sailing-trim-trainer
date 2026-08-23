@@ -3,6 +3,7 @@ import { courseName } from '../domain/course'
 type CourseBoardProps = {
   angle: number
   windSpeed: number
+  locked?: boolean
   onCourseChange: (angle: number) => void
   onWindChange: (speed: number) => void
 }
@@ -16,6 +17,7 @@ const COURSES = [
 export function CourseBoard({
   angle,
   windSpeed,
+  locked = false,
   onCourseChange,
   onWindChange,
 }: CourseBoardProps) {
@@ -25,7 +27,7 @@ export function CourseBoard({
         <span className="section-index">A</span>
         <div>
           <p>WIND &amp; COURSE</p>
-          <h2 id="course-title">風を変える</h2>
+          <h2 id="course-title">{locked ? '今回の風' : '風を変える'}</h2>
         </div>
       </div>
 
@@ -55,6 +57,7 @@ export function CourseBoard({
             key={course.angle}
             type="button"
             className={Math.abs(angle - course.angle) < 10 ? 'is-active' : ''}
+            disabled={locked}
             onClick={() => onCourseChange(course.angle)}
           >
             <span>{course.angle}°</span>
@@ -75,6 +78,7 @@ export function CourseBoard({
           min="40"
           max="150"
           value={angle}
+          disabled={locked}
           onInput={(event) => onCourseChange(Number(event.currentTarget.value))}
         />
         <small><span>上る</span><span>ベアする</span></small>
@@ -92,6 +96,7 @@ export function CourseBoard({
           max="18"
           step="1"
           value={windSpeed}
+          disabled={locked}
           onInput={(event) => onWindChange(Number(event.currentTarget.value))}
         />
         <small><span>LIGHT</span><span>FRESH</span></small>
@@ -99,7 +104,7 @@ export function CourseBoard({
 
       <p className="course-rule">
         <span aria-hidden="true">✓</span>
-        基本角度・艇バランス・センターは自動で最適。
+        {locked ? '課題中は条件を固定。予想後に操作します。' : '基本角度・艇バランス・センターは自動で最適。'}
       </p>
     </section>
   )

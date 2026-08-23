@@ -5,10 +5,11 @@ type MastheadProps = {
   boat: BoatClass
   lesson: string
   lessonTitle: string
+  locked?: boolean
   onBoatChange: (boat: BoatClass) => void
 }
 
-export function Masthead({ boat, lesson, lessonTitle, onBoatChange }: MastheadProps) {
+export function Masthead({ boat, lesson, lessonTitle, locked = false, onBoatChange }: MastheadProps) {
   return (
     <header className="masthead">
       <a className="brand" href="#top">
@@ -33,6 +34,7 @@ export function Masthead({ boat, lesson, lessonTitle, onBoatChange }: MastheadPr
             type="button"
             className={boat === id ? 'is-active' : ''}
             aria-pressed={boat === id}
+            disabled={locked}
             onClick={() => onBoatChange(id)}
             key={id}
           >

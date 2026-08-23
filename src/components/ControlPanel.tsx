@@ -8,6 +8,8 @@ type ControlPanelProps = {
   controls: TrimControls
   targets: TrimControls
   actions: TrimAction[]
+  locked?: boolean
+  revealGuidance?: boolean
   onControlChangeStart: (control: ControlKey) => void
   onControlChange: (control: ControlKey, value: number) => void
 }
@@ -43,6 +45,8 @@ function ControlSlider({
   target,
   action,
   rank,
+  locked,
+  revealGuidance,
   onChangeStart,
   onChange,
 }: {
@@ -51,6 +55,8 @@ function ControlSlider({
   target: number
   action?: TrimAction
   rank?: number
+  locked: boolean
+  revealGuidance: boolean
   onChangeStart: () => void
   onChange: (value: number) => void
 }) {
@@ -60,8 +66,8 @@ function ControlSlider({
   } as CSSProperties
 
   return (
-    <label className={action && rank === 1 ? 'control-slider is-highlighted' : 'control-slider'}>
-      {action ? (
+    <label className={action && rank === 1 && revealGuidance ? 'control-slider is-highlighted' : 'control-slider'}>
+      {action && revealGuidance ? (
         <span className="control-priority">
           <strong>優先 {rank}</strong>
           <span>{action.direction} · 適合度 +{action.gain.toFixed(1)}</span>
@@ -78,12 +84,13 @@ function ControlSlider({
           min="0"
           max="100"
           value={value}
+          disabled={locked}
           aria-label={CONTROL_LABELS[meta.key]}
           onFocus={onChangeStart}
           onPointerDown={onChangeStart}
           onInput={(event) => onChange(Number(event.currentTarget.value))}
         />
-        <i className="target-notch" aria-hidden="true" />
+        {revealGuidance ? <i className="target-notch" aria-hidden="true" /> : null}
       </span>
       <small className="range-ends"><span>{meta.left}</span><span>{meta.right}</span></small>
     </label>
@@ -97,6 +104,8 @@ function ControlGroup({
   controls,
   targets,
   actions,
+  locked,
+  revealGuidance,
   onControlChangeStart,
   onControlChange,
 }: {
@@ -106,6 +115,8 @@ function ControlGroup({
   controls: TrimControls
   targets: TrimControls
   actions: TrimAction[]
+  locked: boolean
+  revealGuidance: boolean
   onControlChangeStart: (control: ControlKey) => void
   onControlChange: (control: ControlKey, value: number) => void
 }) {
@@ -124,6 +135,8 @@ function ControlGroup({
               target={targets[meta.key]}
               action={action}
               rank={action ? actionIndex + 1 : undefined}
+              locked={locked}
+              revealGuidance={revealGuidance}
               onChangeStart={() => onControlChangeStart(meta.key)}
               onChange={(value) => onControlChange(meta.key, value)}
             />
@@ -139,17 +152,19 @@ export function ControlPanel({
   controls,
   targets,
   actions,
+  locked = false,
+  revealGuidance = true,
   onControlChangeStart,
   onControlChange,
 }: ControlPanelProps) {
   const available = [...SHAPE, ...ADVANCED[boat]]
   const order = new Map(actions.map((action, index) => [action.control, index]))
-  const orderedSliders = [...available].sort((a, b) =>
-    (order.get(a.key) ?? 99) - (order.get(b.key) ?? 99),
-  )
+  const orderedSliders = revealGuidance
+    ? [...available].sort((a, b) => (order.get(a.key) ?? 99) - (order.get(b.key) ?? 99))
+    : available
 
   return (
-    <section className="control-panel" aria-labelledby="controls-title">
+    <section className={locked ? 'control-panel is-locked' : 'control-panel'} aria-labelledby="controls-title">
       <div className="control-panel-head">
         <div className="section-heading">
           <span className="section-index">C</span>
@@ -158,7 +173,7 @@ export function ControlPanel({
             <h2 id="controls-title">優先順に一本ずつ動かす</h2>
           </div>
         </div>
-        <div className="target-key"><i />細い印＝基準位置</div>
+        <div className="target-key">{locked ? '予想後に操作できます' : <><i />細い印＝基準位置</>}</div>
       </div>
 
       <p className="automatic-scope">
@@ -166,11 +181,15 @@ export function ControlPanel({
       </p>
       <ControlGroup
         name="SHAPE CONTROLS"
-        note={actions.length > 0 ? '左上から現在の推奨順。一本動かして形を確認します。' : 'すべて基準範囲です。条件を変えて形を作り直します。'}
+        note={locked
+          ? 'まず三面図を観察。選択肢に答えてから解除します。'
+          : actions.length > 0 ? '左上から現在の推奨順。一本動かして形を確認します。' : 'すべて基準範囲です。条件を変えて形を作り直します。'}
         sliders={orderedSliders}
         controls={controls}
         targets={targets}
         actions={actions}
+        locked={locked}
+        revealGuidance={revealGuidance}
         onControlChangeStart={onControlChangeStart}
         onControlChange={onControlChange}
       />

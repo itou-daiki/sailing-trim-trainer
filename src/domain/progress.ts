@@ -1,3 +1,5 @@
+import type { PredictionConfidence } from './challenges'
+
 export const PROGRESS_KEY = 'trim-note-progress:v1'
 
 export type ChallengeRecord = {
@@ -6,6 +8,8 @@ export type ChallengeRecord = {
   completed: boolean
   assisted: boolean
   predictionCorrect?: boolean
+  predictionConfidence?: PredictionConfidence
+  evidenceCorrect?: boolean
 }
 
 export type LearningProgress = {

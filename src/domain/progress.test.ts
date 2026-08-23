@@ -14,6 +14,8 @@ describe('learning progress', () => {
       attempts: 1,
       completed: true,
       bestMoves: 3,
+      predictionConfidence: 'likely',
+      evidenceCorrect: true,
     }))
 
     expect(EMPTY_PROGRESS.records).toEqual({})
@@ -21,6 +23,16 @@ describe('learning progress', () => {
       attempts: 1,
       completed: true,
       bestMoves: 3,
+      predictionConfidence: 'likely',
+      evidenceCorrect: true,
     })
+  })
+
+  it('keeps version-one records from before confidence and evidence were added', () => {
+    expect(parseProgress('{"version":1,"records":{"old":{"attempts":2,"completed":false,"assisted":false}}}'))
+      .toEqual({
+        version: 1,
+        records: { old: { attempts: 2, completed: false, assisted: false } },
+      })
   })
 })

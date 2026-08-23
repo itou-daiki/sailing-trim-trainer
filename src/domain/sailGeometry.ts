@@ -37,6 +37,25 @@ export type SailSurface = {
 
 export type RigSurfaces = Record<SailKey, SailSurface>
 
+export type BoomPoint = {
+  id: string
+  x: number
+  y: number
+  z: number
+}
+
+export type BoomGeometry = {
+  faces: BoomPoint[][]
+  centreline: [BoomPoint, BoomPoint]
+  outerPointSection: BoomPoint[]
+  outerPoint: BoomPoint
+  aftEnd: {
+    center: BoomPoint
+    outer: BoomPoint[]
+    inner: BoomPoint[]
+  }
+}
+
 export type ProjectedPoint = Pick<
   SurfacePoint,
   'id' | 'sail' | 'row' | 'column' | 'u' | 'height'
@@ -95,6 +114,16 @@ type ClassSailSpecification = {
     outline: SailOutlineStation[]
     battens: BattenStation[]
   }
+}
+
+export type ClassBoomSpecification = {
+  /** ERS outer point distance measured from the mast's aft face. */
+  outerPointMm: number
+  /** Representative legal section used by this learning model. */
+  verticalMm: number
+  transverseMm: number
+  /** Display assumption for the permitted aft end fitting beyond the outer point. */
+  aftEndFittingMm: number
 }
 
 /**
@@ -244,6 +273,28 @@ export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification
         { height: 0.75, startU: 0.8 },
       ],
     },
+  },
+}
+
+/**
+ * The outer-point and section envelopes come from the current World Sailing
+ * class rules. The rules do not prescribe one manufacturer's exact extrusion,
+ * so the section values below are representative legal dimensions. Both rules
+ * permit an aft end fitting; its 70 mm display length is an explicit modelling
+ * allowance rather than a class-controlled measurement.
+ */
+export const CLASS_BOOM_SPECIFICATIONS: Record<BoatClass, ClassBoomSpecification> = {
+  '420': {
+    outerPointMm: 2400,
+    verticalMm: 70,
+    transverseMm: 55,
+    aftEndFittingMm: 70,
+  },
+  '470': {
+    outerPointMm: 2650,
+    verticalMm: 63,
+    transverseMm: 38,
+    aftEndFittingMm: 70,
   },
 }
 
@@ -533,6 +584,102 @@ export function buildRigSurfaces(boat: BoatClass, pair: SailPair): RigSurfaces {
   return {
     main: buildSailSurface(boat, 'main', pair.main, pair.main.mastBend),
     jib: buildSailSurface(boat, 'jib', pair.jib, pair.main.mastBend),
+  }
+}
+
+function boomSection(
+  id: string,
+  center: Vector3,
+  transverse: Vector3,
+  halfWidth: number,
+  halfHeight: number,
+): BoomPoint[] {
+  const corner = (name: string, widthSign: number, heightSign: number): BoomPoint => ({
+    id: `${id}:${name}`,
+    x: center.x + transverse.x * halfWidth * widthSign,
+    y: center.y + transverse.y * halfWidth * widthSign,
+    z: center.z + halfHeight * heightSign,
+  })
+  return [
+    corner('upper-port', 1, 1),
+    corner('upper-starboard', -1, 1),
+    corner('lower-starboard', -1, -1),
+    corner('lower-port', 1, -1),
+  ]
+}
+
+/**
+ * Builds one boom prism from the live mainsail foot. The sail foot sits on the
+ * top of the section, so the same live sheet angle turns the boom and sail.
+ */
+export function buildBoomGeometry(
+  boat: BoatClass,
+  main: SailSurface,
+): BoomGeometry {
+  if (main.sail !== 'main') throw new Error('Boom geometry requires a mainsail surface')
+  const foot = main.rows[0]?.points
+  const luff = foot?.[0]
+  const clew = foot?.at(-1)
+  if (!luff || !clew) throw new Error('Boom geometry requires a complete mainsail foot')
+
+  const specification = CLASS_BOOM_SPECIFICATIONS[boat]
+  const direction = normalizeVector({
+    x: clew.x - luff.x,
+    y: clew.y - luff.y,
+    z: 0,
+  })
+  const transverse = { x: -direction.y, y: direction.x, z: 0 }
+  const halfWidth = specification.transverseMm / SAIL_GEOMETRY_UNIT_MM / 2
+  const halfHeight = specification.verticalMm / SAIL_GEOMETRY_UNIT_MM / 2
+  const startCenter = {
+    x: luff.x,
+    y: luff.y,
+    z: luff.z - halfHeight,
+  }
+  const outerPointCenter = addVector(
+    startCenter,
+    scaleVector(direction, specification.outerPointMm / SAIL_GEOMETRY_UNIT_MM),
+  )
+  const endCenter = addVector(
+    outerPointCenter,
+    scaleVector(direction, specification.aftEndFittingMm / SAIL_GEOMETRY_UNIT_MM),
+  )
+  const start = boomSection(`${boat}:boom:start`, startCenter, transverse, halfWidth, halfHeight)
+  const end = boomSection(`${boat}:boom:end`, endCenter, transverse, halfWidth, halfHeight)
+  const outerPointSection = boomSection(
+    `${boat}:boom:outer-point`,
+    outerPointCenter,
+    transverse,
+    halfWidth,
+    halfHeight,
+  )
+  const inner = boomSection(
+    `${boat}:boom:end-opening`,
+    endCenter,
+    transverse,
+    halfWidth * 0.56,
+    halfHeight * 0.56,
+  )
+  const point = (id: string, vector: Vector3): BoomPoint => ({ id, ...vector })
+
+  return {
+    faces: start.map((corner, index) => [
+      corner,
+      end[index],
+      end[(index + 1) % end.length],
+      start[(index + 1) % start.length],
+    ]),
+    centreline: [
+      point(`${boat}:boom:center:start`, startCenter),
+      point(`${boat}:boom:center:end`, endCenter),
+    ],
+    outerPointSection,
+    outerPoint: point(`${boat}:boom:outer-point:center`, outerPointCenter),
+    aftEnd: {
+      center: point(`${boat}:boom:end:center`, endCenter),
+      outer: end,
+      inner,
+    },
   }
 }
 

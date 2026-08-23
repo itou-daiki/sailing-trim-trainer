@@ -1,11 +1,13 @@
 import type { CSSProperties } from 'react'
 import {
   AFT_VIEW_DEGREES,
+  buildBoomGeometry,
   buildRigSurfaces,
   CLASS_SAIL_SPECIFICATIONS,
   DRAFT_PEAK_COLUMN,
   getLevelRow,
   measureSurfaceRow,
+  projectCoordinate,
   projectSurface,
   SAIL_GEOMETRY_UNIT_MM,
   surfaceRowProfile,
@@ -28,6 +30,7 @@ import type {
   ProjectionView,
   RigSurfaces,
   SurfaceRow,
+  BoomGeometry,
 } from '../domain/sailGeometry'
 import type {
   BoatClass,
@@ -184,6 +187,65 @@ function HullLayer({
   )
 }
 
+function BoomLayer({
+  boom,
+  view,
+  map,
+}: {
+  boom: BoomGeometry
+  view: ProjectionView
+  map: Mapper
+}) {
+  const project = (points: Array<{ x: number; y: number; z: number }>) =>
+    points.map((point) => projectCoordinate(point, view))
+  const endCenter = map(projectCoordinate(boom.aftEnd.center, view))
+  const endOuter = project(boom.aftEnd.outer)
+  const endInner = project(boom.aftEnd.inner)
+  const annotationRight = endCenter.x < 210
+  const detailCenter = {
+    x: Math.min(385, Math.max(35, endCenter.x + (annotationRight ? 43 : -43))),
+    y: Math.min(300, Math.max(30, endCenter.y - 32)),
+  }
+  const detailScale = 6
+  const enlarge = (points: Array<{ x: number; y: number }>) => points
+    .map(map)
+    .map((point) => ({
+      x: detailCenter.x + (point.x - endCenter.x) * detailScale,
+      y: detailCenter.y + (point.y - endCenter.y) * detailScale,
+    }))
+
+  return (
+    <g className={`geometry-boom is-${view}`}>
+      <title>ブームと後端開口</title>
+      {boom.faces.map((face, index) => (
+        <path key={`boom-face-${index}`} className="geometry-boom-face" d={path(project(face), map, true)} />
+      ))}
+      <path className="geometry-boom-centreline" d={path(project(boom.centreline), map)} />
+      <path className="geometry-boom-outer-point" d={path(project(boom.outerPointSection), map, true)} />
+      <path className="geometry-boom-end" d={path(endOuter, map, true)} />
+      <path className="geometry-boom-opening" d={path(endInner, map, true)} />
+      {view === 'aft' ? (
+        <g className="geometry-boom-annotation" aria-hidden="true">
+          <circle cx={endCenter.x} cy={endCenter.y} r="8" />
+          <path d={`M${endCenter.x.toFixed(2)} ${endCenter.y.toFixed(2)}L${detailCenter.x.toFixed(2)} ${detailCenter.y.toFixed(2)}`} />
+          <path className="geometry-boom-end-detail" d={path(enlarge(endOuter), (point) => point, true)} />
+          <path className="geometry-boom-opening-detail" d={path(enlarge(endInner), (point) => point, true)} />
+          <text
+            x={detailCenter.x}
+            y={detailCenter.y - 14}
+            textAnchor="middle"
+          >END SECTION ×6</text>
+          <text
+            x={detailCenter.x}
+            y={detailCenter.y + 18}
+            textAnchor="middle"
+          >ブーム後端</text>
+        </g>
+      ) : null}
+    </g>
+  )
+}
+
 function SurfaceLayer({
   surface,
   map,
@@ -308,6 +370,14 @@ function ProjectionPanel({
     projectSurface(reference.jib, view),
     projectSurface(reference.main, view),
   ]
+  const boom = buildBoomGeometry(boat, actual.main)
+  const projectedBoomPoints = [
+    ...boom.faces.flat(),
+    ...boom.outerPointSection,
+    ...boom.aftEnd.outer,
+    ...boom.aftEnd.inner,
+    ...boom.centreline,
+  ].map((point) => projectCoordinate(point, view))
   const hull = buildHullGeometry(boat)
   const projectedHullPoints = [
     ...hull.deckOutline,
@@ -323,7 +393,7 @@ function ProjectionPanel({
     height,
     view,
     boat,
-    projectedHullPoints,
+    [...projectedHullPoints, ...projectedBoomPoints],
   )
   const meta = VIEW_META[view]
   const classSails = CLASS_SAIL_SPECIFICATIONS[boat]
@@ -385,6 +455,7 @@ function ProjectionPanel({
         {actualProjected.map((surface) => (
           <SurfaceLayer key={surface.sail} surface={surface} map={map} active={active} target={false} view={view} />
         ))}
+        <BoomLayer boom={boom} view={view} map={map} />
         <text x="14" y={height - 10} className="geometry-camera-note">{meta.note}</text>
       </svg>
     </figure>

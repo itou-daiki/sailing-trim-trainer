@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { calculateTrim, targetControls } from './trimModel'
 import {
   AFT_VIEW_DEGREES,
+  buildBoomGeometry,
   buildRigSurfaces,
+  CLASS_BOOM_SPECIFICATIONS,
   CLASS_SAIL_SPECIFICATIONS,
   getLevelRow,
   measureSurfaceRow,
+  projectCoordinate,
   projectSurface,
   SAIL_GEOMETRY_UNIT_MM,
   sectionAtHeight,
@@ -269,6 +272,50 @@ describe('single sail surface geometry', () => {
     expect(aft.y).toBeCloseTo(source.z, 12)
     expect(AFT_VIEW_DEGREES).toBe(0)
     expect(aft.x).toBeCloseTo(source.y, 12)
+  })
+
+  it('locks each boom outer point to the current class-rule distance', () => {
+    for (const boat of ['420', '470'] as const) {
+      const result = calculateTrim(boat, 45, 12, targetControls(boat, 45, 12))
+      const boom = buildBoomGeometry(boat, buildRigSurfaces(boat, result.actual).main)
+      const [start] = boom.centreline
+      const distanceMm = (point: typeof start) => Math.hypot(
+        point.x - start.x,
+        point.y - start.y,
+        point.z - start.z,
+      ) * SAIL_GEOMETRY_UNIT_MM
+
+      expect(distanceMm(boom.outerPoint)).toBeCloseTo(
+        CLASS_BOOM_SPECIFICATIONS[boat].outerPointMm,
+        10,
+      )
+      expect(distanceMm(boom.aftEnd.center)).toBeCloseTo(
+        CLASS_BOOM_SPECIFICATIONS[boat].outerPointMm +
+          CLASS_BOOM_SPECIFICATIONS[boat].aftEndFittingMm,
+        10,
+      )
+    }
+  })
+
+  it('gives the boom mouth a visible face in the true-aft projection', () => {
+    const polygonArea = (points: Array<{ x: number; y: number }>) => Math.abs(
+      points.reduce((sum, point, index) => {
+        const next = points[(index + 1) % points.length]
+        return sum + point.x * next.y - next.x * point.y
+      }, 0) / 2,
+    )
+
+    for (const boat of ['420', '470'] as const) {
+      const result = calculateTrim(boat, 45, 12, targetControls(boat, 45, 12))
+      const boom = buildBoomGeometry(boat, buildRigSurfaces(boat, result.actual).main)
+      const outer = boom.aftEnd.outer.map((point) => projectCoordinate(point, 'aft'))
+      const inner = boom.aftEnd.inner.map((point) => projectCoordinate(point, 'aft'))
+
+      expect(AFT_VIEW_DEGREES).toBe(0)
+      expect(polygonArea(outer)).toBeGreaterThan(0)
+      expect(polygonArea(inner)).toBeGreaterThan(0)
+      expect(polygonArea(outer)).toBeGreaterThan(polygonArea(inner))
+    }
   })
 
   it('keeps the whole geometry finite across boats, courses, winds, and control edges', () => {

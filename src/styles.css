@@ -4177,6 +4177,80 @@ footer p { margin: 0; }
   opacity: 0.82;
 }
 
+.geometry-boom-face,
+.geometry-boom-centreline,
+.geometry-boom-outer-point,
+.geometry-boom-end,
+.geometry-boom-opening,
+.geometry-boom-annotation circle,
+.geometry-boom-annotation path {
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-boom-face {
+  fill: rgba(112, 127, 128, 0.88);
+  stroke: #354e53;
+  stroke-width: 0.7;
+}
+
+.geometry-boom-centreline {
+  fill: none;
+  stroke: rgba(246, 249, 244, 0.62);
+  stroke-width: 0.55;
+}
+
+.geometry-boom-outer-point {
+  fill: none;
+  stroke: #d84f2d;
+  stroke-width: 2.2;
+}
+
+.geometry-boom-end {
+  fill: #dce2de;
+  stroke: #132f37;
+  stroke-width: 1.7;
+}
+
+.geometry-boom-opening {
+  fill: #102b33;
+  stroke: #f3f5ee;
+  stroke-width: 0.65;
+}
+
+.geometry-boom-annotation circle,
+.geometry-boom-annotation > path {
+  fill: none;
+  stroke: #d84f2d;
+  stroke-width: 1.05;
+}
+
+.geometry-boom-annotation circle {
+  stroke-dasharray: 2.5 2.5;
+}
+
+.geometry-boom-annotation .geometry-boom-end-detail {
+  fill: #dce2de;
+  stroke: #132f37;
+  stroke-width: 1.35;
+}
+
+.geometry-boom-annotation .geometry-boom-opening-detail {
+  fill: #102b33;
+  stroke: #f3f5ee;
+  stroke-width: 0.8;
+}
+
+.geometry-boom-annotation text {
+  fill: #8b341f;
+  paint-order: stroke;
+  stroke: rgba(250, 251, 247, 0.96);
+  stroke-width: 2.5px;
+  font-family: var(--mono);
+  font-size: 6.5px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+}
+
 .geometry-sail-fill {
   stroke: none;
 }

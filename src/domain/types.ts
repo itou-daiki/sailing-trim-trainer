@@ -82,4 +82,5 @@ export type TrimResult = {
   actions: TrimAction[]
   apparentWindAngle: number
   apparentWindSpeed: number
+  mainTrim: import('./windModel').MainTrimSolution
 }

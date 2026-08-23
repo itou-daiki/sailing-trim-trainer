@@ -3,6 +3,10 @@ import { courseName } from '../domain/course'
 type CourseBoardProps = {
   angle: number
   windSpeed: number
+  apparentWindAngle: number
+  apparentWindSpeed: number
+  boomAngle: number
+  mainTrimLabel: string
   locked?: boolean
   onCourseChange: (angle: number) => void
   onWindChange: (speed: number) => void
@@ -17,6 +21,10 @@ const COURSES = [
 export function CourseBoard({
   angle,
   windSpeed,
+  apparentWindAngle,
+  apparentWindSpeed,
+  boomAngle,
+  mainTrimLabel,
   locked = false,
   onCourseChange,
   onWindChange,
@@ -106,6 +114,24 @@ export function CourseBoard({
         <span aria-hidden="true">✓</span>
         {locked ? '課題中は条件を固定。予想後に操作します。' : '基本角度・艇バランス・センターは自動で最適。'}
       </p>
+
+      <div className="auto-trim-readout" aria-label="見かけ風からメインセール角までの自動計算">
+        <span>
+          <small>真風 / TWA</small>
+          <strong>{angle.toFixed(0)}° <i>{windSpeed.toFixed(0)} kt</i></strong>
+        </span>
+        <b aria-hidden="true">→</b>
+        <span>
+          <small>見かけ風 / AWA</small>
+          <strong>{apparentWindAngle.toFixed(1)}° <i>{apparentWindSpeed.toFixed(1)} kt</i></strong>
+        </span>
+        <b aria-hidden="true">→</b>
+        <span className="is-boom">
+          <small>メイン / 中心線から</small>
+          <strong>{boomAngle.toFixed(1)}°</strong>
+        </span>
+        <p>{mainTrimLabel}</p>
+      </div>
     </section>
   )
 }

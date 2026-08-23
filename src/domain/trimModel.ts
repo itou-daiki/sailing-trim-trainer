@@ -1,5 +1,6 @@
 import { BOATS } from '../data/boats'
 import { evaluateAero } from './aeroModel'
+import { apparentWind, optimalMainTrim } from './windModel'
 import type {
   BoatClass,
   ControlKey,
@@ -21,27 +22,6 @@ const inverseLerp = (start: number, end: number, value: number) =>
   clamp((value - start) / (end - start), 0, 1)
 
 const courseBlend = (twa: number) => inverseLerp(42, 145, twa)
-
-function closeHauledBoomAngle(boat: BoatClass, windSpeed: number) {
-  const underpowered = 1 - inverseLerp(6, 10, windSpeed)
-  const overpowered = inverseLerp(12, 18, windSpeed)
-  const centrelineAllowance = boat === '420' ? 1.5 : 1
-  const lightAirEase = boat === '420' ? 2 : 4
-  const heavyAirEase = boat === '420' ? 9 : 8
-  return centrelineAllowance + underpowered * lightAirEase + overpowered * heavyAirEase
-}
-
-function automaticMainAngle(
-  boat: BoatClass,
-  trueWindAngle: number,
-  windSpeed: number,
-) {
-  const closeAngle = closeHauledBoomAngle(boat, windSpeed)
-  if (trueWindAngle <= 90) {
-    return lerp(closeAngle, 45, inverseLerp(55, 90, trueWindAngle))
-  }
-  return lerp(45, 78, inverseLerp(90, 150, trueWindAngle))
-}
 
 function mainAngleFromSheet(mainSheet: number) {
   return clamp(80 - mainSheet * 0.8, 0, 80)
@@ -105,10 +85,11 @@ export const defaultControls: TrimControls = {
   jibLeadInOut: 58,
 }
 
-export function targetControls(
+function targetControlsForMainAngle(
   boat: BoatClass,
   trueWindAngle: number,
   windSpeed: number,
+  mainAngle: number,
 ): TrimControls {
   const course = courseBlend(trueWindAngle)
   const breeze = inverseLerp(4, 18, windSpeed)
@@ -121,9 +102,7 @@ export function targetControls(
     82,
   )
   const targetOuthaul = clamp(58 + powered * 32 - course * 25, 20, 92)
-  const targetMainSheet = mainSheetForAngle(
-    automaticMainAngle(boat, trueWindAngle, windSpeed),
-  )
+  const targetMainSheet = mainSheetForAngle(mainAngle)
 
   return {
     mainSheet: Math.round(targetMainSheet),
@@ -142,6 +121,46 @@ export function targetControls(
     jibLeadForeAft: Math.round(boat === '470' ? clamp(62 - course * 28 - breeze * 7, 24, 68) : 50),
     jibLeadInOut: Math.round(boat === '470' ? lerp(65, 20, course) : 50),
   }
+}
+
+export function targetControls(
+  boat: BoatClass,
+  trueWindAngle: number,
+  windSpeed: number,
+): TrimControls {
+  const speedLimit = boat === '470' ? 7.8 : 7.2
+  let referenceSpeed = Math.min(
+    speedLimit,
+    windSpeed * (boat === '470' ? 0.52 : 0.48),
+  )
+  for (let iteration = 0; iteration < 8; iteration += 1) {
+    const trim = optimalMainTrim(boat, trueWindAngle, windSpeed, referenceSpeed)
+    const controls = targetControlsForMainAngle(
+      boat,
+      trueWindAngle,
+      windSpeed,
+      trim.boomAngle,
+    )
+    const shape = sailShapes(boat, controls, windSpeed)
+    const nextSpeed = metrics(
+      boat,
+      trueWindAngle,
+      windSpeed,
+      trim.apparentWind.angle,
+      shape,
+      shape,
+    ).speed
+    if (Math.abs(nextSpeed - referenceSpeed) < 0.002) break
+    referenceSpeed = lerp(referenceSpeed, nextSpeed, 0.72)
+  }
+
+  const finalTrim = optimalMainTrim(boat, trueWindAngle, windSpeed, referenceSpeed)
+  return targetControlsForMainAngle(
+    boat,
+    trueWindAngle,
+    windSpeed,
+    finalTrim.boomAngle,
+  )
 }
 
 function sailShapes(
@@ -345,24 +364,22 @@ function prioritizedActions(
   target: TrimControls,
   windSpeed: number,
   trueWindAngle: number,
+  targetShape: SailPair,
+  currentEfficiency: number,
 ): TrimAction[] {
-  const targetShape = sailShapes(boat, target, windSpeed)
-  const currentScore = evaluateAero(
-    sailShapes(boat, controls, windSpeed),
-    targetShape,
-    trueWindAngle,
-  ).efficiency
-
   return controlErrors(boat, controls, target)
     .filter((item) => item.severity >= 0.35)
     .map((item) => {
       const corrected = { ...controls, [item.key]: target[item.key] }
-      const correctedScore = evaluateAero(
-        sailShapes(boat, corrected, windSpeed),
-        targetShape,
+      const correctedScore = solveTrimConfiguration(
+        boat,
         trueWindAngle,
-      ).efficiency
-      return { ...item, benefit: Math.max(0, correctedScore - currentScore) }
+        windSpeed,
+        corrected,
+        target,
+        targetShape,
+      ).metrics.efficiency
+      return { ...item, benefit: Math.max(0, correctedScore - currentEfficiency) }
     })
     .sort((a, b) => b.benefit - a.benefit || b.severity * b.weight - a.severity * a.weight)
     .map((item) => ({
@@ -382,10 +399,14 @@ function metrics(
   boat: BoatClass,
   trueWindAngle: number,
   windSpeed: number,
+  apparentWindAngle: number,
   actualShape: SailPair,
   targetShape: SailPair,
 ): TrimMetrics {
-  const aero = evaluateAero(actualShape, targetShape, trueWindAngle)
+  const aero = evaluateAero(actualShape, targetShape, {
+    trueWindAngle,
+    apparentWindAngle,
+  })
   const speedLimit = boat === '470' ? 7.8 : 7.2
   const unboundedSpeed =
     windSpeed *
@@ -403,6 +424,105 @@ function metrics(
     liftCoefficient: aero.liftCoefficient,
     dragCoefficient: aero.dragCoefficient,
     liftToDrag: aero.liftToDrag,
+  }
+}
+
+function solvePerformance(
+  boat: BoatClass,
+  trueWindAngle: number,
+  windSpeed: number,
+  actualShape: SailPair,
+  targetShape: SailPair,
+  initialSpeed = Math.min(windSpeed * 0.55, boat === '470' ? 7.8 : 7.2),
+) {
+  let solvedSpeed = initialSpeed
+  let wind = apparentWind(trueWindAngle, windSpeed, solvedSpeed)
+  let trimMetrics = metrics(
+    boat,
+    trueWindAngle,
+    windSpeed,
+    wind.angle,
+    actualShape,
+    targetShape,
+  )
+
+  for (let iteration = 0; iteration < 14; iteration += 1) {
+    wind = apparentWind(trueWindAngle, windSpeed, solvedSpeed)
+    trimMetrics = metrics(
+      boat,
+      trueWindAngle,
+      windSpeed,
+      wind.angle,
+      actualShape,
+      targetShape,
+    )
+    if (Math.abs(trimMetrics.speed - solvedSpeed) < 0.0001) break
+    solvedSpeed = lerp(solvedSpeed, trimMetrics.speed, 0.72)
+  }
+
+  wind = apparentWind(trueWindAngle, windSpeed, trimMetrics.speed)
+  trimMetrics = metrics(
+    boat,
+    trueWindAngle,
+    windSpeed,
+    wind.angle,
+    actualShape,
+    targetShape,
+  )
+
+  return { metrics: trimMetrics, apparentWind: wind }
+}
+
+function automaticShapeControls(
+  controls: TrimControls,
+  targets: TrimControls,
+): TrimControls {
+  return {
+    ...controls,
+    mainSheet: targets.mainSheet,
+    jibSheet: targets.jibSheet,
+    crewHike: targets.crewHike,
+    crewForeAft: targets.crewForeAft,
+    centerboard: targets.centerboard,
+    windwardSheet: targets.windwardSheet,
+    jibLeadInOut: targets.jibLeadInOut,
+  }
+}
+
+function solveTrimConfiguration(
+  boat: BoatClass,
+  trueWindAngle: number,
+  windSpeed: number,
+  controls: TrimControls,
+  targets: TrimControls,
+  targetShape: SailPair,
+) {
+  const shapeControls = automaticShapeControls(controls, targets)
+  const rawActual = sailShapes(boat, shapeControls, windSpeed)
+  const performance = solvePerformance(
+    boat,
+    trueWindAngle,
+    windSpeed,
+    rawActual,
+    targetShape,
+  )
+  const mainTrim = optimalMainTrim(
+    boat,
+    trueWindAngle,
+    windSpeed,
+    performance.metrics.speed,
+  )
+  const actual: SailPair = {
+    ...rawActual,
+    main: { ...rawActual.main, angle: mainTrim.boomAngle },
+  }
+
+  return {
+    ...performance,
+    apparentWind: mainTrim.apparentWind,
+    actual,
+    mainTrim,
+    shapeControls,
   }
 }
 
@@ -481,16 +601,6 @@ export function guidanceForActions(
   }
 }
 
-function apparentWind(trueWindAngle: number, windSpeed: number, boatSpeed: number) {
-  const radians = (trueWindAngle * Math.PI) / 180
-  const along = windSpeed * Math.cos(radians) + boatSpeed
-  const across = windSpeed * Math.sin(radians)
-  return {
-    angle: (Math.atan2(across, along) * 180) / Math.PI,
-    speed: Math.sqrt(along ** 2 + across ** 2),
-  }
-}
-
 export function calculateTrim(
   boat: BoatClass,
   trueWindAngle: number,
@@ -498,37 +608,52 @@ export function calculateTrim(
   controls: TrimControls,
 ): TrimResult {
   const targets = targetControls(boat, trueWindAngle, windSpeed)
-  const shapeControls: TrimControls = {
-    ...controls,
-    mainSheet: targets.mainSheet,
-    jibSheet: targets.jibSheet,
-    crewHike: targets.crewHike,
-    crewForeAft: targets.crewForeAft,
-    centerboard: targets.centerboard,
-    windwardSheet: targets.windwardSheet,
-    jibLeadInOut: targets.jibLeadInOut,
+  const rawTarget = sailShapes(boat, targets, windSpeed)
+  const targetPerformance = solvePerformance(
+    boat,
+    trueWindAngle,
+    windSpeed,
+    rawTarget,
+    rawTarget,
+  )
+  const targetTrim = optimalMainTrim(
+    boat,
+    trueWindAngle,
+    windSpeed,
+    targetPerformance.metrics.speed,
+  )
+  const target: SailPair = {
+    ...rawTarget,
+    main: { ...rawTarget.main, angle: targetTrim.boomAngle },
   }
-  const actual = sailShapes(boat, shapeControls, windSpeed)
-  const target = sailShapes(boat, targets, windSpeed)
-  const trimMetrics = metrics(boat, trueWindAngle, windSpeed, actual, target)
-  const apparent = apparentWind(trueWindAngle, windSpeed, trimMetrics.speed)
+  const state = solveTrimConfiguration(
+    boat,
+    trueWindAngle,
+    windSpeed,
+    controls,
+    targets,
+    target,
+  )
   const actions = prioritizedActions(
     boat,
-    shapeControls,
+    state.shapeControls,
     targets,
     windSpeed,
     trueWindAngle,
+    target,
+    state.metrics.efficiency,
   )
 
   return {
-    actual,
+    actual: state.actual,
     target,
     targetControls: targets,
-    metrics: trimMetrics,
-    guidance: guidanceForActions(boat, shapeControls, targets, trimMetrics.efficiency, actions),
+    metrics: state.metrics,
+    guidance: guidanceForActions(boat, state.shapeControls, targets, state.metrics.efficiency, actions),
     actions,
-    apparentWindAngle: apparent.angle,
-    apparentWindSpeed: apparent.speed,
+    apparentWindAngle: state.apparentWind.angle,
+    apparentWindSpeed: state.apparentWind.speed,
+    mainTrim: state.mainTrim,
   }
 }
 

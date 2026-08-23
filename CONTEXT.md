@@ -65,8 +65,12 @@ The class-controlled outer point is measured aft from the mast and limits the ma
 _Avoid_: Treating the clew, outer point, and physical boom end as the same point; drawing a view-specific boom icon
 
 **Automatic boom angle**:
-The angle between the boom and the hull centreline, with zero degrees on the centreline. Close-hauled calibration keeps the boom near the centreline through full power, allows a small light-air offset, and progressively eases it only after the boat is overpowered. Reaching angles then open continuously with true wind angle.
-_Avoid_: One wind-independent close-hauled angle; confusing true wind angle with boom angle
+The angle between the boom and the hull centreline, with zero degrees on the centreline. It is solved from true wind plus estimated boat speed: close-hauled calibration follows the class guide, reaching trim keeps a 15-degree teaching angle to apparent wind, and broad trim stops at the representative shroud limit. A slower or faster shape therefore changes apparent wind and the automatically optimized angle.
+_Avoid_: One wind-independent angle; interpolating from true wind alone; confusing true wind angle with apparent wind or boom angle
+
+**Apparent-wind trim chain**:
+The displayed sequence true wind angle/speed → apparent wind angle/speed → automatic boom angle. Boat speed and apparent wind are iterated until the quasi-steady estimate converges. The 15-degree reaching target is an explicit teaching idealization, not a measured optimum for every 420/470 sail, sea state, or mode.
+_Avoid_: Hiding the angle rule; claiming a universal exact optimum; treating the current boat speed as independent of sail shape
 
 **Section polar proxy**:
 A dimensionless learning estimate of lift, drag, and forward drive for one draft stripe. It compares trim changes consistently but is not a measured sail polar or CFD result.

@@ -10,7 +10,8 @@ Created by Dit-Lab.
 
 ## できること
 
-- 真風角と風速を変更し、クローズではフルパワーまでブームを中心線付近に保つ基本角度を自動設定
+- 真風と推定艇速から見かけ風を反復計算し、クローズのクラス基準・リーチの迎角15°・ブロードのシュラウド上限をつないだメイン基本角を自動設定
+- 真風（TWA/TWS）→見かけ風（AWA/AWS）→ブーム角を同じバーに並べ、なぜ引く／出すのかを可視化
 - バング、カニンガム、アウトホールを操作
 - 420固有のチョック、ジブ高さを操作
 - 470固有のフォア／アフタープラー、ジブリード前後を操作
@@ -67,7 +68,7 @@ Viteの `base` は `/sailing-trim-trainer/` に設定済みです。mainブラ�
 
 本アプリはリアルタイムCFDではありません。形状操作からドラフト・ツイスト・推定艇速までを学習用に結ぶ準定常の応答モデルです。基本角度、艇バランス、センターボードは自動で最適と仮定し、波、セールカット、艤装差による実艇差はモデル化していません。
 
-クローズのブーム角は、[North Sails Japan 420 M-12 Tuning Guide](https://www.northsails.co.jp/wordpress/wp-content/uploads/2026/03/420-M12-Tuning-Guide_j.pdf)の「オーバーパワーでない限りセンター付近」と、[North Sails 470 Tuning Guide](https://colorcode.northsails.com/sailing/wp-content/uploads/2017/05/470_tuning_guide_e01.pdf)の「微風は中心線からブーム幅3〜4本、フルパワーは中心線、オーバーパワーで徐々に風下」を表示用の連続曲線へ校正しています。ブーム角は船体中心線を0°として画面上部に表示します。
+メイン基本角は、真風ベクトルと現在の推定艇速を合成した見かけ風を使います。推定艇速→見かけ風→断面の前進力→推定艇速を収束まで反復し、リーチでは[Atterwind](https://github.com/flyinggorilla/simulator.atterwind.info)が公開する「見かけ風に対する迎角」の考え方から15°を学習用初期値に採用しました。クローズではこの単純式を使わず、[North Sails Japan 420 M-12 Tuning Guide](https://www.northsails.co.jp/wordpress/wp-content/uploads/2026/03/420-M12-Tuning-Guide_j.pdf)の「オーバーパワーでない限りセンター付近」と、[North Sails 470 Tuning Guide](https://colorcode.northsails.com/sailing/wp-content/uploads/2017/05/470_tuning_guide_e01.pdf)の「微風は中心線からブーム幅3〜4本、フルパワーは中心線、オーバーパワーで徐々に風下」へ校正します。ブロードではブームを代表シュラウド位置（420: 78°、470: 80°）より外へ出しません。これは唯一の実艇正解ではなく、風・艇速・方位の因果を学ぶ比較基準です。
 
 メイン／ジブそれぞれに一つの3Dセール面があり、上部75%・中部50%・下部25%の計測断面から、0〜100%の全高へ深さ、最大深さ位置、ツイストを連続補間します。セール外形は420 M-12と470 N17-L26の公開製品シルエットを16断面へ正規化し、現行クラス規則の実寸上限で拘束します。ERSの1/4・1/2・3/4幅を同じ高さの水平コードとして扱わず、外形校正値として分離しています。メインの高さはリーチ長ではなく、クラス規則のマスト上下限間距離（420: 4900 mm、470: 5750 mm）を使います。
 
@@ -111,12 +112,15 @@ Viteの `base` は `/sailing-trim-trainer/` に設定済みです。mainブラ�
 - [North U Sail Trim Simulator](https://northu.com/sail-trim-simulator-user-guide/) — 複数ビュー、形状、艇速／VMG、優先操作の問い
 - [Atterwind](https://github.com/flyinggorilla/simulator.atterwind.info) — 見かけの風、ツイスト、URL共有
 - [ASA Sailing Challenge](https://americansailing.com/apps/sailing-challenge-app/) — 段階式モジュールとアワード
+- [Sailaway](https://sailaway.world/aboutsa3) — 可視化された気流とリアルタイムのセール効率
+- [Sail Simulator 5](https://www.sailsimulator.com/en/game-info/features) — 真風／見かけ風計器、風勾配、ツイスト、手動／自動トリム
+- [eSail](https://www.esailyachtsimulator.com/live-sailing/) — 風・波・トリムを変えるサンドボックスと揚力／抗力の即時表示
 
 TRIM NOTEは、汎用クルーザーやレースゲームではなく、**420/470固有のコントロール、三面図とドラフト断面、優先順位、形成的ドリル、共有可能な練習条件**を一つにまとめる点へ集中します。タック、ジャイブ、レース戦術は別アプリの範囲です。
 
 ## 品質基準
 
-- Vitest: 76テスト（420／470別の船長・最大幅・マスト／ジブタック位置・船体ステーション、公式図面由来の共通3D船体、クラス別ブーム外側点・ブーム後端カメラ、風速別クローズブーム角、M-12／N17-L26の標本輪郭、公式ラフ有効長、全シート角でのジブ三辺・トップ幅不変、固定ラフ、全高の連続補間、バテン数、3D断面の幾何一致、入口／出口角、三カメラの頂点同一性、操作前差分、共有URL、420／470のマストベンド因果、固定優先順位、艇種・風向・風速・極端設定を横断する形状／空力不変条件を含む）
+- Vitest: 82テスト（420／470別の船長・最大幅・マスト／ジブタック位置・船体ステーション、公式図面由来の共通3D船体、クラス別ブーム外側点・ブーム後端カメラ、真風＋艇速の見かけ風、加速時の自動シートイン、風速別クローズ／ビーム／シュラウド上限、全方位グリッドでの角度連続性、M-12／N17-L26の標本輪郭、公式ラフ有効長、全シート角でのジブ三辺・トップ幅不変、固定ラフ、全高の連続補間、バテン数、3D断面の幾何一致、入口／出口角、三カメラの頂点同一性、操作前差分、共有URL、420／470のマストベンド因果、固定優先順位、艇種・風向・風速・極端設定を横断する形状／空力不変条件を含む）
 - Lighthouse 13（production build / mobile）: Performance 100、Accessibility 100、Best Practices 100、SEO 100
 - FCP 1.4秒、LCP 1.5秒、TBT 0ms、CLS 0（production build / mobileのローカル計測値）
 - `npm audit --omit=dev`: 既知の脆弱性0件

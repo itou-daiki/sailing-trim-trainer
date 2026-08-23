@@ -17,7 +17,9 @@ describe('trim model', () => {
 
     expect(reach.targetControls.mainSheet).toBeLessThan(closeHauled.mainSheet)
     expect(reach.targetControls.jibSheet).toBeLessThan(closeHauled.jibSheet)
-    expect(reach.actual.main.angle).toBe(reach.target.main.angle)
+    expect(reach.actual.main.angle).toBe(reach.mainTrim.boomAngle)
+    expect(reach.actual.main.angle).toBeCloseTo(reach.apparentWindAngle - 15, 6)
+    expect(Math.abs(reach.actual.main.angle - reach.target.main.angle)).toBeLessThan(1)
     expect(reach.actual.jib.angle).toBe(reach.target.jib.angle)
     expect(reach.actions.map((action) => action.control)).not.toContain('mainSheet')
     expect(reach.actions.map((action) => action.control)).not.toContain('jibSheet')
@@ -37,14 +39,46 @@ describe('trim model', () => {
       const light = calculateTrim(boat, 45, 4, targetControls(boat, 45, 4))
       const fullPower = calculateTrim(boat, 45, 10, targetControls(boat, 45, 10))
       const overpowered = calculateTrim(boat, 45, 18, targetControls(boat, 45, 18))
-      const beam = calculateTrim(boat, 90, 10, targetControls(boat, 90, 10))
+      const lightBeam = calculateTrim(boat, 90, 4, targetControls(boat, 90, 4))
+      const fullPowerBeam = calculateTrim(boat, 90, 10, targetControls(boat, 90, 10))
+      const freshBeam = calculateTrim(boat, 90, 18, targetControls(boat, 90, 18))
 
       expect(light.actual.main.angle).toBeLessThanOrEqual(5.5)
       expect(fullPower.actual.main.angle).toBeLessThanOrEqual(2)
       expect(overpowered.actual.main.angle).toBeGreaterThan(fullPower.actual.main.angle)
       expect(overpowered.actual.main.angle).toBeLessThanOrEqual(11)
-      expect(beam.actual.main.angle).toBeGreaterThanOrEqual(44)
-      expect(beam.actual.main.angle).toBeLessThanOrEqual(46)
+      expect(fullPowerBeam.actual.main.angle).toBeGreaterThan(40)
+      expect(fullPowerBeam.actual.main.angle).toBeLessThan(50)
+      expect(freshBeam.actual.main.angle).toBeGreaterThan(fullPowerBeam.actual.main.angle + 5)
+      expect(fullPowerBeam.actual.main.angle).toBeGreaterThan(lightBeam.actual.main.angle)
+      expect(fullPowerBeam.apparentWindAngle - fullPowerBeam.actual.main.angle).toBeCloseTo(15, 6)
+    }
+  })
+
+  it('keeps the converged boom angle continuous across the full teaching grid', () => {
+    const courses = [40, 45, 55, 60, 70, 80, 90, 110, 125, 140, 150]
+
+    for (const boat of ['420', '470'] as const) {
+      for (const wind of [4, 8, 12, 18]) {
+        const results = courses.map((angle) =>
+          calculateTrim(boat, angle, wind, targetControls(boat, angle, wind)),
+        )
+
+        for (let index = 0; index < results.length; index += 1) {
+          const result = results[index]
+          expect(result.actual.main.angle).toBeCloseTo(result.target.main.angle, 8)
+          expect(result.actual.main.angle).toBeGreaterThanOrEqual(0)
+          expect(result.actual.main.angle).toBeLessThanOrEqual(boat === '420' ? 78 : 80)
+          if (result.mainTrim.mode === 'attached-flow') {
+            expect(result.apparentWindAngle - result.actual.main.angle).toBeCloseTo(15, 8)
+          }
+          if (index > 0) {
+            expect(result.actual.main.angle).toBeGreaterThanOrEqual(
+              results[index - 1].actual.main.angle,
+            )
+          }
+        }
+      }
     }
   })
 

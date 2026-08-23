@@ -3517,6 +3517,65 @@ footer p { margin: 0; }
   height: 18px;
 }
 
+.condition-bar .auto-trim-readout {
+  display: grid;
+  grid-row: 3;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(128px, auto) 20px minmax(150px, auto) 20px minmax(150px, auto) 1fr;
+  gap: 8px;
+  align-items: center;
+  min-height: 42px;
+  margin: 3px -18px -13px;
+  padding: 6px 18px;
+  color: #d9e8e5;
+  background: #153f48;
+  border-left: 5px solid var(--orange);
+}
+
+.auto-trim-readout span {
+  display: flex;
+  gap: 7px;
+  align-items: baseline;
+}
+
+.auto-trim-readout small {
+  color: #9fc2bf;
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.auto-trim-readout strong {
+  color: #fffdf5;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.auto-trim-readout strong i {
+  color: var(--aqua);
+  font-size: 0.58rem;
+  font-style: normal;
+}
+
+.auto-trim-readout b {
+  color: var(--orange);
+  text-align: center;
+}
+
+.auto-trim-readout .is-boom strong {
+  color: #ffb28f;
+  font-size: 0.92rem;
+}
+
+.auto-trim-readout p {
+  justify-self: end;
+  margin: 0;
+  color: #eaf3ef;
+  font-size: 0.64rem;
+  font-weight: 800;
+}
+
 .trim-workbench {
   display: grid;
   grid-template-columns: minmax(0, 1.72fr) minmax(370px, 0.78fr);
@@ -3618,6 +3677,18 @@ footer p { margin: 0; }
   .condition-bar .field-range[for="wind-angle"] { grid-column: 1; }
   .condition-bar .field-range[for="wind-speed"] { grid-column: 2; }
 
+  .condition-bar .auto-trim-readout {
+    grid-row: auto;
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr 14px 1fr 14px 1fr;
+    margin-top: 2px;
+  }
+
+  .auto-trim-readout p {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
   .trim-workbench {
     grid-template-columns: 1fr;
   }
@@ -3642,6 +3713,24 @@ footer p { margin: 0; }
   .condition-bar .course-rule {
     display: none;
   }
+
+  .condition-bar .auto-trim-readout {
+    grid-template-columns: 1fr 10px 1fr 10px 1fr;
+    gap: 4px;
+    margin: 2px -12px -12px;
+    padding: 6px 9px;
+  }
+
+  .auto-trim-readout span {
+    gap: 2px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .auto-trim-readout small { font-size: 0.42rem; }
+  .auto-trim-readout strong { font-size: 0.66rem; }
+  .auto-trim-readout .is-boom strong { font-size: 0.74rem; }
+  .auto-trim-readout p { font-size: 0.53rem; }
 
   .trim-workbench {
     position: relative;

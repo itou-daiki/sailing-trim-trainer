@@ -240,7 +240,7 @@ function App() {
     establishActionOrder(boat, nextAngle, windSpeed, controls)
     resetShapeHistory(controls)
     setCourseNotice(
-      `${before}から${after}へ変更。基本角度は自動で合いました。深さ・位置・ツイストだけを作り直します。`,
+      `${before}から${after}へ変更。艇速を含む見かけ風へ基本角度が追従しました。深さ・位置・ツイストを作り直します。`,
     )
     if (phase === 'practice' && nextAngle !== activeChallenge.setup.angle) {
       setMoveFeedback(`指定条件は真風角${activeChallenge.setup.angle}°です。条件を変えた試行は自由練習として扱います。`)
@@ -252,7 +252,7 @@ function App() {
     establishActionOrder(boat, angle, nextWind, controls)
     resetShapeHistory(controls)
     setCourseNotice(
-      `風速を${nextWind} ktへ変更。艇は水平のまま、ドラフト深さ・位置・ツイストの差を見ます。`,
+      `風速を${nextWind} ktへ変更。見かけ風とブーム角も再計算しました。次にドラフト深さ・位置・ツイストの差を見ます。`,
     )
     if (phase === 'practice' && nextWind !== activeChallenge.setup.windSpeed) {
       setMoveFeedback(`指定条件は${activeChallenge.setup.windSpeed} ktです。条件を戻すと到達判定が再開します。`)
@@ -448,8 +448,8 @@ function App() {
             {workspaceMode === 'shared'
               ? '艇種・風・形状コントロールを共有URLから復元しました。一本動かし、操作前との差を話し合えます。'
               : workspaceMode === 'free'
-                ? '基本角度は自動。深さ・最大位置・ツイストの変化だけに集中できます。'
-              : '基本角度と艇の姿勢は自動で最適に保ちます。形を予想し、一本動かし、断面と速度で確かめます。'}
+                ? '艇速を含む見かけ風へ基本角度が自動追従。深さ・最大位置・ツイストの変化へ集中できます。'
+              : '基本角度は見かけ風へ自動追従し、艇の姿勢は最適に保ちます。形を予想し、一本動かし、断面と速度で確かめます。'}
           </p>
           <div className="lesson-loop" aria-label="学習の流れ">
             <span>予想</span><i>→</i><span>動かす</span><i>→</i><span>形を見る</span><i>→</i><span>形で説明</span>
@@ -464,6 +464,10 @@ function App() {
             <CourseBoard
               angle={angle}
               windSpeed={windSpeed}
+              apparentWindAngle={result.apparentWindAngle}
+              apparentWindSpeed={result.apparentWindSpeed}
+              boomAngle={result.actual.main.angle}
+              mainTrimLabel={result.mainTrim.label}
               locked={challengeMode}
               onCourseChange={changeCourse}
               onWindChange={changeWind}
@@ -556,7 +560,7 @@ function App() {
         <section className="model-note" aria-label="モデルについて">
           <span>MODEL NOTE</span>
           <p>
-            ジブは固定ラフを軸に動き、ラフ・リーチ・フット三辺を維持します。速度は上・中・下の断面から揚力・抗力・前進力を積分した学習用の推定値で、実測ポーラやCFDではありません。基本角度、艇バランス、センターボードは常に最適と仮定します。
+            ジブは固定ラフを軸に動き、ラフ・リーチ・フット三辺を維持します。メイン基本角は艇速と真風から見かけ風を反復計算し、クラス別クローズ基準・迎角15°・シュラウド上限を連続接続します。速度は上・中・下の断面から揚力・抗力・前進力を積分した学習用の推定値で、実測ポーラやCFDではありません。艇バランスとセンターボードは常に最適と仮定します。
           </p>
         </section>
 
@@ -564,7 +568,7 @@ function App() {
           <summary>詳しく見る：このモデルの考え方と参考資料</summary>
           <div>
             <p>
-              一つの3Dセール面に上・中・下の計測断面とマストベンドを与え、その間を全高へ連続させ、上・斜め横・実際のブーム方位に追従する後端カメラで観察します。後端ビューは小さなドラフト差を読めるよう深さ方向だけ3倍表示です。マストヒール、メイン下部点、ジブ揚程、船首取付点は420 / 470それぞれの公式寸法から同じ座標系へ置き、ジブは固定ラフの局所基底で回転しながらクラス規則の三辺長とトップ幅を維持します。各断面の深さ・最大深さ位置・ツイストから揚力係数、抗力係数、前進力の代理値を積分し、推定艇速へ変換します。<strong>形状コントロール → 同じセール面 → 断面性能 → 推定艇速</strong>の因果を比べる準定常の学習モデルで、実艇の実測ポーラやCFDではありません。マスト曲がりは操作量をクラス規則の最大曲率40 mm以内へ換算して表示します。
+              一つの3Dセール面に上・中・下の計測断面とマストベンドを与え、その間を全高へ連続させ、上・斜め横・実際のブーム方位に追従する後端カメラで観察します。後端ビューは小さなドラフト差を読めるよう深さ方向だけ3倍表示です。マストヒール、メイン下部点、ジブ揚程、船首取付点は420 / 470それぞれの公式寸法から同じ座標系へ置き、ジブは固定ラフの局所基底で回転しながらクラス規則の三辺長とトップ幅を維持します。艇速と真風のベクトルから見かけ風を反復計算し、クローズはNorthのクラス別基準、リーチは見かけ風に対する迎角15°、ブロードはシュラウド位置を上限としてメイン角を連続計算します。各断面の深さ・最大深さ位置・ツイストから揚力係数、抗力係数、見かけ風方向の前進力代理値を積分し、推定艇速へ変換します。<strong>真風＋艇速 → 見かけ風 → 基本角度／形状 → 断面性能 → 推定艇速</strong>を反復する準定常の学習モデルで、実艇の実測ポーラやCFDではありません。マスト曲がりは操作量をクラス規則の最大曲率40 mm以内へ換算して表示します。
             </p>
             <ul>
               <li><a href="https://www.northsails.co.jp/wordpress/wp-content/uploads/2026/03/420-M12-Tuning-Guide_j.pdf" target="_blank" rel="noreferrer">North Sails Japan — 420 M11 / M12 Tuning Guide</a></li>
@@ -579,6 +583,9 @@ function App() {
               <li><a href="https://cmst.curtin.edu.au/products/sailtool-software/" target="_blank" rel="noreferrer">Curtin University CMST — SailTool / draft stripe measurement</a></li>
               <li><a href="https://northu.com/sail-trim-simulator-user-guide/" target="_blank" rel="noreferrer">North U — Sail Trim Simulator User Guide</a></li>
               <li><a href="https://github.com/flyinggorilla/simulator.atterwind.info" target="_blank" rel="noreferrer">Atterwind — model assumptions and shareable views</a></li>
+              <li><a href="https://www.nauticed.org/sailing-simulator" target="_blank" rel="noreferrer">NauticEd NED — wind-angle trim and efficiency feedback</a></li>
+              <li><a href="https://americansailing.com/apps/sailing-challenge-app/" target="_blank" rel="noreferrer">ASA Sailing Challenge — apparent wind and trim modules</a></li>
+              <li><a href="https://sailaway.world/aboutsa3" target="_blank" rel="noreferrer">Sailaway — visible airflow and real-time sail trim</a></li>
               <li><a href="https://www.grc.nasa.gov/WWW/k-12/FoilSim/Manual/fsim0007.htm" target="_blank" rel="noreferrer">NASA Glenn — The Lift Coefficient</a></li>
               <li><a href="https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/induced-drag-coefficient/" target="_blank" rel="noreferrer">NASA Glenn — Induced Drag Coefficient</a></li>
               <li><a href="https://doksi.net/en/get.php?lid=34356" target="_blank" rel="noreferrer">Science of the 470 Sailing Performance — VPP / experimental study</a></li>
@@ -588,7 +595,7 @@ function App() {
       </main>
 
       <footer>
-        <span>TRIM NOTE / TRAINING BUILD 0.12.1</span>
+        <span>TRIM NOTE / TRAINING BUILD 0.13.0</span>
         <span className="footer-credit">Created by Dit-Lab.</span>
         <p>タック、ジャイブ、レース戦術を扱わず、420 / 470のセール形状づくりに集中しています。</p>
       </footer>

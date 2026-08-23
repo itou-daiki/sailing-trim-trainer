@@ -10,6 +10,11 @@ export type AeroResult = {
   liftToDrag: number
 }
 
+export type AeroContext = {
+  trueWindAngle: number
+  apparentWindAngle: number
+}
+
 const LEVELS = ['lower', 'middle', 'upper'] as const
 const LEVEL_WEIGHTS: Record<SailLevel, number> = {
   lower: 0.38,
@@ -28,14 +33,14 @@ function sectionCoefficients(
   target: SailSection,
   sail: 'main' | 'jib',
   level: SailLevel,
-  trueWindAngle: number,
+  context: AeroContext,
 ) {
   // This is a dimensionless teaching proxy, not a measured sail polar.
   // NASA: Cl depends on geometry and angle of attack, and lift scales with dynamic pressure.
   // https://www.grc.nasa.gov/WWW/k-12/FoilSim/Manual/fsim0007.htm
   // NASA: total drag combines base and lift-induced terms; Cdi = Cl² / (pi AR e).
   // https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/induced-drag-coefficient/
-  const course = inverseLerp(42, 150, trueWindAngle)
+  const course = inverseLerp(42, 150, context.trueWindAngle)
   const targetAlpha = (10 - course * 4.2) * Math.PI / 180
   const twistTolerance = level === 'upper' ? 2.4 : level === 'middle' ? 1.7 : 0.9
   const depthTolerance = sail === 'main' ? 0.011 : 0.012
@@ -60,7 +65,7 @@ function sectionCoefficients(
     0.009 * positionError ** 2 +
     0.007 * twistError ** 2
   const dragCoefficient = baseDrag + inducedDrag + shapeDrag
-  const apparentAngle = clamp(23 + (trueWindAngle - 40) * 0.56, 23, 92) * Math.PI / 180
+  const apparentAngle = clamp(context.apparentWindAngle, 0, 180) * Math.PI / 180
   const driveCoefficient = Math.max(
     0.015,
     liftCoefficient * Math.sin(apparentAngle) - dragCoefficient * Math.cos(apparentAngle),
@@ -69,7 +74,7 @@ function sectionCoefficients(
   return { liftCoefficient, dragCoefficient, driveCoefficient }
 }
 
-function integrate(pair: SailPair, reference: SailPair, trueWindAngle: number) {
+function integrate(pair: SailPair, reference: SailPair, context: AeroContext) {
   let lift = 0
   let drag = 0
   let drive = 0
@@ -84,7 +89,7 @@ function integrate(pair: SailPair, reference: SailPair, trueWindAngle: number) {
         reference[sail].sections[level],
         sail,
         level,
-        trueWindAngle,
+        context,
       )
       lift += coefficients.liftCoefficient * weight
       drag += coefficients.dragCoefficient * weight
@@ -103,10 +108,10 @@ function integrate(pair: SailPair, reference: SailPair, trueWindAngle: number) {
 export function evaluateAero(
   actual: SailPair,
   reference: SailPair,
-  trueWindAngle: number,
+  context: AeroContext,
 ): AeroResult {
-  const current = integrate(actual, reference, trueWindAngle)
-  const target = integrate(reference, reference, trueWindAngle)
+  const current = integrate(actual, reference, context)
+  const target = integrate(reference, reference, context)
   const driveRatio = current.driveCoefficient / target.driveCoefficient
   const dragQuality = Math.min(
     1,

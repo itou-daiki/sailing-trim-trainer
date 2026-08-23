@@ -177,7 +177,7 @@ export function ControlPanel({
       </div>
 
       <p className="automatic-scope">
-        <strong>自動で最適：</strong>メイン／ジブの基本角度・乗員バランス・センターボード
+        <strong>自動で最適：</strong>見かけ風に連動するメイン／ジブ基本角度・乗員バランス・センターボード
       </p>
       <ControlGroup
         name="SHAPE CONTROLS"

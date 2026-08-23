@@ -307,8 +307,8 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
     title: 'ブロード用の形へ',
     question: '基本角度は自動で合った。クローズ形状のまま140°へ移ったら、次にどこを出す？',
     objective: '角度調整を除外しても、コースに応じて深さとツイストを作り直せる。',
-    successCriterion: '形状コントロールだけで適合度93%以上へ戻す。',
-    threshold: 93,
+    successCriterion: '形状コントロールだけで適合度94%以上へ戻す。',
+    threshold: 94,
     moveBudget: 7,
     setup: { angle: 140, windSpeed: 12, sourceAngle: 45, sourceWindSpeed: 12 },
     prediction: {

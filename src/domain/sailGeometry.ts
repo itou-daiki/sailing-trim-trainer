@@ -5,10 +5,28 @@ import type {
   SailSection,
   SailShape,
 } from './types'
+import { buildHullGeometry } from './hullGeometry'
+import {
+  AFT_VIEW_DEGREES,
+  fitProjection,
+  projectCoordinate,
+  SAIL_GEOMETRY_UNIT_MM,
+  SIDE_ELEVATION_DEGREES,
+  SIDE_OBLIQUE_DEGREES,
+  type ProjectionView,
+} from './geometryProjection'
+
+export {
+  AFT_VIEW_DEGREES,
+  fitProjection,
+  projectCoordinate,
+  SAIL_GEOMETRY_UNIT_MM,
+  SIDE_ELEVATION_DEGREES,
+  SIDE_OBLIQUE_DEGREES,
+}
+export type { ProjectionView }
 
 export type SailKey = 'main' | 'jib'
-export type ProjectionView = 'top' | 'side' | 'aft'
-
 export type SurfacePoint = {
   id: string
   sail: SailKey
@@ -70,12 +88,7 @@ export type ProjectedSurface = {
   rows: Array<Omit<SurfaceRow, 'points'> & { points: ProjectedPoint[] }>
 }
 
-export const SIDE_OBLIQUE_DEGREES = 18
-export const SIDE_ELEVATION_DEGREES = 12
-/** Zero degrees: orthographic camera on the hull centreline, looking forward. */
-export const AFT_VIEW_DEGREES = 0
 export const DRAFT_PEAK_COLUMN = 10
-export const SAIL_GEOMETRY_UNIT_MM = 1900
 
 type MainCrossWidth = {
   height: number
@@ -110,7 +123,6 @@ type ClassSailSpecification = {
     leechMm: number
     footMm: number
     topWidthMm: number
-    tackFromMastMm: number
     outline: SailOutlineStation[]
     battens: BattenStation[]
   }
@@ -124,6 +136,15 @@ export type ClassBoomSpecification = {
   transverseMm: number
   /** Display assumption for the permitted aft end fitting beyond the outer point. */
   aftEndFittingMm: number
+}
+
+export type ClassRigSpecification = {
+  /** ERS lower point measured from the mast heel datum. */
+  lowerPointHeightMm: number
+  /** Headsail hoist height measured from the mast heel datum. */
+  headsailHoistHeightMm: number
+  /** Maximum permitted unloaded mast-spar curvature. */
+  mastCurvatureMm: number
 }
 
 /**
@@ -178,7 +199,6 @@ export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification
       leechMm: 3200,
       footMm: 1750,
       topWidthMm: 40,
-      tackFromMastMm: -1205,
       outline: [
         { height: 0, chordRatio: 1, luffRakeRatio: 0 },
         { height: 0.0625, chordRatio: 0.939, luffRakeRatio: 0 },
@@ -247,7 +267,6 @@ export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification
       leechMm: 3750,
       footMm: 1955,
       topWidthMm: 30,
-      tackFromMastMm: -1545,
       outline: [
         { height: 0, chordRatio: 1, luffRakeRatio: 0 },
         { height: 0.0625, chordRatio: 0.938, luffRakeRatio: 0 },
@@ -295,6 +314,20 @@ export const CLASS_BOOM_SPECIFICATIONS: Record<BoatClass, ClassBoomSpecification
     verticalMm: 63,
     transverseMm: 38,
     aftEndFittingMm: 70,
+  },
+}
+
+/** Current World Sailing rig dimensions, all measured from the mast heel. */
+export const CLASS_RIG_SPECIFICATIONS: Record<BoatClass, ClassRigSpecification> = {
+  '420': {
+    lowerPointHeightMm: 1160,
+    headsailHoistHeightMm: 4520,
+    mastCurvatureMm: 40,
+  },
+  '470': {
+    lowerPointHeightMm: 1055,
+    headsailHoistHeightMm: 4870,
+    mastCurvatureMm: 40,
   },
 }
 
@@ -431,12 +464,70 @@ function mainLuffPoint(
   mastBend: number,
 ): Vector3 {
   const specification = CLASS_SAIL_SPECIFICATIONS[boat]
-  const outline = stationAtHeight(specification.main.outline, height)
-  const foot = specification.main.footMm / SAIL_GEOMETRY_UNIT_MM
+  const rig = CLASS_RIG_SPECIFICATIONS[boat]
+  const mastHeel = buildHullGeometry(boat).mastBase
+  const lowerPointZ =
+    mastHeel.z + rig.lowerPointHeightMm / SAIL_GEOMETRY_UNIT_MM
+  const normalizedBend = clamp(mastBend / 0.08, -1, 1)
+  const permittedBend =
+    normalizedBend * rig.mastCurvatureMm / SAIL_GEOMETRY_UNIT_MM
   return {
-    x: foot * outline.luffRakeRatio - mastBend * Math.sin(Math.PI * height),
+    // The luff is in the mast groove. Product-photo outline rake must not be
+    // applied to the mast itself; only legal mast curvature moves this line.
+    x: mastHeel.x - permittedBend * Math.sin(Math.PI * height),
     y: 0,
-    z: (height * specification.main.luffMm) / SAIL_GEOMETRY_UNIT_MM,
+    z:
+      lowerPointZ +
+      (height * specification.main.luffMm) / SAIL_GEOMETRY_UNIT_MM,
+  }
+}
+
+export type RigHardpoints = {
+  mastHeel: Vector3
+  mainTack: Vector3
+  mainHead: Vector3
+  stemhead: Vector3
+  jibTack: Vector3
+  jibHead: Vector3
+}
+
+/**
+ * Mounting points for both sails in the shared hull coordinate system.
+ * The jib's luff length and the class-controlled hoist height determine the
+ * adjustable sail tack above the stemhead fitting.
+ */
+export function buildRigHardpoints(
+  boat: BoatClass,
+  mastBend = 0,
+): RigHardpoints {
+  const hull = buildHullGeometry(boat)
+  const sails = CLASS_SAIL_SPECIFICATIONS[boat]
+  const rig = CLASS_RIG_SPECIFICATIONS[boat]
+  const mainTack = mainLuffPoint(boat, 0, mastBend)
+  const mainHead = mainLuffPoint(boat, 1, mastBend)
+  const jibHeadHeight =
+    (rig.headsailHoistHeightMm - rig.lowerPointHeightMm) /
+    sails.main.luffMm
+  const jibHead = mainLuffPoint(boat, jibHeadHeight, mastBend)
+  const jibTackX = hull.jibTack.x
+  const horizontalLuff = jibHead.x - jibTackX
+  const luffLength = sails.jib.luffMm / SAIL_GEOMETRY_UNIT_MM
+  const verticalLuff = Math.sqrt(
+    Math.max(0, luffLength ** 2 - horizontalLuff ** 2),
+  )
+  const jibTack = {
+    x: jibTackX,
+    y: 0,
+    z: jibHead.z - verticalLuff,
+  }
+
+  return {
+    mastHeel: hull.mastBase,
+    mainTack,
+    mainHead,
+    stemhead: hull.jibTack,
+    jibTack,
+    jibHead,
   }
 }
 
@@ -463,29 +554,9 @@ function planform(
   const jib = specification.jib
   const triangle = jibTriangle(jib)
   const outline = stationAtHeight(jib.outline, height)
-  const luffLength = jib.luffMm / SAIL_GEOMETRY_UNIT_MM
-  const tack = {
-    x: jib.tackFromMastMm / SAIL_GEOMETRY_UNIT_MM,
-    y: 0,
-    z: 0.015,
-  }
-
-  // The jib head follows the current mainsail luff instead of floating in front
-  // of the mast. Iteration is required because its height depends on the fixed
-  // luff length while the mast's fore/aft coordinate depends on that height.
-  let headX = 0
-  let headZ = tack.z
-  for (let iteration = 0; iteration < 8; iteration += 1) {
-    const deltaX = headX - tack.x
-    headZ = tack.z + Math.sqrt(Math.max(0, luffLength ** 2 - deltaX ** 2))
-    const mainHeight = clamp(
-      (headZ * SAIL_GEOMETRY_UNIT_MM) / specification.main.luffMm,
-      0,
-      1,
-    )
-    headX = mainLuffPoint(boat, mainHeight, mastBend).x
-  }
-  const head = { x: headX, y: 0, z: headZ }
+  const hardpoints = buildRigHardpoints(boat, mastBend)
+  const tack = hardpoints.jibTack
+  const head = hardpoints.jibHead
   const luffVector = {
     x: head.x - tack.x,
     y: 0,
@@ -544,7 +615,14 @@ export function buildSailSurface(
 
     const points = Array.from({ length: POINT_COUNT }, (_, column) => {
       const u = chordSample(column, section.draftPosition)
-      const camber = camberAt(u, section.draftDepth, section.draftPosition) * rig.chord
+      // The 420 / 470 mainsail foot is displayed as attached to the boom.
+      // Draft starts immediately above it; applying section camber to this
+      // lowest row would make the middle of the foot float beside the boom
+      // even though its tack and clew remain connected.
+      const footAttachedToBoom = sail === 'main' && height === 0
+      const camber = footAttachedToBoom
+        ? 0
+        : camberAt(u, section.draftDepth, section.draftPosition) * rig.chord
       return {
         id: `${sail}:${rowIndex}:${column}`,
         sail,
@@ -785,6 +863,7 @@ export function surfaceRowProfile(row: SurfaceRow) {
 export function projectSurface(
   surface: SailSurface,
   view: ProjectionView,
+  aftAzimuthDegrees = AFT_VIEW_DEGREES,
 ): ProjectedSurface {
   return {
     sail: surface.sail,
@@ -793,31 +872,8 @@ export function projectSurface(
       ...row,
       points: row.points.map((point): ProjectedPoint => ({
         ...point,
-        ...projectCoordinate(point, view),
+        ...projectCoordinate(point, view, aftAzimuthDegrees),
       })),
     })),
-  }
-}
-
-export function projectCoordinate(
-  point: { x: number; y: number; z: number },
-  view: ProjectionView,
-) {
-  const oblique = (SIDE_OBLIQUE_DEGREES * Math.PI) / 180
-  const elevation = (SIDE_ELEVATION_DEGREES * Math.PI) / 180
-  const aftView = (AFT_VIEW_DEGREES * Math.PI) / 180
-  if (view === 'top') return { x: point.x, y: point.y }
-  if (view === 'side') {
-    return {
-      x: point.x * Math.cos(oblique) + point.y * Math.sin(oblique),
-      y:
-        -point.x * Math.sin(elevation) * Math.sin(oblique) +
-        point.y * Math.sin(elevation) * Math.cos(oblique) +
-        point.z * Math.cos(elevation),
-    }
-  }
-  return {
-    x: point.y * Math.cos(aftView) + point.x * Math.sin(aftView),
-    y: point.z,
   }
 }

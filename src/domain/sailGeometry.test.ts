@@ -3,9 +3,12 @@ import { calculateTrim, targetControls } from './trimModel'
 import {
   AFT_VIEW_DEGREES,
   buildBoomGeometry,
+  buildRigHardpoints,
   buildRigSurfaces,
   CLASS_BOOM_SPECIFICATIONS,
+  CLASS_RIG_SPECIFICATIONS,
   CLASS_SAIL_SPECIFICATIONS,
+  fitProjection,
   getLevelRow,
   measureSurfaceRow,
   projectCoordinate,
@@ -184,7 +187,8 @@ describe('single sail surface geometry', () => {
     }
     const fourTwenty = surfaces('420')
     const fourSeventy = surfaces('470')
-    const height = (surface: typeof fourTwenty.main) => surface.rows.at(-1)!.points[0].z
+    const height = (surface: typeof fourTwenty.main) =>
+      surface.rows.at(-1)!.points[0].z - surface.rows[0].points[0].z
     const chord = (surface: typeof fourTwenty.main, level: (typeof LEVELS)[number]) => {
       const row = getLevelRow(surface, level)
       const luff = row.points[0]
@@ -266,7 +270,7 @@ describe('single sail surface geometry', () => {
       12,
     )
     expect(aft.x).toBeCloseTo(
-      source.y * Math.cos(aftView) + source.x * Math.sin(aftView),
+      source.y * Math.cos(aftView) - source.x * Math.sin(aftView),
       12,
     )
     expect(aft.y).toBeCloseTo(source.z, 12)
@@ -297,7 +301,41 @@ describe('single sail surface geometry', () => {
     }
   })
 
-  it('gives the boom mouth a visible face in the true-aft projection', () => {
+  it('attaches the entire mainsail foot to the boom top centreline', () => {
+    const midpoint = (a: { x: number; y: number; z: number }, b: typeof a) => ({
+      x: (a.x + b.x) / 2,
+      y: (a.y + b.y) / 2,
+      z: (a.z + b.z) / 2,
+    })
+
+    for (const boat of ['420', '470'] as const) {
+      for (const angle of [45, 90, 140]) {
+        const controls = {
+          ...targetControls(boat, angle, 14),
+          outhaul: 0,
+        }
+        const result = calculateTrim(boat, angle, 14, controls)
+        const main = buildRigSurfaces(boat, result.actual).main
+        const boom = buildBoomGeometry(boat, main)
+        const foot = main.rows[0].points
+        const tack = foot[0]
+        const clew = foot.at(-1)!
+        const topFace = boom.faces[0]
+        const boomTopStart = midpoint(topFace[0], topFace[3])
+
+        expect(boomTopStart.x).toBeCloseTo(tack.x, 12)
+        expect(boomTopStart.y).toBeCloseTo(tack.y, 12)
+        expect(boomTopStart.z).toBeCloseTo(tack.z, 12)
+        for (const point of foot) {
+          expect(point.x).toBeCloseTo(tack.x + (clew.x - tack.x) * point.u, 12)
+          expect(point.y).toBeCloseTo(tack.y + (clew.y - tack.y) * point.u, 12)
+          expect(point.z).toBeCloseTo(tack.z + (clew.z - tack.z) * point.u, 12)
+        }
+      }
+    }
+  })
+
+  it('aligns the boom-end camera with the boom and shows its mouth face-on', () => {
     const polygonArea = (points: Array<{ x: number; y: number }>) => Math.abs(
       points.reduce((sum, point, index) => {
         const next = points[(index + 1) % points.length]
@@ -308,14 +346,70 @@ describe('single sail surface geometry', () => {
     for (const boat of ['420', '470'] as const) {
       const result = calculateTrim(boat, 45, 12, targetControls(boat, 45, 12))
       const boom = buildBoomGeometry(boat, buildRigSurfaces(boat, result.actual).main)
-      const outer = boom.aftEnd.outer.map((point) => projectCoordinate(point, 'aft'))
-      const inner = boom.aftEnd.inner.map((point) => projectCoordinate(point, 'aft'))
+      const [start, end] = boom.centreline
+      const boomAzimuth = Math.atan2(end.y - start.y, end.x - start.x) * 180 / Math.PI
+      const outer = boom.aftEnd.outer.map((point) =>
+        projectCoordinate(point, 'aft', boomAzimuth))
+      const inner = boom.aftEnd.inner.map((point) =>
+        projectCoordinate(point, 'aft', boomAzimuth))
+      const sightline = boom.centreline.map((point) =>
+        projectCoordinate(point, 'aft', boomAzimuth))
 
-      expect(AFT_VIEW_DEGREES).toBe(0)
+      expect(sightline[0].x).toBeCloseTo(sightline[1].x, 12)
       expect(polygonArea(outer)).toBeGreaterThan(0)
       expect(polygonArea(inner)).toBeGreaterThan(0)
       expect(polygonArea(outer)).toBeGreaterThan(polygonArea(inner))
     }
+  })
+
+  it('places both sails from the class mast-heel datum and stemhead centreline', () => {
+    for (const boat of ['420', '470'] as const) {
+      const hardpoints = buildRigHardpoints(boat)
+      const rig = CLASS_RIG_SPECIFICATIONS[boat]
+      const jib = CLASS_SAIL_SPECIFICATIONS[boat].jib
+      const distanceMm = (a: typeof hardpoints.jibTack, b: typeof a) =>
+        Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) * SAIL_GEOMETRY_UNIT_MM
+
+      expect((hardpoints.mainTack.z - hardpoints.mastHeel.z) * SAIL_GEOMETRY_UNIT_MM)
+        .toBeCloseTo(rig.lowerPointHeightMm, 8)
+      expect((hardpoints.jibHead.z - hardpoints.mastHeel.z) * SAIL_GEOMETRY_UNIT_MM)
+        .toBeCloseTo(rig.headsailHoistHeightMm, 8)
+      expect(distanceMm(hardpoints.jibTack, hardpoints.jibHead))
+        .toBeCloseTo(jib.luffMm, 8)
+      expect(hardpoints.jibTack.x).toBeCloseTo(hardpoints.stemhead.x, 12)
+      expect(hardpoints.jibTack.y).toBe(0)
+      expect(hardpoints.jibTack.z).toBeGreaterThan(hardpoints.stemhead.z)
+    }
+  })
+
+  it('maps normalized mast controls inside the 40 mm class curvature envelope', () => {
+    for (const boat of ['420', '470'] as const) {
+      const result = calculateTrim(boat, 45, 20, targetControls(boat, 45, 20))
+      const extreme = buildRigSurfaces(boat, {
+        ...result.actual,
+        main: { ...result.actual.main, mastBend: 1 },
+      }).main
+      const maximumDeflectionMm = Math.max(
+        ...extreme.rows.map((row) => Math.abs(row.points[0].x)),
+      ) * SAIL_GEOMETRY_UNIT_MM
+
+      expect(maximumDeflectionMm).toBeLessThanOrEqual(
+        CLASS_RIG_SPECIFICATIONS[boat].mastCurvatureMm + 1e-8,
+      )
+    }
+  })
+
+  it('centres the hull centreplane in plan and true-aft fitted views', () => {
+    const asymmetric = [
+      { x: -1.2, y: -0.45 },
+      { x: 1.5, y: 1.15 },
+      { x: 0, y: 0 },
+    ]
+    const top = fitProjection(asymmetric, 760, 160, 'top')
+    const aft = fitProjection(asymmetric, 420, 330, 'aft')
+
+    expect(top({ x: 0, y: 0 }).y).toBeCloseTo(80, 12)
+    expect(aft({ x: 0, y: 0 }).x).toBeCloseTo(210, 12)
   })
 
   it('keeps the whole geometry finite across boats, courses, winds, and control edges', () => {

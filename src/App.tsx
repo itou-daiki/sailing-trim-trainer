@@ -9,13 +9,19 @@ import { CourseBoard } from './components/CourseBoard'
 import { Masthead } from './components/Masthead'
 import { MetricsRail } from './components/MetricsRail'
 import { BOATS } from './data/boats'
+import { actionPriority, keepActionPriority } from './domain/actionPriority'
 import { buildChallengeSetup, getChallenge, TRIM_CHALLENGES } from './domain/challenges'
 import type { PredictionConfidence, ShapeEvidence } from './domain/challenges'
 import { courseName } from './domain/course'
 import { labSnapshotUrl, parseLabSnapshot } from './domain/labShare'
 import { loadProgress, saveProgress, updateRecord } from './domain/progress'
 import type { ControlMove } from './domain/shapeComparison'
-import { calculateTrim, CONTROL_LABELS, targetControls } from './domain/trimModel'
+import {
+  calculateTrim,
+  CONTROL_LABELS,
+  guidanceForActions,
+  targetControls,
+} from './domain/trimModel'
 import type { BoatClass, ControlKey, TrimControls } from './domain/types'
 
 function browserStorage() {
@@ -60,6 +66,11 @@ function App() {
   const [angle, setAngle] = useState(initial.angle)
   const [windSpeed, setWindSpeed] = useState(initial.windSpeed)
   const [controls, setControls] = useState<TrimControls>(initial.controls)
+  const [establishedActionOrder, setEstablishedActionOrder] = useState<ControlKey[]>(() =>
+    actionPriority(
+      calculateTrim(initial.boat, initial.angle, initial.windSpeed, initial.controls).actions,
+    ),
+  )
   const [previousControls, setPreviousControls] = useState<TrimControls>(initial.controls)
   const [lastControl, setLastControl] = useState<ControlKey>('cunningham')
   const [lastMove, setLastMove] = useState<ControlMove>()
@@ -90,6 +101,20 @@ function App() {
     () => calculateTrim(boat, angle, windSpeed, previousControls),
     [angle, boat, previousControls, windSpeed],
   )
+  const displayedActions = useMemo(
+    () => keepActionPriority(result.actions, establishedActionOrder),
+    [establishedActionOrder, result.actions],
+  )
+  const displayedGuidance = useMemo(
+    () => guidanceForActions(
+      boat,
+      controls,
+      result.targetControls,
+      result.metrics.efficiency,
+      displayedActions,
+    ),
+    [boat, controls, displayedActions, result.metrics.efficiency, result.targetControls],
+  )
   const challengeMode = workspaceMode === 'challenge'
   const previewingChallenge = challengeMode && phase === 'preview'
   const controlLocked = challengeMode && phase !== 'practice'
@@ -118,6 +143,19 @@ function App() {
     setLabShareStatus('')
   }
 
+  const establishActionOrder = (
+    nextBoat: BoatClass,
+    nextAngle: number,
+    nextWindSpeed: number,
+    nextControls: TrimControls,
+  ) => {
+    setEstablishedActionOrder(
+      actionPriority(
+        calculateTrim(nextBoat, nextAngle, nextWindSpeed, nextControls).actions,
+      ),
+    )
+  }
+
   const selectChallenge = (id: string) => {
     const nextChallenge = getChallenge(id)
     if (!nextChallenge) return
@@ -128,6 +166,7 @@ function App() {
     setAngle(setup.angle)
     setWindSpeed(setup.windSpeed)
     setControls(setup.controls)
+    establishActionOrder(setup.boat, setup.angle, setup.windSpeed, setup.controls)
     resetShapeHistory(setup.controls)
     setLastControl(nextChallenge.prediction.correctControl)
     setCourseNotice(
@@ -155,6 +194,7 @@ function App() {
     setAngle(setup.angle)
     setWindSpeed(setup.windSpeed)
     setControls(setup.controls)
+    establishActionOrder(setup.boat, setup.angle, setup.windSpeed, setup.controls)
     resetShapeHistory(setup.controls)
     setLastControl(activeChallenge.prediction.correctControl)
     setPhase('practice')
@@ -182,6 +222,7 @@ function App() {
     const nextControls = targetControls(nextBoat, angle, windSpeed)
     setBoat(nextBoat)
     setControls(nextControls)
+    establishActionOrder(nextBoat, angle, windSpeed, nextControls)
     resetShapeHistory(nextControls)
     setCourseNotice(
       `${BOATS[nextBoat].name}へ切り替えました。現在の風に合う基準トリムから始めます。`,
@@ -196,6 +237,7 @@ function App() {
     const before = courseName(angle)
     const after = courseName(nextAngle)
     setAngle(nextAngle)
+    establishActionOrder(boat, nextAngle, windSpeed, controls)
     resetShapeHistory(controls)
     setCourseNotice(
       `${before}から${after}へ変更。基本角度は自動で合いました。深さ・位置・ツイストだけを作り直します。`,
@@ -207,6 +249,7 @@ function App() {
 
   const changeWind = (nextWind: number) => {
     setWindSpeed(nextWind)
+    establishActionOrder(boat, angle, nextWind, controls)
     resetShapeHistory(controls)
     setCourseNotice(
       `風速を${nextWind} ktへ変更。艇は水平のまま、ドラフト深さ・位置・ツイストの差を見ます。`,
@@ -217,6 +260,7 @@ function App() {
   }
 
   const beginControlChange = (control: ControlKey) => {
+    if (displayedActions.length === 0) setEstablishedActionOrder([])
     controlStartRef.current = { control, controls }
     setPreviousControls(controls)
     setLastControl(control)
@@ -243,9 +287,18 @@ function App() {
     if (phase !== 'practice') return
 
     const nextResult = calculateTrim(boat, angle, windSpeed, nextControls)
+    const nextActionOrder = establishedActionOrder.length > 0 && displayedActions.length > 0
+      ? establishedActionOrder
+      : actionPriority(nextResult.actions)
+    if (
+      (establishedActionOrder.length === 0 || displayedActions.length === 0) &&
+      nextActionOrder.length > 0
+    ) {
+      setEstablishedActionOrder(nextActionOrder)
+    }
     const nextMoves = moveCount + 1
     const change = nextResult.metrics.efficiency - result.metrics.efficiency
-    const nextAction = nextResult.actions[0]
+    const nextAction = keepActionPriority(nextResult.actions, nextActionOrder)[0]
     const conditionsMatch =
       boat === activeChallenge.boat &&
       angle === activeChallenge.setup.angle &&
@@ -282,6 +335,7 @@ function App() {
   const tryBaseline = () => {
     setPreviousControls(controls)
     setControls(result.targetControls)
+    establishActionOrder(boat, angle, windSpeed, result.targetControls)
     setLastMove(undefined)
     setComparisonMode('target')
     setLabShareStatus('')
@@ -319,6 +373,7 @@ function App() {
     const nextControls = targetControls(boat, angle, windSpeed)
     setWorkspaceMode('free')
     setControls(nextControls)
+    establishActionOrder(boat, angle, windSpeed, nextControls)
     resetShapeHistory(nextControls)
     setCourseNotice('自由練習です。風と艇種を変え、一本ずつ動かして形の応答を見ます。')
   }
@@ -445,16 +500,16 @@ function App() {
               boat={boat}
               controls={controls}
               targets={result.targetControls}
-              actions={result.actions}
+              actions={displayedActions}
               locked={controlLocked}
               revealGuidance={!previewingChallenge}
               onControlChangeStart={beginControlChange}
               onControlChange={changeControl}
             />
               <CoachPanel
-                guidance={result.guidance}
+                guidance={displayedGuidance}
                 efficiency={result.metrics.efficiency}
-                actions={result.actions}
+                actions={displayedActions}
                 mode={previewingChallenge ? 'observe' : 'guide'}
                 onShowBaseline={tryBaseline}
               />
@@ -509,13 +564,17 @@ function App() {
           <summary>詳しく見る：このモデルの考え方と参考資料</summary>
           <div>
             <p>
-              一つの3Dセール面に上・中・下の計測断面とマストベンドを与え、その間を全高へ連続させ、上・斜め横・船尾中心線0°の三台の正投影カメラで観察します。ジブは固定ラフの局所基底で回転し、クラス規則の三辺長とトップ幅を維持します。各断面の深さ・最大深さ位置・ツイストから揚力係数、抗力係数、前進力の代理値を積分し、推定艇速へ変換します。<strong>形状コントロール → 同じセール面 → 断面性能 → 推定艇速</strong>の因果を比べる準定常の学習モデルで、実艇の実測ポーラやCFDではありません。マスト曲がりの表示量は読み取り用に強調しており、チューニングゲージの実測mmとは対応しません。
+              一つの3Dセール面に上・中・下の計測断面とマストベンドを与え、その間を全高へ連続させ、上・斜め横・実際のブーム方位に追従する後端カメラで観察します。後端ビューは小さなドラフト差を読めるよう深さ方向だけ3倍表示です。マストヒール、メイン下部点、ジブ揚程、船首取付点は420 / 470それぞれの公式寸法から同じ座標系へ置き、ジブは固定ラフの局所基底で回転しながらクラス規則の三辺長とトップ幅を維持します。各断面の深さ・最大深さ位置・ツイストから揚力係数、抗力係数、前進力の代理値を積分し、推定艇速へ変換します。<strong>形状コントロール → 同じセール面 → 断面性能 → 推定艇速</strong>の因果を比べる準定常の学習モデルで、実艇の実測ポーラやCFDではありません。マスト曲がりは操作量をクラス規則の最大曲率40 mm以内へ換算して表示します。
             </p>
             <ul>
               <li><a href="https://www.northsails.co.jp/wordpress/wp-content/uploads/2026/03/420-M12-Tuning-Guide_j.pdf" target="_blank" rel="noreferrer">North Sails Japan — 420 M11 / M12 Tuning Guide</a></li>
               <li><a href="https://www.northsails.com/en-fr/blogs/north-sails-blog/420-tuning-guide" target="_blank" rel="noreferrer">North Sails — 420 Tuning Guide</a></li>
               <li><a href="https://www.northsails.com/en-ca/blogs/north-sails-blog/470-speed-guide" target="_blank" rel="noreferrer">North Sails — 470 Speed Guide</a></li>
               <li><a href="https://www.northsails.com/products/470-n17-l26-mainsail" target="_blank" rel="noreferrer">North Sails — 470 N17-L26 Mainsail</a></li>
+              <li><a href="https://media.sailing.org/sailing/wp-content/uploads/2022/03/17092130/420_CR_2026-03-31.pdf" target="_blank" rel="noreferrer">World Sailing — International 420 Class Rules 2026</a></li>
+              <li><a href="https://media.sailing.org/sailing/wp-content/uploads/2022/07/02133245/420_BuildingSpec_2022-09Sep-01.pdf" target="_blank" rel="noreferrer">World Sailing — 420 Building Specification, Drawing 5 Issue J</a></li>
+              <li><a href="https://www.sailing.org/wp-content/uploads/2022/03/470_CR_2025-09-01-II.pdf" target="_blank" rel="noreferrer">World Sailing — International 470 Class Rules 2025</a></li>
+              <li><a href="https://media.sailing.org/sailing/wp-content/uploads/2023/01/19160058/470_005_080623_GA.pdf" target="_blank" rel="noreferrer">World Sailing — 470 Building Specification Plan 2023</a></li>
               <li><a href="https://media.sailing.org/sailing/wp-content/uploads/2024/06/04011421/Equipment-Rules-of-Sailing-2025-2028-v.2.pdf" target="_blank" rel="noreferrer">World Sailing — Equipment Rules of Sailing 2025–2028</a></li>
               <li><a href="https://cmst.curtin.edu.au/products/sailtool-software/" target="_blank" rel="noreferrer">Curtin University CMST — SailTool / draft stripe measurement</a></li>
               <li><a href="https://northu.com/sail-trim-simulator-user-guide/" target="_blank" rel="noreferrer">North U — Sail Trim Simulator User Guide</a></li>
@@ -529,7 +588,7 @@ function App() {
       </main>
 
       <footer>
-        <span>TRIM NOTE / TRAINING BUILD 0.11.0</span>
+        <span>TRIM NOTE / TRAINING BUILD 0.12.0</span>
         <span className="footer-credit">Created by Dit-Lab.</span>
         <p>タック、ジャイブ、レース戦術を扱わず、420 / 470のセール形状づくりに集中しています。</p>
       </footer>

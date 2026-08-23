@@ -70,7 +70,7 @@ function ControlSlider({
       {action && revealGuidance ? (
         <span className="control-priority">
           <strong>優先 {rank}</strong>
-          <span>{action.direction} · 適合度 +{action.gain.toFixed(1)}</span>
+          <span>{action.direction}{action.gain > 0.05 ? ` · 適合度 +${action.gain.toFixed(1)}` : ' · 順に形を整える'}</span>
         </span>
       ) : null}
       <span className="control-title">
@@ -183,7 +183,7 @@ export function ControlPanel({
         name="SHAPE CONTROLS"
         note={locked
           ? 'まず三面図を観察。選択肢に答えてから解除します。'
-          : actions.length > 0 ? '左上から現在の推奨順。一本動かして形を確認します。' : 'すべて基準範囲です。条件を変えて形を作り直します。'}
+          : actions.length > 0 ? '開始時の推奨順を固定。合った項目だけ順に外れます。' : 'すべて基準範囲です。条件を変えて形を作り直します。'}
         sliders={orderedSliders}
         controls={controls}
         targets={targets}

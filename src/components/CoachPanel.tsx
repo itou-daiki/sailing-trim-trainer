@@ -94,7 +94,7 @@ export function CoachPanel({
             <span>ADJUSTMENT ORDER</span>
             <strong id="trim-order-title">操作の優先順位</strong>
           </div>
-          <small>上から一本ずつ</small>
+          <small>調整中は順序を固定</small>
         </div>
 
         {actions.length > 0 ? (

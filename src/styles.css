@@ -4358,6 +4358,14 @@ footer p { margin: 0; }
   vector-effect: non-scaling-stroke;
 }
 
+.geometry-camera-centreline {
+  fill: none;
+  stroke: #98aaa8;
+  stroke-width: 0.8;
+  stroke-dasharray: 2 4;
+  vector-effect: non-scaling-stroke;
+}
+
 .geometry-hull {
   fill: #dde5e1;
   stroke: #4f696e;
@@ -4370,6 +4378,7 @@ footer p { margin: 0; }
 .geometry-hull-station,
 .geometry-hull-centerline,
 .geometry-cockpit,
+.geometry-jib-tack-strop,
 .geometry-forestay {
   vector-effect: non-scaling-stroke;
 }
@@ -4421,6 +4430,13 @@ footer p { margin: 0; }
   fill: none;
   stroke: #536f73;
   stroke-width: 1;
+}
+
+.geometry-jib-tack-strop {
+  fill: none;
+  stroke: #168077;
+  stroke-width: 1.35;
+  stroke-dasharray: 3 2;
 }
 
 .geometry-hull-model.is-top .geometry-hull-panel {
@@ -4640,6 +4656,9 @@ footer p { margin: 0; }
 
 .geometry-camera-note {
   fill: #61777a;
+  stroke: #f7f8f4;
+  stroke-width: 3px;
+  paint-order: stroke fill;
   font-size: 9px;
   font-weight: 700;
 }

@@ -54,4 +54,20 @@ describe('class-specific hull geometry', () => {
     expect(HULL_SPECIFICATIONS['420'].breakwaterFromAftMm).toBe(2920)
     expect(HULL_SPECIFICATIONS['470'].breakwaterFromAftMm).toBe(3250)
   })
+
+  it('keeps every hull section and both rig fittings on the centreplane', () => {
+    for (const boat of ['420', '470'] as const) {
+      const hull = buildHullGeometry(boat)
+
+      for (const section of hull.sections) {
+        for (let index = 0; index < Math.floor(section.length / 2); index += 1) {
+          const opposite = section[section.length - 1 - index]
+          expect(section[index].y).toBeCloseTo(-opposite.y, 12)
+          expect(section[index].z).toBeCloseTo(opposite.z, 12)
+        }
+      }
+      expect(hull.mastBase.y).toBe(0)
+      expect(hull.jibTack.y).toBe(0)
+    }
+  })
 })

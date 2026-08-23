@@ -3,7 +3,7 @@ import {
   projectCoordinate,
   SAIL_GEOMETRY_UNIT_MM,
   type ProjectionView,
-} from './sailGeometry'
+} from './geometryProjection'
 
 export type HullPoint = {
   id: string
@@ -27,6 +27,7 @@ export type HullSpecification = {
   beamMm: number
   mastFromAftMm: number
   jibTackFromAftMm: number
+  keelsonHeightMm: number
   breakwaterFromAftMm: number
   stations: HullStationSpecification[]
   cockpit: Array<{ fromAftMm: number; halfWidthMm: number }>
@@ -40,7 +41,9 @@ export type HullGeometry = {
   cockpitOutline: HullPoint[]
   centerline: HullPoint[]
   stationLines: HullPoint[][]
+  /** Mast heel on the mast-step bearing surface. */
   mastBase: HullPoint
+  /** Deck fitting below the adjustable jib tack. */
   jibTack: HullPoint
 }
 
@@ -58,6 +61,7 @@ export const HULL_SPECIFICATIONS: Record<BoatClass, HullSpecification> = {
     beamMm: 1630,
     mastFromAftMm: 2900,
     jibTackFromAftMm: 4105,
+    keelsonHeightMm: 45,
     breakwaterFromAftMm: 2920,
     stations: [
       { fromAftMm: 0, halfBeamMm: 300, keelBelowSheerMm: 335, sheerRiseMm: 0 },
@@ -88,6 +92,7 @@ export const HULL_SPECIFICATIONS: Record<BoatClass, HullSpecification> = {
     beamMm: 1700,
     mastFromAftMm: 3085,
     jibTackFromAftMm: 4630,
+    keelsonHeightMm: 45,
     breakwaterFromAftMm: 3250,
     stations: [
       { fromAftMm: 0, halfBeamMm: 350, keelBelowSheerMm: 350, sheerRiseMm: 0 },
@@ -205,6 +210,18 @@ export function buildHullGeometry(boat: BoatClass): HullGeometry {
     }
   })
   const cockpitOutline = [...cockpitPort, ...cockpitStarboard, cockpitPort[0]]
+  const mastStation = interpolateStation(specification, specification.mastFromAftMm)
+  const jibTackStation = interpolateStation(
+    specification,
+    specification.jibTackFromAftMm,
+  )
+  const mastStepBearingZ =
+    sheerZ(mastStation) -
+    mastStation.keelBelowSheerMm / SAIL_GEOMETRY_UNIT_MM +
+    (specification.keelsonHeightMm + 5) / SAIL_GEOMETRY_UNIT_MM
+  const jibTackDeckZ =
+    sheerZ(jibTackStation) +
+    Math.min(55, jibTackStation.halfBeamMm * 0.07) / SAIL_GEOMETRY_UNIT_MM
 
   return {
     boat,
@@ -214,18 +231,21 @@ export function buildHullGeometry(boat: BoatClass): HullGeometry {
     cockpitOutline,
     centerline,
     stationLines: sections.slice(0, -1),
-    mastBase: { id: `${boat}:mast-base`, x: 0, y: 0, z: -0.015 },
+    mastBase: { id: `${boat}:mast-heel`, x: 0, y: 0, z: mastStepBearingZ },
     jibTack: {
-      id: `${boat}:jib-tack`,
+      id: `${boat}:stemhead`,
       x: longitudinalX(specification, specification.jibTackFromAftMm),
       y: 0,
-      z: 0.015,
+      z: jibTackDeckZ,
     },
   }
 }
 
-export function projectHullPoint(point: HullPoint, view: ProjectionView): ProjectedHullPoint {
-  const projected = projectCoordinate(point, view)
+export function projectHullPoint(
+  point: HullPoint,
+  view: ProjectionView,
+  aftAzimuthDegrees?: number,
+): ProjectedHullPoint {
+  const projected = projectCoordinate(point, view, aftAzimuthDegrees)
   return { ...point, screenX: projected.x, screenY: projected.y }
 }
-

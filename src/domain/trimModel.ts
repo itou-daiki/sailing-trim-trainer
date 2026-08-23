@@ -332,9 +332,7 @@ function prioritizedActions(
       ).efficiency
       return { ...item, benefit: Math.max(0, correctedScore - currentScore) }
     })
-    .filter((item) => item.benefit > 0.1)
     .sort((a, b) => b.benefit - a.benefit || b.severity * b.weight - a.severity * a.weight)
-    .slice(0, 5)
     .map((item) => ({
       control: item.key,
       direction:
@@ -376,7 +374,7 @@ function metrics(
   }
 }
 
-function guidance(
+export function guidanceForActions(
   boat: BoatClass,
   controls: TrimControls,
   target: TrimControls,
@@ -495,7 +493,7 @@ export function calculateTrim(
     target,
     targetControls: targets,
     metrics: trimMetrics,
-    guidance: guidance(boat, shapeControls, targets, trimMetrics.efficiency, actions),
+    guidance: guidanceForActions(boat, shapeControls, targets, trimMetrics.efficiency, actions),
     actions,
     apparentWindAngle: apparent.angle,
     apparentWindSpeed: apparent.speed,

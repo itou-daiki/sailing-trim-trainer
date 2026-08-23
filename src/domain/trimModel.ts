@@ -23,6 +23,32 @@ const inverseLerp = (start: number, end: number, value: number) =>
 
 const courseBlend = (twa: number) => inverseLerp(42, 145, twa)
 
+export const OUTHAUL_MAX_EASE_MM = 25
+
+export function outhaulEaseMillimeters(controlValue: number) {
+  return (100 - clamp(controlValue, 0, 100)) * OUTHAUL_MAX_EASE_MM / 100
+}
+
+function outhaulControlForEaseMillimeters(easeMillimeters: number) {
+  return 100 - clamp(easeMillimeters, 0, OUTHAUL_MAX_EASE_MM) * 100 / OUTHAUL_MAX_EASE_MM
+}
+
+function targetOuthaulEaseMillimeters(
+  boat: BoatClass,
+  trueWindAngle: number,
+  windSpeed: number,
+) {
+  if (boat === '420') {
+    if (windSpeed <= 16) return 22.5
+    if (windSpeed <= 20) return 12.5
+    return 5
+  }
+
+  const upwindEase = lerp(12.5, 0, inverseLerp(9, 14, windSpeed))
+  const downwindBlend = inverseLerp(90, 140, trueWindAngle)
+  return lerp(upwindEase, 15, downwindBlend)
+}
+
 function mainAngleFromSheet(mainSheet: number) {
   return clamp(80 - mainSheet * 0.8, 0, 80)
 }
@@ -54,7 +80,7 @@ export const CONTROL_EFFECTS: Record<ControlKey, string> = {
   jibSheet: '引くほどジブの迎角が増え、リーチが閉じます。引きすぎると裏風と失速を招きます。',
   vang: '引くほどブームの浮き上がりを抑え、上部のツイストを減らします。',
   cunningham: '引くほどラフに張力がかかり、ドラフトのいちばん深い位置が前へ戻ります。',
-  outhaul: '引くほどメイン下部がフラットになります。出すと下部のドラフトが深くなります。',
+  outhaul: '引くほどメイン下部がフラットになります。表示値は、クリューをブラックバンドから出した実寸距離です。',
   crewHike: '外へ出るほど復原力が増え、艇をフラットに保ちやすくなります。',
   crewForeAft: '前後の位置で船体の濡れ方が変わります。弱風では動きを小さくします。',
   centerboard: '下げるほど横流れを抑えます。ベアすると上げて余分な抵抗を減らします。',
@@ -94,14 +120,15 @@ function targetControlsForMainAngle(
   const course = courseBlend(trueWindAngle)
   const breeze = inverseLerp(4, 18, windSpeed)
   const broad = inverseLerp(105, 155, trueWindAngle)
-  const powered = inverseLerp(8, 18, windSpeed)
   const overpowered = inverseLerp(10, 18, windSpeed)
   const targetVang = clamp(
     10 + inverseLerp(42, 100, trueWindAngle) * 20 - broad * 10 + overpowered * 58,
     8,
     82,
   )
-  const targetOuthaul = clamp(58 + powered * 32 - course * 25, 20, 92)
+  const targetOuthaul = outhaulControlForEaseMillimeters(
+    targetOuthaulEaseMillimeters(boat, trueWindAngle, windSpeed),
+  )
   const targetMainSheet = mainSheetForAngle(mainAngle)
 
   return {
@@ -171,7 +198,7 @@ function sailShapes(
   const windLoad = inverseLerp(4, 18, windSpeed)
   const vang = controls.vang / 100
   const cunningham = controls.cunningham / 100
-  const outhaul = controls.outhaul / 100
+  const outhaulEaseMm = outhaulEaseMillimeters(controls.outhaul)
   const sheet = controls.mainSheet / 100
   const chock = controls.chock / 100
   const forePuller = controls.forePuller / 100
@@ -193,7 +220,7 @@ function sailShapes(
     lower: {
       height: 0.25,
       draftDepth: clamp(
-        0.165 - (outhaul - 0.5) * 0.065 - bend.lower * 0.05 - cunningham * 0.01 + windLoad * 0.007,
+        0.14 + outhaulEaseMm * 0.001 - bend.lower * 0.05 - cunningham * 0.01 + windLoad * 0.007,
         0.075,
         0.19,
       ),
@@ -207,7 +234,7 @@ function sailShapes(
     middle: {
       height: 0.5,
       draftDepth: clamp(
-        0.145 - (outhaul - 0.5) * 0.02 - bend.middle * 0.065 - cunningham * 0.009 + windLoad * 0.01,
+        0.135 + outhaulEaseMm * 0.00035 - bend.middle * 0.065 - cunningham * 0.009 + windLoad * 0.01,
         0.07,
         0.17,
       ),
@@ -221,7 +248,7 @@ function sailShapes(
     upper: {
       height: 0.75,
       draftDepth: clamp(
-        0.118 - (outhaul - 0.5) * 0.004 - bend.upper * 0.045 - cunningham * 0.006 + windLoad * 0.012,
+        0.116 + outhaulEaseMm * 0.00008 - bend.upper * 0.045 - cunningham * 0.006 + windLoad * 0.012,
         0.06,
         0.145,
       ),

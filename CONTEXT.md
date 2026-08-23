@@ -40,6 +40,10 @@ _Avoid_: Target shape, history averaged across several controls
 A control included in this trainer because it changes draft depth, draft position, twist, or mast-bend distribution. Basic sheet angle, crew balance, and centerboard position remain automatically optimized assumptions.
 _Avoid_: Every control on the boat
 
+**Outhaul ease distance**:
+The clew distance in millimetres inboard from the boom's inner black band. The control range is 0–25 mm of ease; pulling to the black band is 0 mm. Reference values use the midpoint of published tuning-guide ranges, while sea-state-only extra ease is excluded because waves are not modelled.
+_Avoid_: Percent eased, an arbitrary tension score, visually exaggerating a few millimetres of clew travel
+
 **Control response**:
 The direction and relative vertical distribution of a shape change caused by one control. It represents a pedagogical sensitivity, not a force or rig load.
 _Avoid_: Physics coefficient, measured load

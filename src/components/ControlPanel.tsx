@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { BOATS } from '../data/boats'
-import { CONTROL_LABELS } from '../domain/trimModel'
+import { CONTROL_LABELS, outhaulEaseMillimeters } from '../domain/trimModel'
 import type { BoatClass, ControlKey, TrimAction, TrimControls } from '../domain/types'
 
 type ControlPanelProps = {
@@ -24,8 +24,14 @@ type SliderMeta = {
 const SHAPE: SliderMeta[] = [
   { key: 'vang', left: '出す', right: '引く', short: '上部ツイスト' },
   { key: 'cunningham', left: '出す', right: '引く', short: 'ドラフト位置' },
-  { key: 'outhaul', left: '出す', right: '引く', short: 'メイン下部の深さ' },
+  { key: 'outhaul', left: '25 mm出す', right: 'ブラックバンド', short: '下部の深さ／バンドから' },
 ]
+
+function formatControlValue(key: ControlKey, value: number) {
+  if (key !== 'outhaul') return String(value)
+  const millimeters = outhaulEaseMillimeters(value)
+  return `${Number.isInteger(millimeters) ? millimeters : millimeters.toFixed(1)} mm`
+}
 
 const ADVANCED: Record<BoatClass, SliderMeta[]> = {
   '420': [
@@ -76,7 +82,7 @@ function ControlSlider({
       <span className="control-title">
         <strong>{CONTROL_LABELS[meta.key]}</strong>
         <small>{meta.short}</small>
-        <output>{value}</output>
+        <output>{formatControlValue(meta.key, value)}</output>
       </span>
       <span className="range-wrap" style={rangeStyle}>
         <input
@@ -86,6 +92,9 @@ function ControlSlider({
           value={value}
           disabled={locked}
           aria-label={CONTROL_LABELS[meta.key]}
+          aria-valuetext={meta.key === 'outhaul'
+            ? `ブラックバンドから${formatControlValue(meta.key, value)}出す`
+            : undefined}
           onFocus={onChangeStart}
           onPointerDown={onChangeStart}
           onInput={(event) => onChange(Number(event.currentTarget.value))}

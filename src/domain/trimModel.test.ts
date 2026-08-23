@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { calculateTrim, targetControls } from './trimModel'
+import {
+  calculateTrim,
+  outhaulEaseMillimeters,
+  targetControls,
+} from './trimModel'
 
 describe('trim model', () => {
   it('gives the target setup a high efficiency score', () => {
@@ -24,13 +28,11 @@ describe('trim model', () => {
     expect(reach.actions.map((action) => action.control)).not.toContain('mainSheet')
     expect(reach.actions.map((action) => action.control)).not.toContain('jibSheet')
     expect(reach.actions.map((action) => action.control)).toContain('vang')
-    expect(reach.actions.map((action) => action.control)).toContain('outhaul')
     expect(reach.guidance.tone).not.toBe('good')
 
     const close470 = targetControls('470', 45, 8)
     const reach470 = calculateTrim('470', 90, 8, close470)
     expect(reach470.actions.map((action) => action.control)).toContain('vang')
-    expect(reach470.actions.map((action) => action.control)).toContain('outhaul')
     expect(reach470.guidance.tone).not.toBe('good')
   })
 
@@ -140,6 +142,9 @@ describe('trim model', () => {
     const middleChange = loose.middle.draftDepth - tight.middle.draftDepth
     const upperChange = loose.upper.draftDepth - tight.upper.draftDepth
 
+    expect(outhaulEaseMillimeters(0)).toBe(25)
+    expect(outhaulEaseMillimeters(100)).toBe(0)
+    expect(lowerChange).toBeCloseTo(0.025, 8)
     expect(lowerChange).toBeGreaterThan(middleChange * 2)
     expect(middleChange).toBeGreaterThan(upperChange * 2)
   })
@@ -216,14 +221,40 @@ describe('trim model', () => {
     )
   })
 
-  it('follows the 420 guide sequence as wind builds', () => {
+  it('uses the published 420 outhaul bands as physical clew distances', () => {
     const light = targetControls('420', 45, 8)
-    const fresh = targetControls('420', 45, 16)
+    const fresh = targetControls('420', 45, 18)
 
     expect(fresh.vang).toBeGreaterThan(light.vang)
     expect(fresh.cunningham).toBeGreaterThan(light.cunningham)
     expect(fresh.outhaul).toBeGreaterThan(light.outhaul)
     expect(fresh.chock).toBeGreaterThan(light.chock)
+    expect(outhaulEaseMillimeters(light.outhaul)).toBe(22.5)
+    expect(outhaulEaseMillimeters(fresh.outhaul)).toBe(12.5)
+
+    for (const angle of [45, 90, 140]) {
+      expect(
+        outhaulEaseMillimeters(targetControls('420', angle, 12).outhaul),
+      ).toBe(22.5)
+    }
+  })
+
+  it('keeps the 470 reference within the normal 0 to 15 mm range', () => {
+    const lightUpwind = targetControls('470', 45, 8)
+    const poweredUpwind = targetControls('470', 45, 14)
+    const broad = targetControls('470', 140, 12)
+
+    expect(outhaulEaseMillimeters(lightUpwind.outhaul)).toBe(12.5)
+    expect(outhaulEaseMillimeters(poweredUpwind.outhaul)).toBe(0)
+    expect(outhaulEaseMillimeters(broad.outhaul)).toBe(15)
+
+    for (const angle of [40, 45, 90, 140, 150]) {
+      for (const wind of [4, 8, 12, 18]) {
+        expect(
+          outhaulEaseMillimeters(targetControls('470', angle, wind).outhaul),
+        ).toBeLessThanOrEqual(15)
+      }
+    }
   })
 
   it('keeps every generated stripe inside the calibrated display domain', () => {

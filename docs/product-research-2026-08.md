@@ -46,9 +46,11 @@ TRIM NOTEは1〜3を薄く広く模倣せず、420/470固有コントロール�
 
 ## 420 / 470の一次資料から固定した因果
 
-- [North Sails Japan 420 M11/M12 Tuning Guide](https://www.northsails.co.jp/wordpress/wp-content/uploads/2026/03/420-M12-Tuning-Guide_j.pdf): アウトホールは下部の深さ、チョックはバング使用時の下部形状、ジブ高さ／風上シーティングはリード角とリーチ形状に関係する。
-- [North Sails 470 Tuning Guide](https://colorcode.northsails.com/sailing/wp-content/uploads/2017/05/470_tuning_guide_e01.pdf): カニンガムを引くと最大ドラフト位置が前へ移り、リーチが開いてフラットになる。アウトホールは下部深さ、ジブトラック後退はリーチを開く。
+- [North Sails Japan 420 M11/M12 Tuning Guide](https://www.northsails.co.jp/wordpress/wp-content/uploads/2026/03/420-M12-Tuning-Guide_j.pdf): アウトホールは下部の深さを変える。表の基準はブラックバンドから1–16 ktで20–25 mm、16–20 ktで10–15 mm、20 kt超で0–10 mm。チョックはバング使用時の下部形状、ジブ高さ／風上シーティングはリード角とリーチ形状に関係する。
+- [North Sails 470 Tuning Guide](https://colorcode.northsails.com/sailing/wp-content/uploads/2017/05/470_tuning_guide_e01.pdf): カニンガムを引くと最大ドラフト位置が前へ移り、リーチが開いてフラットになる。アウトホールは0–5 m/sで通常ブラックバンドから10–15 mm、悪い波では最大25 mm、5 m/sを超えてオーバーパワーになればブラックバンドまで引く。ジブトラック後退はリーチを開く。
 - [North Sails 470 Speed Guide](https://www.northsails.com/en-ca/blogs/north-sails-blog/470-speed-guide): メインはleech/twistを中心に見て、風・海面が増すとcunningham、outhaul、vangでデパワー。ダウンウインドはouthaul/cunninghamを緩め、リーチを開く。
+
+アウトホールは抽象的な0–100%の「出し量」ではなく、ブラックバンドからの実寸距離へ換算する。操作範囲は0–25 mm、右端がブラックバンド（0 mm）である。420は上記表の各レンジ中点、470は通常海面の10–15 mmを基準とし、波を扱わない本モデルでは「悪い波」の25 mmを470の基準に採用しない。470のダウンウインドはSpeed Guideの定性的な「出す」に従うが15 mmを上限とし、進行方向だけで大幅に出す旧補間は廃止した。25 mm全域によるメイン下部ドラフト深さの変化も、コード比約6.5ポイントから約2.5ポイントへ縮小し、数mmのクリュー移動を誇張しない。
 
 ## 420 / 470のクラス別セール輪郭
 

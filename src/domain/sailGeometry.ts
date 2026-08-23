@@ -141,7 +141,7 @@ export type ClassBoomSpecification = {
 export type ClassRigSpecification = {
   /** ERS lower point measured from the mast heel datum. */
   lowerPointHeightMm: number
-  /** Headsail hoist height measured from the mast heel datum. */
+  /** ERS halyard intersection height; this is a limit, not the sail's head corner. */
   headsailHoistHeightMm: number
   /** Maximum permitted unloaded mast-spar curvature. */
   mastCurvatureMm: number
@@ -489,12 +489,16 @@ export type RigHardpoints = {
   stemhead: Vector3
   jibTack: Vector3
   jibHead: Vector3
+  jibHalyardHoist: Vector3
 }
 
 /**
  * Mounting points for both sails in the shared hull coordinate system.
- * The jib's luff length and the class-controlled hoist height determine the
- * adjustable sail tack above the stemhead fitting.
+ * ERS defines headsail hoist height at the halyard/mast intersection, not at
+ * the sail head. The jib tack therefore stays on the deck fitting and the
+ * class-rule luff runs toward that upper halyard point without being stretched
+ * up to it. This also preserves the guide baseline where the low jib foot is at
+ * the deck/waterbreak instead of floating hundreds of millimetres above it.
  */
 export function buildRigHardpoints(
   boat: BoatClass,
@@ -505,20 +509,27 @@ export function buildRigHardpoints(
   const rig = CLASS_RIG_SPECIFICATIONS[boat]
   const mainTack = mainLuffPoint(boat, 0, mastBend)
   const mainHead = mainLuffPoint(boat, 1, mastBend)
-  const jibHeadHeight =
+  const halyardHoistFraction =
     (rig.headsailHoistHeightMm - rig.lowerPointHeightMm) /
     sails.main.luffMm
-  const jibHead = mainLuffPoint(boat, jibHeadHeight, mastBend)
-  const jibTackX = hull.jibTack.x
-  const horizontalLuff = jibHead.x - jibTackX
-  const luffLength = sails.jib.luffMm / SAIL_GEOMETRY_UNIT_MM
-  const verticalLuff = Math.sqrt(
-    Math.max(0, luffLength ** 2 - horizontalLuff ** 2),
+  const halyardHoistPoint = mainLuffPoint(
+    boat,
+    halyardHoistFraction,
+    mastBend,
   )
   const jibTack = {
-    x: jibTackX,
-    y: 0,
-    z: jibHead.z - verticalLuff,
+    x: hull.jibTack.x,
+    y: hull.jibTack.y,
+    z: hull.jibTack.z,
+  }
+  const luffLength = sails.jib.luffMm / SAIL_GEOMETRY_UNIT_MM
+  const jibLuffDirection = normalizeVector({
+    x: halyardHoistPoint.x - jibTack.x,
+    y: halyardHoistPoint.y - jibTack.y,
+    z: halyardHoistPoint.z - jibTack.z,
+  })
+  const jibHead = {
+    ...addVector(jibTack, scaleVector(jibLuffDirection, luffLength)),
   }
 
   return {
@@ -528,6 +539,7 @@ export function buildRigHardpoints(
     stemhead: hull.jibTack,
     jibTack,
     jibHead,
+    jibHalyardHoist: halyardHoistPoint,
   }
 }
 

@@ -53,8 +53,8 @@ A single three-dimensional form of one sail whose horizontal sections carry the 
 _Avoid_: Separate drawings for each view, decorative sail curve
 
 **Fixed-luff jib basis**:
-A local three-dimensional coordinate system whose rotation axis is the line from jib tack to jib head. Sheet angle and twist rotate chord directions around that axis while the class-rule luff, leech, foot, and top-width corner distances remain invariant.
-_Avoid_: Rotating every jib stripe in the horizontal plane, stretching a sail edge when the sheet angle changes
+A local three-dimensional coordinate system whose rotation axis is the line from the deck tack fitting toward the halyard hoist point. The class-rule luff ends below that measurement point: ERS headsail hoist height is measured at the halyard/mast intersection and is not the sail head position. Sheet angle and twist rotate chord directions around the fixed luff while the class-rule luff, leech, foot, and top-width corner distances remain invariant.
+_Avoid_: Rotating every jib stripe in the horizontal plane, stretching a sail edge when the sheet angle changes, placing the sail head at the halyard measurement limit and lifting the tack off the deck
 
 **Class-rule planform**:
 The flat outline beneath the live three-dimensional shape. Main leech length, foot length, quarter/half/three-quarter widths, top width, jib edge lengths, and batten layouts are calibrated separately for 420 and 470 from the current World Sailing class-rule measurement envelopes and representative current class sails. It is a representative legal-class silhouette, not the proprietary cut of one sailmaker or one measured sail.

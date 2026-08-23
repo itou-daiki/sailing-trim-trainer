@@ -362,7 +362,7 @@ describe('single sail surface geometry', () => {
     }
   })
 
-  it('places both sails from the class mast-heel datum and stemhead centreline', () => {
+  it('anchors the jib at the deck fitting and treats hoist height as a halyard limit', () => {
     for (const boat of ['420', '470'] as const) {
       const hardpoints = buildRigHardpoints(boat)
       const rig = CLASS_RIG_SPECIFICATIONS[boat]
@@ -373,12 +373,16 @@ describe('single sail surface geometry', () => {
       expect((hardpoints.mainTack.z - hardpoints.mastHeel.z) * SAIL_GEOMETRY_UNIT_MM)
         .toBeCloseTo(rig.lowerPointHeightMm, 8)
       expect((hardpoints.jibHead.z - hardpoints.mastHeel.z) * SAIL_GEOMETRY_UNIT_MM)
-        .toBeCloseTo(rig.headsailHoistHeightMm, 8)
+        .toBeLessThan(rig.headsailHoistHeightMm)
       expect(distanceMm(hardpoints.jibTack, hardpoints.jibHead))
         .toBeCloseTo(jib.luffMm, 8)
+      expect(distanceMm(hardpoints.jibTack, hardpoints.jibHalyardHoist))
+        .toBeGreaterThan(jib.luffMm)
       expect(hardpoints.jibTack.x).toBeCloseTo(hardpoints.stemhead.x, 12)
       expect(hardpoints.jibTack.y).toBe(0)
-      expect(hardpoints.jibTack.z).toBeGreaterThan(hardpoints.stemhead.z)
+      expect(hardpoints.jibTack.z).toBeCloseTo(hardpoints.stemhead.z, 12)
+      expect(Math.abs(hardpoints.jibHead.x - hardpoints.mainHead.x) * SAIL_GEOMETRY_UNIT_MM)
+        .toBeGreaterThan(100)
     }
   })
 

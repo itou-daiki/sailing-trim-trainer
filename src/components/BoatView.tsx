@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import {
   buildBoomGeometry,
+  buildRigHardpoints,
   buildRigSurfaces,
   CLASS_SAIL_SPECIFICATIONS,
   DRAFT_PEAK_COLUMN,
@@ -349,6 +350,7 @@ function ProjectionPanel({
   active,
   referenceMode,
   boat,
+  mastBend,
 }: {
   view: ProjectionView
   actual: RigSurfaces
@@ -356,6 +358,7 @@ function ProjectionPanel({
   active: Focus
   referenceMode: ComparisonMode
   boat: BoatClass
+  mastBend: number
 }) {
   const dimensions: Record<ProjectionView, { width: number; height: number }> = {
     top: { width: 760, height: 160 },
@@ -386,6 +389,7 @@ function ProjectionPanel({
     ...boom.centreline,
   ].map(project)
   const hull = buildHullGeometry(boat)
+  const rigHardpoints = buildRigHardpoints(boat, mastBend)
   const projectedHullPoints = [
     ...hull.deckOutline,
     ...hull.cockpitOutline,
@@ -418,9 +422,15 @@ function ProjectionPanel({
     .rows.map((row) => row.points[0])
   const projectedMastHeel = project(hull.mastBase)
   const projectedStemhead = project(hull.jibTack)
+  const projectedJibHalyardHoist = project(rigHardpoints.jibHalyardHoist)
   const actualMastLine = [projectedMastHeel, ...actualMast]
   const referenceMastLine = [projectedMastHeel, ...referenceMast]
   const jibTackStrop = [projectedStemhead, actualJibLuff[0]]
+  const jibLuffAndHalyard = [
+    projectedStemhead,
+    ...actualJibLuff.slice(1),
+    projectedJibHalyardHoist,
+  ]
   const aftCentreline = view === 'aft'
     ? [
         project({ x: 0, y: 0, z: hullBottom }),
@@ -468,7 +478,7 @@ function ProjectionPanel({
           aftAzimuthDegrees={boomAzimuthDegrees}
         />
         <path className="geometry-jib-tack-strop" d={path(jibTackStrop, map)} />
-        <path className="geometry-forestay" d={path(actualJibLuff, map)} />
+        <path className="geometry-forestay" d={path(jibLuffAndHalyard, map)} />
         <path className={`geometry-mast-target is-${referenceMode}`} d={path(referenceMastLine, map)} />
         <path className="geometry-mast" d={path(actualMastLine, map)} />
         {referenceProjected.map((surface) => (
@@ -661,6 +671,7 @@ export function BoatView({
             active={active}
             referenceMode={comparisonMode}
             boat={boat}
+            mastBend={result.actual.main.mastBend}
           />
         ))}
       </div>

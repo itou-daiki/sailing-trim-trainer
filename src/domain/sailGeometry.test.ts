@@ -11,6 +11,7 @@ import {
   CLASS_MAST_SPECIFICATIONS,
   CLASS_RIG_SPECIFICATIONS,
   CLASS_SAIL_SPECIFICATIONS,
+  createBoomAftSailCamera,
   createBoomEndCamera,
   fitProjection,
   getLevelRow,
@@ -514,6 +515,49 @@ describe('single sail surface geometry', () => {
           z: camera.origin.z,
         }
         expect(projectBoomEndCoordinate(starboardDatum, camera).x).toBeGreaterThan(0)
+
+        const projectedMain = projectSurface(
+          main,
+          'aft',
+          AFT_VIEW_DEGREES,
+          (point) => projectBoomEndCoordinate(point, camera),
+        )
+        expect(projectedMain.rows.flatMap((row) => row.points).every((point) =>
+          Number.isFinite(point.x) && Number.isFinite(point.y))).toBe(true)
+      }
+    }
+  })
+
+  it('keeps the eye behind the boom while aiming the camera up through the mainsail', () => {
+    for (const boat of ['420', '470'] as const) {
+      for (const trueWindAngle of [45, 90, 140]) {
+        const result = calculateTrim(
+          boat,
+          trueWindAngle,
+          12,
+          targetControls(boat, trueWindAngle, 12),
+        )
+        const main = buildRigSurfaces(boat, result.actual).main
+        const boom = buildBoomGeometry(boat, main)
+        const [start, end] = boom.centreline
+        const target = {
+          x: start.x + (end.x - start.x) * 0.43,
+          y: start.y + (end.y - start.y) * 0.43,
+          z: start.z + CLASS_SAIL_SPECIFICATIONS[boat].main.luffMm /
+            SAIL_GEOMETRY_UNIT_MM * 0.5,
+        }
+        const camera = createBoomAftSailCamera(start, end, target)
+        const targetProjection = projectBoomEndCoordinate(target, camera)
+        const cameraOffsetMm = Math.hypot(
+          camera.origin.x - end.x,
+          camera.origin.y - end.y,
+          camera.origin.z - end.z,
+        ) * SAIL_GEOMETRY_UNIT_MM
+
+        expect(cameraOffsetMm).toBeCloseTo(BOOM_END_CAMERA_OFFSET_MM, 10)
+        expect(targetProjection.x).toBeCloseTo(0, 12)
+        expect(targetProjection.y).toBeCloseTo(0, 12)
+        expect(camera.forward.z).toBeGreaterThan(0)
 
         const projectedMain = projectSurface(
           main,

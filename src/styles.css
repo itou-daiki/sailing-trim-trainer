@@ -5519,9 +5519,7 @@ footer p { margin: 0; }
 }
 
 .geometry-panel-aft .geometry-camera-centreline {
-  stroke: #5c7778;
-  stroke-dasharray: 2 5;
-  opacity: 0.55;
+  opacity: 0;
 }
 
 .geometry-perspective-key rect {
@@ -5537,89 +5535,50 @@ footer p { margin: 0; }
   letter-spacing: 0.08em;
 }
 
-.geometry-perspective-key .is-port,
-.geometry-perspective-key .is-starboard {
-  fill: #4e696c;
-  stroke: rgba(250, 251, 247, 0.96);
-  stroke-width: 2.2px;
-  paint-order: stroke fill;
-  font-size: 6px;
+.geometry-panel-aft .geometry-current.geometry-main .geometry-sail-fill {
+  fill: rgba(248, 222, 207, 0.72);
 }
 
-.geometry-aft-section-chord,
-.geometry-aft-section-current,
-.geometry-aft-section-reference {
+.geometry-panel-aft .geometry-current.geometry-main .geometry-sail-outline {
+  stroke: #264d54;
+  stroke-width: 1.65;
+}
+
+.geometry-panel-aft .geometry-current.geometry-main .geometry-sail-face {
+  fill: #df7554;
+  stroke: rgba(95, 72, 63, 0.17);
+  opacity: calc(var(--face-opacity) * 1.35);
+}
+
+.geometry-aft-sail-edges path {
   fill: none;
   vector-effect: non-scaling-stroke;
 }
 
-.geometry-aft-section-chord {
-  stroke: #9badab;
-  stroke-width: 0.7;
-  stroke-dasharray: 2 3;
+.geometry-aft-sail-edges .geometry-aft-luff {
+  stroke: #173d46;
+  stroke-width: 2.45;
 }
 
-.geometry-aft-section-current {
-  stroke: #d64e2d;
-  stroke-width: 2.1;
+.geometry-aft-sail-edges .geometry-aft-leech {
+  stroke: #8f3a24;
+  stroke-width: 2.65;
 }
 
-.geometry-aft-section-stack.is-jib .geometry-aft-section-current {
-  stroke: #176d76;
-}
-
-.geometry-aft-section-reference {
-  stroke: #168077;
-  stroke-width: 1.15;
-  stroke-dasharray: 5 3;
-  opacity: 0.78;
-}
-
-.geometry-aft-section-reference.is-previous {
-  stroke: #536d86;
-  stroke-dasharray: 2 3;
-}
-
-.geometry-aft-section-stack > g:not(.is-selected) {
-  opacity: 0.7;
-}
-
-.geometry-aft-section-stack > g.is-selected .geometry-aft-section-current {
-  stroke-width: 3.25;
-}
-
-.geometry-aft-section-title,
-.geometry-aft-section-axis,
-.geometry-aft-section-level,
-.geometry-aft-section-value {
-  fill: #36565c;
+.geometry-aft-stripe-label {
+  fill: #294c52;
   paint-order: stroke;
   stroke: rgba(250, 251, 247, 0.96);
-  stroke-width: 2.2px;
+  stroke-width: 2.8px;
+  stroke-linejoin: round;
   font-family: var(--mono);
   font-size: 6px;
-  font-weight: 800;
-}
-
-.geometry-aft-section-title {
-  fill: #173d46;
-  font-size: 7px;
   font-weight: 900;
-  letter-spacing: 0.05em;
 }
 
-.geometry-aft-section-axis {
-  fill: #728789;
-  font-size: 5.2px;
-}
-
-.geometry-aft-section-level {
-  font-size: 5.6px;
-}
-
-.geometry-aft-section-value {
-  fill: #6c4d43;
-  font-size: 5.2px;
+.geometry-aft-stripe-label {
+  fill: #9d3d25;
+  font-size: 6.5px;
 }
 
 .geometry-panel-aft figcaption {

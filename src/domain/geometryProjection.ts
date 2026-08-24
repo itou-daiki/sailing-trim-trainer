@@ -136,6 +136,72 @@ export function createBoomEndCamera(
   }
 }
 
+/**
+ * Keeps the eye on the boom's aft extension, then tilts it through the
+ * mainsail instead of looking horizontally along the spar. This matches the
+ * way a sailor at the boom end looks up to read all three draft stripes.
+ */
+export function createBoomAftSailCamera(
+  boomStart: Coordinate3D,
+  boomEnd: Coordinate3D,
+  target: Coordinate3D,
+  offsetMm = BOOM_END_CAMERA_OFFSET_MM,
+): BoomEndCamera {
+  const horizontalAft = {
+    x: boomEnd.x - boomStart.x,
+    y: boomEnd.y - boomStart.y,
+    z: 0,
+  }
+  const horizontalLength = Math.hypot(horizontalAft.x, horizontalAft.y)
+  if (horizontalLength < 1e-12) {
+    throw new Error('Boom-aft sail camera requires a non-zero boom axis')
+  }
+  const aft = {
+    x: horizontalAft.x / horizontalLength,
+    y: horizontalAft.y / horizontalLength,
+    z: 0,
+  }
+  const offset = offsetMm / SAIL_GEOMETRY_UNIT_MM
+  const origin = {
+    x: boomEnd.x + aft.x * offset,
+    y: boomEnd.y + aft.y * offset,
+    z: boomEnd.z,
+  }
+  const toTarget = {
+    x: target.x - origin.x,
+    y: target.y - origin.y,
+    z: target.z - origin.z,
+  }
+  const targetDistance = Math.hypot(toTarget.x, toTarget.y, toTarget.z)
+  if (targetDistance < 1e-12) {
+    throw new Error('Boom-aft sail camera target must differ from its origin')
+  }
+  const forward = {
+    x: toTarget.x / targetDistance,
+    y: toTarget.y / targetDistance,
+    z: toTarget.z / targetDistance,
+  }
+  const horizontalForwardLength = Math.hypot(forward.x, forward.y)
+  const right = {
+    x: forward.y / horizontalForwardLength,
+    y: -forward.x / horizontalForwardLength,
+    z: 0,
+  }
+  const up = {
+    x: right.y * forward.z,
+    y: -right.x * forward.z,
+    z: right.x * forward.y - right.y * forward.x,
+  }
+
+  return {
+    origin,
+    forward,
+    right,
+    up,
+    near: BOOM_END_CAMERA_NEAR_MM / SAIL_GEOMETRY_UNIT_MM,
+  }
+}
+
 /** Perspective projection for the true boom-end teaching camera. */
 export function projectBoomEndCoordinate(
   point: Coordinate3D,

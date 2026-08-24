@@ -165,24 +165,63 @@ function HullLayer({
   const hull = buildHullGeometry(boat)
   const project = (points: HullPoint[]) => projectHullLine(points, view, aftAzimuthDegrees)
   const panels = hull.panels.map(project)
+  const transomFaces = hull.transomFaces.map(project)
+  const deckFaces = hull.deckFaces.map(project)
+  const cockpitFloorFaces = hull.cockpitFloorFaces.map(project)
+  const cockpitWallFaces = hull.cockpitWallFaces.map(project)
+  const centerboardCaseFaces = hull.centerboardCaseFaces.map(project)
+  const thwartFaces = hull.thwartFaces.map(project)
+  const breakwaterFaces = hull.breakwaterFaces.map(project)
   const stationLines = hull.stationLines.map(project)
   const deckOutline = project(hull.deckOutline)
   const cockpitOutline = project(hull.cockpitOutline)
+  const cockpitFloorOutline = project(hull.cockpitFloorOutline)
   const centerline = project(hull.centerline)
+  const gunwaleLines = hull.gunwaleLines.map(project)
+  const centerboardCaseOutline = project(hull.centerboardCaseOutline)
+  const mainsheetTrack = project(hull.mainsheetTrack)
   const mastBase = project([hull.mastBase])[0]
   const jibTack = project([hull.jibTack])[0]
 
   return (
     <g className={`geometry-hull-model is-${view}`}>
+      <title>{boat}級の外板、甲板、コクピット、センターボードケース</title>
       {panels.map((panel, index) => (
         <path key={`panel-${index}`} className="geometry-hull-panel" d={path(panel, map, true)} />
       ))}
-      <path className="geometry-hull-deck" d={path(deckOutline, map, true)} />
+      {transomFaces.map((face, index) => (
+        <path key={`transom-${index}`} className="geometry-hull-transom" d={path(face, map, true)} />
+      ))}
+      {deckFaces.map((face, index) => (
+        <path key={`deck-${index}`} className="geometry-hull-deck-face" d={path(face, map, true)} />
+      ))}
+      {cockpitFloorFaces.map((face, index) => (
+        <path key={`cockpit-floor-${index}`} className="geometry-cockpit-floor" d={path(face, map, true)} />
+      ))}
+      {cockpitWallFaces.map((face, index) => (
+        <path key={`cockpit-wall-${index}`} className="geometry-cockpit-wall" d={path(face, map, true)} />
+      ))}
+      {centerboardCaseFaces.map((face, index) => (
+        <path key={`case-${index}`} className="geometry-centerboard-case" d={path(face, map, true)} />
+      ))}
+      {thwartFaces.map((face, index) => (
+        <path key={`thwart-${index}`} className="geometry-thwart" d={path(face, map, true)} />
+      ))}
+      {breakwaterFaces.map((face, index) => (
+        <path key={`breakwater-${index}`} className="geometry-breakwater" d={path(face, map, true)} />
+      ))}
       {stationLines.map((line, index) => (
         <path key={`station-${index}`} className="geometry-hull-station" d={path(line, map)} />
       ))}
+      <path className="geometry-hull-deck-outline" d={path(deckOutline, map, true)} />
+      {gunwaleLines.map((line, index) => (
+        <path key={`gunwale-${index}`} className="geometry-gunwale" d={path(line, map)} />
+      ))}
       <path className="geometry-hull-centerline" d={path(centerline, map)} />
-      <path className="geometry-cockpit" d={path(cockpitOutline, map, true)} />
+      <path className="geometry-cockpit-rim" d={path(cockpitOutline, map, true)} />
+      <path className="geometry-cockpit-floor-outline" d={path(cockpitFloorOutline, map, true)} />
+      <path className="geometry-centerboard-case-outline" d={path(centerboardCaseOutline, map, true)} />
+      <path className="geometry-mainsheet-track" d={path(mainsheetTrack, map)} />
       <circle className="geometry-hardpoint" cx={map(mastBase).x} cy={map(mastBase).y} r="2.8" />
       <circle className="geometry-hardpoint is-jib" cx={map(jibTack).x} cy={map(jibTack).y} r="2.4" />
     </g>
@@ -452,11 +491,7 @@ function ProjectionPanel({
   ].map(project)
   const hull = buildHullGeometry(boat)
   const rigHardpoints = buildRigHardpoints(boat, mastBend)
-  const projectedHullPoints = [
-    ...hull.deckOutline,
-    ...hull.cockpitOutline,
-    ...hull.sections.flat(),
-  ].map((point) => {
+  const projectedHullPoints = hull.allPoints.map((point) => {
     const projected = projectHullPoint(point, view, boomAzimuthDegrees)
     return { x: projected.screenX, y: projected.screenY }
   })

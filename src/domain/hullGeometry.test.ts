@@ -72,4 +72,68 @@ describe('class-specific hull geometry', () => {
       expect(hull.jibTack.y).toBe(0)
     }
   })
+
+  it('builds the visible construction as a closed multi-part dinghy model', () => {
+    for (const boat of ['420', '470'] as const) {
+      const hull = buildHullGeometry(boat)
+
+      expect(hull.transomFaces).toHaveLength(1)
+      expect(hull.deckFaces.length).toBeGreaterThan(hull.sections.length)
+      expect(hull.cockpitFloorFaces.length).toBeGreaterThan(4)
+      expect(hull.cockpitWallFaces.length).toBeGreaterThan(8)
+      expect(hull.centerboardCaseFaces.length).toBeGreaterThan(8)
+      expect(hull.thwartFaces).toHaveLength(5)
+      expect(hull.breakwaterFaces.length).toBeGreaterThan(12)
+      expect(hull.gunwaleLines).toHaveLength(2)
+      expect(hull.mainsheetTrack).toHaveLength(2)
+
+      const transomIds = new Set(hull.transomFaces[0].map((point) => point.id))
+      for (const point of hull.sections[0]) expect(transomIds.has(point.id)).toBe(true)
+      expect(hull.transomFaces[0][0].id).toBe(hull.transomFaces[0].at(-1)!.id)
+      expect(hull.cockpitFloorOutline[0].x).toBeCloseTo(hull.sections[0][0].x, 12)
+      expect(hull.centerline.at(-1)!.z).toBeCloseTo(
+        hull.sections.at(-1)![Math.floor(hull.sections.at(-1)!.length / 2)].z,
+        12,
+      )
+    }
+  })
+
+  it('keeps cockpit furniture within its class-plan dimensions', () => {
+    for (const boat of ['420', '470'] as const) {
+      const specification = HULL_SPECIFICATIONS[boat]
+      const hull = buildHullGeometry(boat)
+      const casePoints = hull.centerboardCaseFaces.flat()
+      const maximumCaseWidth = Math.max(...casePoints.map((point) => Math.abs(point.y))) * 2
+
+      expect(maximumCaseWidth * SAIL_GEOMETRY_UNIT_MM).toBeCloseTo(
+        specification.centerboardCase.halfWidthMm * 2,
+        8,
+      )
+      expect(
+        Math.abs(hull.mainsheetTrack[0].x - hull.mainsheetTrack[1].x),
+      ).toBeCloseTo(0, 12)
+      expect(
+        (specification.mastFromAftMm / SAIL_GEOMETRY_UNIT_MM) -
+          hull.mainsheetTrack[0].x,
+      ).toBeCloseTo(specification.mainsheetTrackFromAftMm / SAIL_GEOMETRY_UNIT_MM, 8)
+    }
+  })
+
+  it('keeps the cockpit below its rim and every generated coordinate finite', () => {
+    for (const boat of ['420', '470'] as const) {
+      const hull = buildHullGeometry(boat)
+      const highestFloorPoint = Math.max(
+        ...hull.cockpitFloorFaces.flat().map((point) => point.z),
+      )
+      const lowestRimPoint = Math.min(...hull.cockpitOutline.map((point) => point.z))
+
+      expect(highestFloorPoint).toBeLessThan(lowestRimPoint)
+      expect(hull.allPoints.length).toBeGreaterThan(500)
+      for (const point of hull.allPoints) {
+        expect(Number.isFinite(point.x)).toBe(true)
+        expect(Number.isFinite(point.y)).toBe(true)
+        expect(Number.isFinite(point.z)).toBe(true)
+      }
+    }
+  })
 })

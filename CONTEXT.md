@@ -72,6 +72,10 @@ _Avoid_: Treating the clew, outer point, and physical boom end as the same point
 A closed twelve-face elliptical spar that starts at the deck and follows the same live bend axis as the mainsail. Its representative 420 and 470 sections use the midpoint of each current class-rule fore-aft and transverse envelope. The actual extrusion profile remains manufacturer-specific, so the model does not claim to reproduce one proprietary section.
 _Avoid_: Drawing the mast as a stroked centreline, extending a visible line through the hull, inflating the section merely to make it readable
 
+**Class construction hull model**:
+A closed teaching mesh constrained by each World Sailing building plan. The hull shell, transom, crowned deck, side decks, gunwales, cockpit well, centreboard case, thwart, mainsheet track, and breakwater are separate three-dimensional parts in one coordinate system. Published dimensions and arrangement limits are authoritative; fairing between them is a representative interpolation because a builder's production mould surface is not public class data.
+_Avoid_: A filled plan-view silhouette, separate hull icons for each camera, claiming manufacturer-CAD identity
+
 **Automatic boom angle**:
 The angle between the boom and the hull centreline, with zero degrees on the centreline. It is solved from true wind plus estimated boat speed: close-hauled calibration follows the class guide, reaching trim keeps a 15-degree teaching angle to apparent wind, and broad trim stops at the representative shroud limit. A slower or faster shape therefore changes apparent wind and the automatically optimized angle.
 _Avoid_: One wind-independent angle; interpolating from true wind alone; confusing true wind angle with apparent wind or boom angle

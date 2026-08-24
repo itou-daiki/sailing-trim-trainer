@@ -4463,25 +4463,48 @@ footer p { margin: 0; }
 }
 
 .geometry-hull-panel,
-.geometry-hull-deck,
+.geometry-hull-transom,
+.geometry-hull-deck-face,
+.geometry-hull-deck-outline,
 .geometry-hull-station,
 .geometry-hull-centerline,
-.geometry-cockpit,
+.geometry-gunwale,
+.geometry-cockpit-floor,
+.geometry-cockpit-wall,
+.geometry-cockpit-rim,
+.geometry-cockpit-floor-outline,
+.geometry-centerboard-case,
+.geometry-centerboard-case-outline,
+.geometry-thwart,
+.geometry-breakwater,
+.geometry-mainsheet-track,
 .geometry-jib-tack-strop,
 .geometry-forestay {
   vector-effect: non-scaling-stroke;
 }
 
 .geometry-hull-panel {
-  fill: rgba(183, 201, 198, 0.34);
-  stroke: rgba(70, 96, 101, 0.3);
-  stroke-width: 0.55;
+  fill: rgba(173, 194, 190, 0.25);
+  stroke: rgba(63, 88, 93, 0.28);
+  stroke-width: 0.48;
 }
 
-.geometry-hull-deck {
-  fill: rgba(229, 235, 230, 0.78);
-  stroke: #3f5f65;
-  stroke-width: 1.55;
+.geometry-hull-transom {
+  fill: rgba(151, 177, 174, 0.78);
+  stroke: #385a60;
+  stroke-width: 1.05;
+}
+
+.geometry-hull-deck-face {
+  fill: rgba(230, 235, 229, 0.94);
+  stroke: rgba(81, 105, 105, 0.34);
+  stroke-width: 0.5;
+}
+
+.geometry-hull-deck-outline {
+  fill: none;
+  stroke: #294f57;
+  stroke-width: 1.45;
 }
 
 .geometry-hull-station {
@@ -4498,10 +4521,67 @@ footer p { margin: 0; }
   stroke-dasharray: 5 4;
 }
 
-.geometry-cockpit {
-  fill: rgba(83, 111, 113, 0.3);
-  stroke: #4a696d;
-  stroke-width: 1.1;
+.geometry-gunwale {
+  fill: none;
+  stroke: #294f57;
+  stroke-width: 1.85;
+}
+
+.geometry-cockpit-floor {
+  fill: rgba(72, 99, 101, 0.46);
+  stroke: rgba(42, 69, 73, 0.46);
+  stroke-width: 0.55;
+}
+
+.geometry-cockpit-wall {
+  fill: rgba(116, 143, 141, 0.52);
+  stroke: rgba(47, 76, 80, 0.55);
+  stroke-width: 0.62;
+}
+
+.geometry-cockpit-rim,
+.geometry-cockpit-floor-outline {
+  fill: none;
+  stroke: #3c6065;
+}
+
+.geometry-cockpit-rim {
+  stroke-width: 1.25;
+}
+
+.geometry-cockpit-floor-outline {
+  stroke-width: 0.7;
+  opacity: 0.88;
+}
+
+.geometry-centerboard-case {
+  fill: rgba(212, 218, 207, 0.96);
+  stroke: #48686b;
+  stroke-width: 0.62;
+}
+
+.geometry-centerboard-case-outline {
+  fill: none;
+  stroke: #294f57;
+  stroke-width: 1.05;
+}
+
+.geometry-thwart {
+  fill: rgba(196, 205, 197, 0.98);
+  stroke: #3b5d62;
+  stroke-width: 0.66;
+}
+
+.geometry-breakwater {
+  fill: rgba(229, 232, 222, 0.98);
+  stroke: #244a53;
+  stroke-width: 0.72;
+}
+
+.geometry-mainsheet-track {
+  fill: none;
+  stroke: #2b4247;
+  stroke-width: 2.05;
 }
 
 .geometry-hardpoint {
@@ -4529,7 +4609,17 @@ footer p { margin: 0; }
 }
 
 .geometry-hull-model.is-top .geometry-hull-panel {
-  fill: rgba(171, 195, 191, 0.18);
+  fill: rgba(171, 195, 191, 0.11);
+  stroke: rgba(70, 96, 101, 0.18);
+}
+
+.geometry-hull-model.is-top .geometry-hull-station {
+  opacity: 0.24;
+}
+
+.geometry-hull-model.is-side .geometry-cockpit-floor,
+.geometry-hull-model.is-aft .geometry-cockpit-floor {
+  fill: rgba(64, 91, 94, 0.54);
 }
 
 .geometry-hull-model.is-aft .geometry-hull-station {

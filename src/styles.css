@@ -4320,6 +4320,7 @@ footer p { margin: 0; }
 
 .geometry-legend .legend-main { border-color: #d64e2d; }
 .geometry-legend .legend-jib { border-color: #176d76; }
+.geometry-legend .legend-black-band { border-color: #12252b; border-top-width: 5px; }
 .geometry-legend .legend-reference.is-target { border-color: #168077; border-top-style: dashed; }
 .geometry-legend .legend-reference.is-previous { border-color: #536d86; border-top-style: dotted; }
 
@@ -4714,6 +4715,7 @@ footer p { margin: 0; }
 }
 
 .geometry-boom-face,
+.geometry-boom-limit-mark,
 .geometry-boom-centreline,
 .geometry-boom-outer-point,
 .geometry-boom-end,
@@ -4729,6 +4731,12 @@ footer p { margin: 0; }
   stroke-width: 0.7;
 }
 
+.geometry-boom-limit-mark {
+  fill: #12252b;
+  stroke: #071317;
+  stroke-width: 0.9;
+}
+
 .geometry-boom-centreline {
   fill: none;
   stroke: rgba(246, 249, 244, 0.62);
@@ -4738,7 +4746,46 @@ footer p { margin: 0; }
 .geometry-boom-outer-point {
   fill: none;
   stroke: #d84f2d;
-  stroke-width: 2.2;
+  stroke-width: 1.2;
+}
+
+.geometry-outhaul-position path,
+.geometry-outhaul-position circle {
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-outhaul-position path {
+  fill: none;
+  stroke: #d84f2d;
+  stroke-width: 1.5;
+}
+
+.geometry-outhaul-position .is-clew {
+  fill: #f6c544;
+  stroke: #142f37;
+  stroke-width: 1.1;
+}
+
+.geometry-outhaul-position .is-clew-hole {
+  fill: #102b33;
+  stroke: #f5f4e9;
+  stroke-width: 0.6;
+}
+
+.geometry-outhaul-position .is-outer-point {
+  fill: #12252b;
+  stroke: #f3f5ee;
+  stroke-width: 0.8;
+}
+
+.geometry-outhaul-position text {
+  fill: #8b341f;
+  paint-order: stroke;
+  stroke: rgba(250, 251, 247, 0.98);
+  stroke-width: 2.5px;
+  font-family: var(--mono);
+  font-size: 6.5px;
+  font-weight: 900;
 }
 
 .geometry-boom-end {

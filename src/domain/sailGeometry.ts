@@ -64,9 +64,13 @@ export type BoomPoint = {
 
 export type BoomGeometry = {
   faces: BoomPoint[][]
+  limitMarkFaces: BoomPoint[][]
   centreline: [BoomPoint, BoomPoint]
   outerPointSection: BoomPoint[]
   outerPoint: BoomPoint
+  tack: BoomPoint
+  clew: BoomPoint
+  outhaulEaseMm: number
   aftEnd: {
     center: BoomPoint
     outer: BoomPoint[]
@@ -113,7 +117,10 @@ type ClassSailSpecification = {
     /** Maximum distance between the mast lower and upper points. */
     luffMm: number
     leechMm: number
-    footMm: number
+    /** Length of boltrope sewn into the foot; not the tack-to-clew distance. */
+    footBoltropeMm: number
+    /** Representative cutback from the mast's aft face to the tack corner. */
+    tackSetbackMm: number
     crossWidths: MainCrossWidth[]
     outline: SailOutlineStation[]
     battens: BattenStation[]
@@ -134,6 +141,8 @@ export type ClassBoomSpecification = {
   /** Representative legal section used by this learning model. */
   verticalMm: number
   transverseMm: number
+  /** ERS minimum width of the contrasting outer limit mark. */
+  limitMarkWidthMm: number
   /** Display assumption for the permitted aft end fitting beyond the outer point. */
   aftEndFittingMm: number
 }
@@ -181,9 +190,9 @@ export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification
     main: {
       luffMm: 4900,
       leechMm: 5400,
-      footMm: 1920,
+      footBoltropeMm: 1920,
+      tackSetbackMm: 20,
       crossWidths: [
-        { height: 0, widthMm: 1920 },
         { height: 0.25, widthMm: 2130 },
         { height: 0.5, widthMm: 1630 },
         { height: 0.75, widthMm: 995 },
@@ -207,7 +216,7 @@ export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification
         { height: 0.8125, chordRatio: 0.351, luffRakeRatio: 0.120 },
         { height: 0.875, chordRatio: 0.246, luffRakeRatio: 0.134 },
         { height: 0.9375, chordRatio: 0.142, luffRakeRatio: 0.149 },
-        { height: 1, chordRatio: 115 / 1920, luffRakeRatio: 0.167 },
+        { height: 1, chordRatio: 115 / 2380, luffRakeRatio: 0.167 },
       ],
       battens: [
         { height: 1 - 4220 / 5400, startU: 0.74 },
@@ -251,9 +260,9 @@ export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification
     main: {
       luffMm: 5750,
       leechMm: 6265,
-      footMm: 2200,
+      footBoltropeMm: 2200,
+      tackSetbackMm: 10,
       crossWidths: [
-        { height: 0, widthMm: 2200 },
         { height: 0.25, widthMm: 2340 },
         { height: 0.5, widthMm: 1790 },
         { height: 0.75, widthMm: 1050 },
@@ -276,7 +285,7 @@ export const CLASS_SAIL_SPECIFICATIONS: Record<BoatClass, ClassSailSpecification
         { height: 0.8125, chordRatio: 0.312, luffRakeRatio: 0.122 },
         { height: 0.875, chordRatio: 0.225, luffRakeRatio: 0.138 },
         { height: 0.9375, chordRatio: 0.134, luffRakeRatio: 0.155 },
-        { height: 1, chordRatio: 140 / 2200, luffRakeRatio: 0.178 },
+        { height: 1, chordRatio: 140 / 2640, luffRakeRatio: 0.178 },
       ],
       battens: [
         { height: 0.25, startU: 0.58 },
@@ -329,12 +338,14 @@ export const CLASS_BOOM_SPECIFICATIONS: Record<BoatClass, ClassBoomSpecification
     outerPointMm: 2400,
     verticalMm: 70,
     transverseMm: 55,
+    limitMarkWidthMm: 10,
     aftEndFittingMm: 70,
   },
   '470': {
     outerPointMm: 2650,
     verticalMm: 63,
     transverseMm: 38,
+    limitMarkWidthMm: 10,
     aftEndFittingMm: 70,
   },
 }
@@ -497,7 +508,7 @@ export function camberAt(u: number, depth: number, position: number) {
   return Math.sin(((1 - u) / (1 - peak)) * (Math.PI / 2)) * depth
 }
 
-function mainLuffPoint(
+function mastAxisPoint(
   boat: BoatClass,
   height: number,
   mastBend: number,
@@ -511,13 +522,26 @@ function mainLuffPoint(
   const permittedBend =
     normalizedBend * rig.mastCurvatureMm / SAIL_GEOMETRY_UNIT_MM
   return {
-    // The luff is in the mast groove. Product-photo outline rake must not be
-    // applied to the mast itself; only legal mast curvature moves this line.
     x: mastHeel.x - permittedBend * Math.sin(Math.PI * height),
     y: 0,
     z:
       lowerPointZ +
       (height * specification.main.luffMm) / SAIL_GEOMETRY_UNIT_MM,
+  }
+}
+
+function mainLuffPoint(
+  boat: BoatClass,
+  height: number,
+  mastBend: number,
+): Vector3 {
+  const axis = mastAxisPoint(boat, height, mastBend)
+  const mastTrackOffset =
+    CLASS_MAST_SPECIFICATIONS[boat].foreAftMm / 2 / SAIL_GEOMETRY_UNIT_MM
+  return {
+    // The luff is in the groove on the mast's aft face, not on its centreline.
+    ...axis,
+    x: axis.x + mastTrackOffset,
   }
 }
 
@@ -616,7 +640,7 @@ export function buildMastGeometry(
         0,
         1,
       )
-      const tack = mainLuffPoint(boat, 0, mastBend)
+      const tack = mastAxisPoint(boat, 0, mastBend)
       return {
         id: `${boat}:mast-axis:${stationIndex}`,
         x: lerp(hull.mastDeck.x, tack.x, amount),
@@ -625,7 +649,7 @@ export function buildMastGeometry(
       }
     }
 
-    const point = mainLuffPoint(
+    const point = mastAxisPoint(
       boat,
       (heightMm - rig.lowerPointHeightMm) / sail.luffMm,
       mastBend,
@@ -676,15 +700,27 @@ function planform(
   height: number,
   mastBend: number,
   rotation: number,
+  footEaseMm: number,
 ) {
   const specification = CLASS_SAIL_SPECIFICATIONS[boat]
   if (sail === 'main') {
     const outline = stationAtHeight(specification.main.outline, height)
-    const foot = specification.main.footMm / SAIL_GEOMETRY_UNIT_MM
     const chordDirection = { x: Math.cos(rotation), y: Math.sin(rotation), z: 0 }
+    const tackCutback = specification.main.tackSetbackMm *
+      (1 - clamp(height / 0.0625, 0, 1))
+    const referenceFootMm =
+      CLASS_BOOM_SPECIFICATIONS[boat].outerPointMm - specification.main.tackSetbackMm
+    const lowerFootInfluence = (1 - height) ** 3
+    const chordMm = Math.max(
+      1,
+      referenceFootMm * outline.chordRatio - footEaseMm * lowerFootInfluence,
+    )
     return {
-      luff: mainLuffPoint(boat, height, mastBend),
-      chord: foot * outline.chordRatio,
+      luff: addVector(
+        mainLuffPoint(boat, height, mastBend),
+        scaleVector(chordDirection, tackCutback / SAIL_GEOMETRY_UNIT_MM),
+      ),
+      chord: chordMm / SAIL_GEOMETRY_UNIT_MM,
       chordDirection,
       normalDirection: { x: -chordDirection.y, y: chordDirection.x, z: 0 },
     }
@@ -745,7 +781,7 @@ export function buildSailSurface(
   const rows = rowHeights.map((height, rowIndex): SurfaceRow => {
     const section = sectionAtHeight(shape, height)
     const angle = ((shape.angle + section.twist) * Math.PI) / 180
-    const rig = planform(boat, sail, height, rigMastBend, angle)
+    const rig = planform(boat, sail, height, rigMastBend, angle, shape.footEaseMm)
     const level = (Object.entries(LEVEL_HEIGHTS) as Array<[SailLevel, number]>)
       .find(([, levelHeight]) => levelHeight === height)?.[0]
     const battenStartU = battens.find(
@@ -848,9 +884,11 @@ export function buildBoomGeometry(
   const transverse = { x: -direction.y, y: direction.x, z: 0 }
   const halfWidth = specification.transverseMm / SAIL_GEOMETRY_UNIT_MM / 2
   const halfHeight = specification.verticalMm / SAIL_GEOMETRY_UNIT_MM / 2
+  const tackSetback =
+    CLASS_SAIL_SPECIFICATIONS[boat].main.tackSetbackMm / SAIL_GEOMETRY_UNIT_MM
   const startCenter = {
-    x: luff.x,
-    y: luff.y,
+    x: luff.x - direction.x * tackSetback,
+    y: luff.y - direction.y * tackSetback,
     z: luff.z - halfHeight,
   }
   const outerPointCenter = addVector(
@@ -870,6 +908,17 @@ export function buildBoomGeometry(
     halfWidth,
     halfHeight,
   )
+  const limitMarkAftCenter = addVector(
+    outerPointCenter,
+    scaleVector(direction, specification.limitMarkWidthMm / SAIL_GEOMETRY_UNIT_MM),
+  )
+  const limitMarkAftSection = boomSection(
+    `${boat}:boom:limit-mark:aft`,
+    limitMarkAftCenter,
+    transverse,
+    halfWidth,
+    halfHeight,
+  )
   const inner = boomSection(
     `${boat}:boom:end-opening`,
     endCenter,
@@ -878,6 +927,17 @@ export function buildBoomGeometry(
     halfHeight * 0.56,
   )
   const point = (id: string, vector: Vector3): BoomPoint => ({ id, ...vector })
+  const outerPoint = point(`${boat}:boom:outer-point`, {
+    ...outerPointCenter,
+    z: outerPointCenter.z + halfHeight,
+  })
+  const tack = point(`${boat}:boom:tack`, luff)
+  const clewPoint = point(`${boat}:boom:clew`, clew)
+  const outhaulEaseMm = Math.max(0, dotVector({
+    x: outerPoint.x - clewPoint.x,
+    y: outerPoint.y - clewPoint.y,
+    z: 0,
+  }, direction) * SAIL_GEOMETRY_UNIT_MM)
 
   return {
     faces: start.map((corner, index) => [
@@ -886,12 +946,21 @@ export function buildBoomGeometry(
       end[(index + 1) % end.length],
       start[(index + 1) % start.length],
     ]),
+    limitMarkFaces: outerPointSection.map((corner, index) => [
+      corner,
+      limitMarkAftSection[index],
+      limitMarkAftSection[(index + 1) % limitMarkAftSection.length],
+      outerPointSection[(index + 1) % outerPointSection.length],
+    ]),
     centreline: [
       point(`${boat}:boom:center:start`, startCenter),
       point(`${boat}:boom:center:end`, endCenter),
     ],
     outerPointSection,
-    outerPoint: point(`${boat}:boom:outer-point:center`, outerPointCenter),
+    outerPoint,
+    tack,
+    clew: clewPoint,
+    outhaulEaseMm,
     aftEnd: {
       center: point(`${boat}:boom:end:center`, endCenter),
       outer: end,

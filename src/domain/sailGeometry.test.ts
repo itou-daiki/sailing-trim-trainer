@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateTrim, targetControls } from './trimModel'
+import { calculateTrim, outhaulEaseMillimeters, targetControls } from './trimModel'
 import {
   AFT_VIEW_DEGREES,
   buildBoomGeometry,
@@ -157,12 +157,19 @@ describe('single sail surface geometry', () => {
       }
 
       expect(chordLength(surfaces.main.rows[0])).toBeCloseTo(
-        specification.main.footMm / SAIL_GEOMETRY_UNIT_MM,
+        (
+          CLASS_BOOM_SPECIFICATIONS[boat].outerPointMm -
+          specification.main.tackSetbackMm -
+          pair.main.footEaseMm
+        ) / SAIL_GEOMETRY_UNIT_MM,
         10,
       )
       expect(chordLength(getLevelRow(surfaces.main, 'middle'))).toBeCloseTo(
-        specification.main.footMm *
-          specification.main.outline.find((station) => station.height === 0.5)!.chordRatio /
+        (
+          (CLASS_BOOM_SPECIFICATIONS[boat].outerPointMm - specification.main.tackSetbackMm) *
+          specification.main.outline.find((station) => station.height === 0.5)!.chordRatio -
+          pair.main.footEaseMm * 0.5 ** 3
+        ) /
           SAIL_GEOMETRY_UNIT_MM,
         10,
       )
@@ -189,6 +196,8 @@ describe('single sail surface geometry', () => {
     }
     const fourTwenty = surfaces('420')
     const fourSeventy = surfaces('470')
+    const fourTwentyShape = calculateTrim('420', 45, 12, targetControls('420', 45, 12)).actual.main
+    const fourSeventyShape = calculateTrim('470', 45, 12, targetControls('470', 45, 12)).actual.main
     const height = (surface: typeof fourTwenty.main) =>
       surface.rows.at(-1)!.points[0].z - surface.rows[0].points[0].z
     const chord = (surface: typeof fourTwenty.main, level: (typeof LEVELS)[number]) => {
@@ -204,7 +213,11 @@ describe('single sail surface geometry', () => {
 
     expect(height(fourSeventy.main) / height(fourTwenty.main)).toBeCloseTo(5750 / 4900, 10)
     expect(chord(fourSeventy.main, 'middle') / chord(fourTwenty.main, 'middle')).toBeCloseTo(
-      (2200 * 0.663) / (1920 * 0.649),
+      (
+        (2650 - 10) * 0.663 - fourSeventyShape.footEaseMm * 0.5 ** 3
+      ) / (
+        (2400 - 20) * 0.649 - fourTwentyShape.footEaseMm * 0.5 ** 3
+      ),
       10,
     )
     expect(fourTwenty.main.rows.filter((row) => row.battenStartU !== undefined)).toHaveLength(4)
@@ -285,10 +298,15 @@ describe('single sail surface geometry', () => {
       const result = calculateTrim(boat, 45, 12, targetControls(boat, 45, 12))
       const boom = buildBoomGeometry(boat, buildRigSurfaces(boat, result.actual).main)
       const [start] = boom.centreline
-      const distanceMm = (point: typeof start) => Math.hypot(
-        point.x - start.x,
-        point.y - start.y,
-        point.z - start.z,
+      const [, end] = boom.centreline
+      const length = Math.hypot(end.x - start.x, end.y - start.y)
+      const direction = {
+        x: (end.x - start.x) / length,
+        y: (end.y - start.y) / length,
+      }
+      const distanceMm = (point: typeof start) => (
+        (point.x - start.x) * direction.x +
+        (point.y - start.y) * direction.y
       ) * SAIL_GEOMETRY_UNIT_MM
 
       expect(distanceMm(boom.outerPoint)).toBeCloseTo(
@@ -300,6 +318,39 @@ describe('single sail surface geometry', () => {
           CLASS_BOOM_SPECIFICATIONS[boat].aftEndFittingMm,
         10,
       )
+      const markPositions = boom.limitMarkFaces.flat().map((point) => distanceMm(point))
+      expect(Math.max(...markPositions) - Math.min(...markPositions)).toBeCloseTo(
+        CLASS_BOOM_SPECIFICATIONS[boat].limitMarkWidthMm,
+        10,
+      )
+    }
+  })
+
+  it('places the mainsail clew at the physical outhaul distance inboard of the black band', () => {
+    for (const boat of ['420', '470'] as const) {
+      for (const angle of [45, 90, 140]) {
+        for (const outhaul of [0, 50, 100]) {
+          const result = calculateTrim(boat, angle, 12, {
+            ...targetControls(boat, angle, 12),
+            outhaul,
+          })
+          const main = buildRigSurfaces(boat, result.actual).main
+          const boom = buildBoomGeometry(boat, main)
+          const [start, end] = boom.centreline
+          const length = Math.hypot(end.x - start.x, end.y - start.y)
+          const direction = {
+            x: (end.x - start.x) / length,
+            y: (end.y - start.y) / length,
+          }
+          const clew = main.rows[0].points.at(-1)!
+          const clewToBandMm = (
+            (boom.outerPoint.x - clew.x) * direction.x +
+            (boom.outerPoint.y - clew.y) * direction.y
+          ) * SAIL_GEOMETRY_UNIT_MM
+
+          expect(clewToBandMm).toBeCloseTo(outhaulEaseMillimeters(outhaul), 6)
+        }
+      }
     }
   })
 
@@ -347,9 +398,15 @@ describe('single sail surface geometry', () => {
         const topFace = boom.faces[0]
         const boomTopStart = midpoint(topFace[0], topFace[3])
 
-        expect(boomTopStart.x).toBeCloseTo(tack.x, 12)
-        expect(boomTopStart.y).toBeCloseTo(tack.y, 12)
+        expect(boom.tack).toEqual(tack)
         expect(boomTopStart.z).toBeCloseTo(tack.z, 12)
+        expect(Math.hypot(
+          tack.x - boomTopStart.x,
+          tack.y - boomTopStart.y,
+        ) * SAIL_GEOMETRY_UNIT_MM).toBeCloseTo(
+          CLASS_SAIL_SPECIFICATIONS[boat].main.tackSetbackMm,
+          10,
+        )
         for (const point of foot) {
           expect(point.x).toBeCloseTo(tack.x + (clew.x - tack.x) * point.u, 12)
           expect(point.y).toBeCloseTo(tack.y + (clew.y - tack.y) * point.u, 12)
@@ -417,8 +474,13 @@ describe('single sail surface geometry', () => {
         ...result.actual,
         main: { ...result.actual.main, mastBend: 1 },
       }).main
+      const straight = buildRigSurfaces(boat, {
+        ...result.actual,
+        main: { ...result.actual.main, mastBend: 0 },
+      }).main
       const maximumDeflectionMm = Math.max(
-        ...extreme.rows.map((row) => Math.abs(row.points[0].x)),
+        ...extreme.rows.map((row, index) =>
+          Math.abs(row.points[0].x - straight.rows[index].points[0].x)),
       ) * SAIL_GEOMETRY_UNIT_MM
 
       expect(maximumDeflectionMm).toBeLessThanOrEqual(

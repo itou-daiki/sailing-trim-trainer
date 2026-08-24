@@ -41,8 +41,12 @@ A control included in this trainer because it changes draft depth, draft positio
 _Avoid_: Every control on the boat
 
 **Outhaul ease distance**:
-The clew distance in millimetres inboard from the boom's inner black band. The control range is 0–25 mm of ease; pulling to the black band is 0 mm. The 420 reference remains at 22.5 mm through about 14 kt, then blends into the published 16–20 kt and above-20 kt bands so an overlapping boundary cannot leave the clew fully eased at 16 kt. Sea-state-only extra ease is excluded because waves are not modelled.
+The along-boom distance from the mainsail clew eye forward of the outer point at the fore edge of the black band. The control range is 0–25 mm; pulling to the band is 0 mm.
 _Avoid_: Percent eased, an arbitrary tension score, visually exaggerating a few millimetres of clew travel
+
+**Mainsail foot boltrope length**:
+The length of boltrope sewn into the mainsail foot: 1920 mm for 420 and 2200 mm for 470. It is not the straight distance from tack to clew.
+_Avoid_: Mainsail foot length, tack-to-clew chord, clew position
 
 **Control response**:
 The direction and relative vertical distribution of a shape change caused by one control. It represents a pedagogical sensitivity, not a force or rig load.
@@ -57,7 +61,7 @@ A local three-dimensional coordinate system whose rotation axis is the line from
 _Avoid_: Rotating every jib stripe in the horizontal plane, stretching a sail edge when the sheet angle changes, placing the sail head at the halyard measurement limit and lifting the tack off the deck
 
 **Class-rule planform**:
-The flat outline beneath the live three-dimensional shape. Main leech length, foot length, quarter/half/three-quarter widths, top width, jib edge lengths, and batten layouts are calibrated separately for 420 and 470 from the current World Sailing class-rule measurement envelopes and representative current class sails. It is a representative legal-class silhouette, not the proprietary cut of one sailmaker or one measured sail.
+The flat outline beneath the live three-dimensional shape. Main leech, cross widths, top width, boltrope, boom outer point and jib edge lengths are calibrated separately for 420 and 470; the clew follows the outer point rather than the boltrope length.
 _Avoid_: Uniformly scaling one generic dinghy sail, claiming an exact M-12/N14 cut
 
 **Sail projection**:
@@ -65,7 +69,7 @@ An orthographic observation of a sail surface from above, from an oblique side a
 _Avoid_: Independent top, side, and aft models
 
 **Boom outer point / aft end**:
-The class-controlled outer point is measured aft from the mast and limits the mainsail's aft extent. The physical aft end fitting can continue beyond it. The trainer keeps the two as separate 3D sections and shows the aft-end face directly in the boom-aligned camera.
+The class-controlled outer point is the fore edge of the 10 mm outer limit mark at the boom's upper edge, measured aft from the mast: 2400 mm for 420 and 2650 mm for 470. The physical aft end fitting may continue beyond it.
 _Avoid_: Treating the clew, outer point, and physical boom end as the same point; drawing a view-specific boom icon
 
 **Mast spar volume**:

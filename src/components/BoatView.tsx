@@ -242,6 +242,8 @@ function BoomLayer({
   const project = (points: Array<{ x: number; y: number; z: number }>) =>
     points.map((point) => projectCoordinate(point, view, aftAzimuthDegrees))
   const endCenter = map(projectCoordinate(boom.aftEnd.center, view, aftAzimuthDegrees))
+  const clew = map(projectCoordinate(boom.clew, view, aftAzimuthDegrees))
+  const outerPoint = map(projectCoordinate(boom.outerPoint, view, aftAzimuthDegrees))
   const endOuter = project(boom.aftEnd.outer)
   const endInner = project(boom.aftEnd.inner)
   const annotationRight = endCenter.x < 210
@@ -263,10 +265,27 @@ function BoomLayer({
       {boom.faces.map((face, index) => (
         <path key={`boom-face-${index}`} className="geometry-boom-face" d={path(project(face), map, true)} />
       ))}
+      {boom.limitMarkFaces.map((face, index) => (
+        <path key={`boom-limit-mark-${index}`} className="geometry-boom-limit-mark" d={path(project(face), map, true)} />
+      ))}
       <path className="geometry-boom-centreline" d={path(project(boom.centreline), map)} />
       <path className="geometry-boom-outer-point" d={path(project(boom.outerPointSection), map, true)} />
       <path className="geometry-boom-end" d={path(endOuter, map, true)} />
       <path className="geometry-boom-opening" d={path(endInner, map, true)} />
+      {view !== 'aft' ? (
+        <g className="geometry-outhaul-position">
+          <title>{`クリューはブラックバンドから${boom.outhaulEaseMm.toFixed(0)} mm前`}</title>
+          <path d={`M${clew.x.toFixed(2)} ${clew.y.toFixed(2)}L${outerPoint.x.toFixed(2)} ${outerPoint.y.toFixed(2)}`} />
+          <circle className="is-clew" cx={clew.x} cy={clew.y} r="3.2" />
+          <circle className="is-clew-hole" cx={clew.x} cy={clew.y} r="1.35" />
+          <circle className="is-outer-point" cx={outerPoint.x} cy={outerPoint.y} r="1.8" />
+          <text
+            x={(clew.x + outerPoint.x) / 2}
+            y={Math.min(clew.y, outerPoint.y) - 5}
+            textAnchor="middle"
+          >{`${boom.outhaulEaseMm.toFixed(0)} mm`}</text>
+        </g>
+      ) : null}
       {view === 'aft' ? (
         <g className="geometry-boom-annotation" aria-hidden="true">
           <circle cx={endCenter.x} cy={endCenter.y} r="8" />
@@ -480,7 +499,10 @@ function ProjectionPanel({
   ]
   const projectedBoomPoints = [
     ...boom.faces.flat(),
+    ...boom.limitMarkFaces.flat(),
     ...boom.outerPointSection,
+    boom.outerPoint,
+    boom.clew,
     ...boom.aftEnd.outer,
     ...boom.aftEnd.inner,
     ...boom.centreline,
@@ -752,6 +774,7 @@ export function BoatView({
             <span><i className="legend-main" />メイン</span>
             <span><i className="legend-jib" />ジブ</span>
             <span><i className="legend-draft" />最大ドラフト線</span>
+            <span><i className="legend-black-band" />ブラックバンド</span>
             <span><i className={`legend-reference is-${comparisonMode}`} />{referenceLabel}</span>
           </div>
           <div className="geometry-compare-switch" aria-label="比較する形">

@@ -309,6 +309,7 @@ function sailShapes(
     main: {
       angle: mainAngle,
       mastBend,
+      footEaseMm: outhaulEaseMm,
       draftDepth: mainSections.middle.draftDepth,
       draftPosition: mainSections.middle.draftPosition,
       twist: mainSections.upper.twist,
@@ -317,6 +318,7 @@ function sailShapes(
     jib: {
       angle: jibAngle,
       mastBend: 0,
+      footEaseMm: 0,
       draftDepth: jibSections.middle.draftDepth,
       draftPosition: jibSections.middle.draftPosition,
       twist: jibSections.upper.twist,

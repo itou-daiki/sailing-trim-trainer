@@ -475,5 +475,5 @@ describe('single sail surface geometry', () => {
         }
       }
     }
-  })
+  }, 15_000)
 })

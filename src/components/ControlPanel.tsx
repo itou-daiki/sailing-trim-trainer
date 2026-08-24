@@ -8,6 +8,7 @@ type ControlPanelProps = {
   controls: TrimControls
   targets: TrimControls
   actions: TrimAction[]
+  priorityOrder: ControlKey[]
   locked?: boolean
   revealGuidance?: boolean
   onControlChangeStart: (control: ControlKey) => void
@@ -73,10 +74,12 @@ function ControlSlider({
 
   return (
     <label className={action && rank === 1 && revealGuidance ? 'control-slider is-highlighted' : 'control-slider'}>
-      {action && revealGuidance ? (
-        <span className="control-priority">
-          <strong>優先 {rank}</strong>
-          <span>{action.direction}{action.gain > 0.05 ? ` · 適合度 +${action.gain.toFixed(1)}` : ' · 順に形を整える'}</span>
+      {revealGuidance ? (
+        <span className={`control-priority${action ? '' : rank ? ' is-complete' : ' is-idle'}`}>
+          <strong>{action ? `優先 ${rank}` : rank ? `完了 ${rank}` : '待機'}</strong>
+          <span>{action
+            ? `${action.direction}${action.gain > 0.05 ? ` · 適合度 +${action.gain.toFixed(1)}` : ' · 順に形を整える'}`
+            : rank ? '基準範囲に入りました' : 'いまは調整不要'}</span>
         </span>
       ) : null}
       <span className="control-title">
@@ -113,6 +116,7 @@ function ControlGroup({
   controls,
   targets,
   actions,
+  priorityOrder,
   locked,
   revealGuidance,
   onControlChangeStart,
@@ -124,6 +128,7 @@ function ControlGroup({
   controls: TrimControls
   targets: TrimControls
   actions: TrimAction[]
+  priorityOrder: ControlKey[]
   locked: boolean
   revealGuidance: boolean
   onControlChangeStart: (control: ControlKey) => void
@@ -136,6 +141,10 @@ function ControlGroup({
         {sliders.map((meta) => {
           const actionIndex = actions.findIndex((action) => action.control === meta.key)
           const action = actionIndex >= 0 ? actions[actionIndex] : undefined
+          const priorityIndex = priorityOrder.indexOf(meta.key)
+          const rank = priorityIndex >= 0
+            ? priorityIndex + 1
+            : action ? actionIndex + 1 : undefined
           return (
             <ControlSlider
               key={meta.key}
@@ -143,7 +152,7 @@ function ControlGroup({
               value={controls[meta.key]}
               target={targets[meta.key]}
               action={action}
-              rank={action ? actionIndex + 1 : undefined}
+              rank={rank}
               locked={locked}
               revealGuidance={revealGuidance}
               onChangeStart={() => onControlChangeStart(meta.key)}
@@ -161,16 +170,13 @@ export function ControlPanel({
   controls,
   targets,
   actions,
+  priorityOrder,
   locked = false,
   revealGuidance = true,
   onControlChangeStart,
   onControlChange,
 }: ControlPanelProps) {
   const available = [...SHAPE, ...ADVANCED[boat]]
-  const order = new Map(actions.map((action, index) => [action.control, index]))
-  const orderedSliders = revealGuidance
-    ? [...available].sort((a, b) => (order.get(a.key) ?? 99) - (order.get(b.key) ?? 99))
-    : available
 
   return (
     <section className={locked ? 'control-panel is-locked' : 'control-panel'} aria-labelledby="controls-title">
@@ -179,7 +185,7 @@ export function ControlPanel({
           <span className="section-index">C</span>
           <div>
             <p>TRIM CONTROLS</p>
-            <h2 id="controls-title">優先順に一本ずつ動かす</h2>
+            <h2 id="controls-title">優先番号を見て一本ずつ動かす</h2>
           </div>
         </div>
         <div className="target-key">{locked ? '予想後に操作できます' : <><i />細い印＝基準位置</>}</div>
@@ -192,11 +198,12 @@ export function ControlPanel({
         name="SHAPE CONTROLS"
         note={locked
           ? 'まず三面図を観察。選択肢に答えてから解除します。'
-          : actions.length > 0 ? '開始時の推奨順を固定。合った項目だけ順に外れます。' : 'すべて基準範囲です。条件を変えて形を作り直します。'}
-        sliders={orderedSliders}
+          : '操作位置は固定。優先番号と完了表示だけが更新されます。'}
+        sliders={available}
         controls={controls}
         targets={targets}
         actions={actions}
+        priorityOrder={priorityOrder}
         locked={locked}
         revealGuidance={revealGuidance}
         onControlChangeStart={onControlChangeStart}

@@ -260,7 +260,7 @@ function App() {
   }
 
   const beginControlChange = (control: ControlKey) => {
-    if (displayedActions.length === 0) setEstablishedActionOrder([])
+    if (displayedActions.length === 0) setEstablishedActionOrder([control])
     controlStartRef.current = { control, controls }
     setPreviousControls(controls)
     setLastControl(control)
@@ -505,6 +505,7 @@ function App() {
               controls={controls}
               targets={result.targetControls}
               actions={displayedActions}
+              priorityOrder={establishedActionOrder}
               locked={controlLocked}
               revealGuidance={!previewingChallenge}
               onControlChangeStart={beginControlChange}
@@ -595,7 +596,7 @@ function App() {
       </main>
 
       <footer>
-        <span>TRIM NOTE / TRAINING BUILD 0.13.5</span>
+        <span>TRIM NOTE / TRAINING BUILD 0.13.6</span>
         <span className="footer-credit">Created by Dit-Lab.</span>
         <p>タック、ジャイブ、レース戦術を扱わず、420 / 470のセール形状づくりに集中しています。</p>
       </footer>

@@ -60,8 +60,11 @@ type BoatViewProps = {
 }
 
 export type ComparisonMode = 'previous' | 'target'
+type AftDisplayMode = 'shape' | 'true'
 
 type Focus = { sail: 'main' | 'jib'; level: SailLevel }
+
+const AFT_SHAPE_LENS_SCALE = 3
 
 const VIEW_META: Record<
   ProjectionView,
@@ -102,6 +105,7 @@ function createMapper(
   view: ProjectionView,
   boat: BoatClass,
   framePoints: Array<{ x: number; y: number }> = [],
+  preserveAftSightline = true,
 ): Mapper {
   const points = surfaces.flatMap((surface) =>
     surface.rows.flatMap((row) => row.points),
@@ -116,7 +120,11 @@ function createMapper(
   const all = [...points, ...framePoints, ...extra]
   const minX = Math.min(...all.map((point) => point.x))
   if (!Number.isFinite(minX)) return () => ({ x: width / 2, y: height / 2 })
-  const fitted = fitProjection(all, width, height, view, view === 'aft' ? 24 : 18)
+  // The true view keeps the camera axis on the screen centre. The shape lens
+  // keeps the same camera and geometry, but crops around the sail itself so a
+  // narrow boom-aft perspective does not waste half of the learning panel.
+  const fitView = view === 'aft' && !preserveAftSightline ? 'side' : view
+  const fitted = fitProjection(all, width, height, fitView, view === 'aft' ? 38 : 18)
   return fitted
 }
 
@@ -407,6 +415,17 @@ function SurfaceLayer({
           <path className="geometry-aft-leech" d={path(surface.rows.map((row) => row.points.at(-1)!), map)} />
         </g>
       ) : null}
+      {!target && view === 'aft' && surface.sail === 'main' ? (
+        <g className="geometry-aft-chord-guides" aria-hidden="true">
+          {surface.rows.filter((row) => row.level).map((row) => (
+            <path
+              key={`chord-guide-${row.level}`}
+              className={row.level === active.level ? 'is-selected' : ''}
+              d={path([row.points[0], row.points.at(-1)!], map)}
+            />
+          ))}
+        </g>
+      ) : null}
       {!target ? spanColumns.map((column) => (
         <path
           key={column}
@@ -469,6 +488,8 @@ function ProjectionPanel({
   boat,
   mastBend,
   referenceMastBend,
+  aftDisplayMode,
+  onAftDisplayModeChange,
 }: {
   view: ProjectionView
   actual: RigSurfaces
@@ -478,6 +499,8 @@ function ProjectionPanel({
   boat: BoatClass
   mastBend: number
   referenceMastBend: number
+  aftDisplayMode: AftDisplayMode
+  onAftDisplayModeChange: (mode: AftDisplayMode) => void
 }) {
   const dimensions: Record<ProjectionView, { width: number; height: number }> = {
     top: { width: 760, height: 160 },
@@ -503,9 +526,15 @@ function ProjectionPanel({
   const boomEndCamera = view === 'aft' && aftTarget
     ? createBoomAftSailCamera(boomStart, boomEnd, aftTarget)
     : undefined
-  const project: CoordinateProjector = boomEndCamera
+  const rigProject: CoordinateProjector = boomEndCamera
     ? (point) => projectBoomEndCoordinate(point, boomEndCamera)
     : (point) => projectCoordinate(point, view, boomAzimuthDegrees)
+  const project: CoordinateProjector = view === 'aft' && aftDisplayMode === 'shape'
+    ? (point) => {
+        const projected = rigProject(point)
+        return { x: projected.x * AFT_SHAPE_LENS_SCALE, y: projected.y }
+      }
+    : rigProject
   const actualProjected = view === 'aft'
     ? [projectSurface(actual.main, view, boomAzimuthDegrees, project)]
     : [
@@ -532,6 +561,12 @@ function ProjectionPanel({
     ...actualMastGeometry.sections.flat(),
     ...referenceMastGeometry.sections.flat(),
   ].map(project)
+  const projectedSailHeightMastPoints = [
+    ...actualMastGeometry.sections.flat(),
+    ...referenceMastGeometry.sections.flat(),
+  ]
+    .filter((point) => point.z >= boomStart.z - 0.04)
+    .map(project)
   const hull = buildHullGeometry(boat)
   const rigHardpoints = buildRigHardpoints(boat, mastBend)
   const projectedHullPoints = hull.allPoints.map(project)
@@ -542,8 +577,12 @@ function ProjectionPanel({
     view,
     boat,
     view === 'aft'
-      ? [...projectedBoomPoints, ...projectedMastPoints]
+      ? [
+          ...projectedBoomPoints,
+          ...(aftDisplayMode === 'shape' ? projectedSailHeightMastPoints : projectedMastPoints),
+        ]
       : [...projectedHullPoints, ...projectedBoomPoints, ...projectedMastPoints],
+    !(view === 'aft' && aftDisplayMode === 'shape'),
   )
   const meta = VIEW_META[view]
   const classSails = CLASS_SAIL_SPECIFICATIONS[boat]
@@ -591,6 +630,14 @@ function ProjectionPanel({
   const displayActive: Focus = view === 'aft'
     ? { sail: 'main', level: active.level }
     : active
+  const aftMiddleRow = view === 'aft'
+    ? actualProjected[0]?.rows.find((row) => row.level === 'middle')
+    : undefined
+  const aftLuff = aftMiddleRow ? map(aftMiddleRow.points[0]) : undefined
+  const aftLeech = aftMiddleRow ? map(aftMiddleRow.points.at(-1)!) : undefined
+  const cameraNote = view === 'aft' && aftDisplayMode === 'shape'
+    ? `横方向×${AFT_SHAPE_LENS_SCALE}・セール中心へ拡大。ブーム後方の視点と3D形状は固定`
+    : meta.note
 
   return (
     <figure className={`geometry-panel geometry-panel-${view}`}>
@@ -600,11 +647,27 @@ function ProjectionPanel({
           <strong>{meta.view}</strong>
           <small>{meta.title}{view === 'aft' ? ` · ${boat} M${classSails.main.battens.length}バテン` : ''}</small>
         </div>
+        {view === 'aft' ? (
+          <div className="geometry-aft-mode-switch" aria-label="後方シェイプの表示倍率">
+            <button
+              type="button"
+              className={aftDisplayMode === 'shape' ? 'is-active' : ''}
+              aria-pressed={aftDisplayMode === 'shape'}
+              onClick={() => onAftDisplayModeChange('shape')}
+            >形×{AFT_SHAPE_LENS_SCALE}</button>
+            <button
+              type="button"
+              className={aftDisplayMode === 'true' ? 'is-active' : ''}
+              aria-pressed={aftDisplayMode === 'true'}
+              onClick={() => onAftDisplayModeChange('true')}
+            >実視</button>
+          </div>
+        ) : null}
       </figcaption>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label={`${meta.view}。単一の3Dセール面を投影し、${meta.note}。`}
+        aria-label={`${meta.view}。単一の3Dセール面を投影し、${cameraNote}。`}
       >
         {water.length ? <path className="geometry-waterline" d={path(water, map)} /> : null}
         {aftCentreline.length ? (
@@ -663,13 +726,31 @@ function ProjectionPanel({
           aftAzimuthDegrees={boomAzimuthDegrees}
           coordinateProjector={project}
         />
-        {view === 'aft' ? (
-          <g className="geometry-perspective-key" aria-hidden="true">
-            <rect x="12" y="11" width="122" height="18" />
-            <text x="20" y="23">BOOM-AFT EYE</text>
+        {view === 'aft' && aftDisplayMode === 'shape' && aftLuff && aftLeech ? (
+          <g className="geometry-aft-edge-labels" aria-hidden="true">
+            <path d={`M${aftLuff.x.toFixed(2)} ${aftLuff.y.toFixed(2)}h-18`} />
+            <text x={aftLuff.x - 22} y={aftLuff.y + 2} textAnchor="end">LUFF / ラフ</text>
+            <path d={`M${aftLeech.x.toFixed(2)} ${aftLeech.y.toFixed(2)}h18`} />
+            <text x={aftLeech.x + 22} y={aftLeech.y + 2}>LEECH / リーチ</text>
           </g>
         ) : null}
-        <text x="14" y={height - 10} className="geometry-camera-note">{meta.note}</text>
+        {view === 'aft' ? (
+          <g className="geometry-perspective-key" aria-hidden="true">
+            <rect x="12" y="11" width={aftDisplayMode === 'shape' ? 154 : 134} height="18" />
+            <text x="20" y="23">
+              {aftDisplayMode === 'shape' ? `SHAPE LENS · WIDTH ×${AFT_SHAPE_LENS_SCALE}` : 'TRUE BOOM-AFT VIEW'}
+            </text>
+          </g>
+        ) : null}
+        {view === 'aft' && aftDisplayMode === 'shape' ? (
+          <g className="geometry-shape-reading-key" aria-hidden="true">
+            <rect x="12" y={height - 32} width="246" height="20" />
+            <path d={`M20 ${height - 21}h25`} />
+            <text x="52" y={height - 18}>赤い曲線 − 点線 = セールの深さ</text>
+          </g>
+        ) : (
+          <text x="14" y={height - 10} className="geometry-camera-note">{cameraNote}</text>
+        )}
       </svg>
     </figure>
   )
@@ -885,6 +966,7 @@ export function BoatView({
 }: BoatViewProps) {
   const suggestedFocus = focusForControl(focusControl)
   const [inspectionFocus, setInspectionFocus] = useState<Focus | null>(null)
+  const [aftDisplayMode, setAftDisplayMode] = useState<AftDisplayMode>('shape')
   const active = inspectionFocus ?? suggestedFocus
   const actualSurfaces = buildRigSurfaces(boat, result.actual)
   const referenceSurfaces = buildRigSurfaces(
@@ -942,6 +1024,8 @@ export function BoatView({
                 ? previousResult.actual.main.mastBend
                 : result.target.main.mastBend
             }
+            aftDisplayMode={aftDisplayMode}
+            onAftDisplayModeChange={setAftDisplayMode}
           />
         ))}
       </div>

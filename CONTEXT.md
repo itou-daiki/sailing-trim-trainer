@@ -41,7 +41,7 @@ A control included in this trainer because it changes draft depth, draft positio
 _Avoid_: Every control on the boat
 
 **Outhaul ease distance**:
-The clew distance in millimetres inboard from the boom's inner black band. The control range is 0–25 mm of ease; pulling to the black band is 0 mm. Reference values use the midpoint of published tuning-guide ranges, while sea-state-only extra ease is excluded because waves are not modelled.
+The clew distance in millimetres inboard from the boom's inner black band. The control range is 0–25 mm of ease; pulling to the black band is 0 mm. The 420 reference remains at 22.5 mm through about 14 kt, then blends into the published 16–20 kt and above-20 kt bands so an overlapping boundary cannot leave the clew fully eased at 16 kt. Sea-state-only extra ease is excluded because waves are not modelled.
 _Avoid_: Percent eased, an arbitrary tension score, visually exaggerating a few millimetres of clew travel
 
 **Control response**:

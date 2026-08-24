@@ -39,9 +39,20 @@ function targetOuthaulEaseMillimeters(
   windSpeed: number,
 ) {
   if (boat === '420') {
-    if (windSpeed <= 16) return 22.5
-    if (windSpeed <= 20) return 12.5
-    return 5
+    // North M11/M12: 20-25 mm through the 10-16 kt table column,
+    // 10-15 mm at 16-20 kt, then 0-10 mm above 20 kt. The guide text
+    // separately says to keep the base setting only to about 14 kt, so the
+    // overlapping 16 kt boundary is blended from 14 kt instead of staying at
+    // 22.5 mm and jumping abruptly.
+    // Source: https://www.northsails.co.jp/wordpress/wp-content/uploads/2026/03/420-M12-Tuning-Guide_j.pdf
+    if (windSpeed <= 14) return 22.5
+    if (windSpeed <= 16) {
+      return lerp(22.5, 15, inverseLerp(14, 16, windSpeed))
+    }
+    if (windSpeed <= 20) {
+      return lerp(15, 10, inverseLerp(16, 20, windSpeed))
+    }
+    return lerp(10, 0, inverseLerp(20, 24, windSpeed))
   }
 
   const upwindEase = lerp(12.5, 0, inverseLerp(9, 14, windSpeed))

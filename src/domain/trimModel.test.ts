@@ -223,6 +223,9 @@ describe('trim model', () => {
 
   it('uses the published 420 outhaul bands as physical clew distances', () => {
     const light = targetControls('420', 45, 8)
+    const endOfBaseRange = targetControls('420', 45, 14)
+    const transition = targetControls('420', 45, 15)
+    const upperBandBoundary = targetControls('420', 45, 16)
     const fresh = targetControls('420', 45, 18)
 
     expect(fresh.vang).toBeGreaterThan(light.vang)
@@ -230,6 +233,9 @@ describe('trim model', () => {
     expect(fresh.outhaul).toBeGreaterThan(light.outhaul)
     expect(fresh.chock).toBeGreaterThan(light.chock)
     expect(outhaulEaseMillimeters(light.outhaul)).toBe(22.5)
+    expect(outhaulEaseMillimeters(endOfBaseRange.outhaul)).toBe(22.5)
+    expect(outhaulEaseMillimeters(transition.outhaul)).toBe(18.75)
+    expect(outhaulEaseMillimeters(upperBandBoundary.outhaul)).toBe(15)
     expect(outhaulEaseMillimeters(fresh.outhaul)).toBe(12.5)
 
     for (const angle of [45, 90, 140]) {

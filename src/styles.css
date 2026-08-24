@@ -4849,7 +4849,8 @@ footer p { margin: 0; }
 .geometry-span-line,
 .geometry-chord-line,
 .geometry-batten,
-.geometry-draft-row path {
+.geometry-draft-stripe,
+.geometry-section-band {
   fill: none;
   vector-effect: non-scaling-stroke;
 }
@@ -4877,60 +4878,72 @@ footer p { margin: 0; }
   opacity: 0.86;
 }
 
-.geometry-current .geometry-draft-row path {
-  stroke-width: 1.8;
-  opacity: 0.62;
+.geometry-current .geometry-draft-stripe {
+  stroke-width: 2.7;
+  opacity: 0.84;
 }
 
-.geometry-current.geometry-main .geometry-draft-row path {
+.geometry-current.geometry-main .geometry-draft-stripe {
   stroke: #d64e2d;
   fill: none;
 }
 
-.geometry-current.geometry-main .geometry-draft-row circle {
+.geometry-current.geometry-main .geometry-draft-peak-ring {
+  fill: #fffef6;
+  stroke: #a9361d;
+}
+
+.geometry-current.geometry-main .geometry-draft-peak-core {
   fill: #d64e2d;
 }
 
-.geometry-current.geometry-jib .geometry-draft-row path {
+.geometry-current.geometry-jib .geometry-draft-stripe {
   stroke: #176d76;
   fill: none;
 }
 
-.geometry-current.geometry-jib .geometry-draft-row circle {
+.geometry-current.geometry-jib .geometry-draft-peak-ring {
+  fill: #f2fbf9;
+  stroke: #0e666d;
+}
+
+.geometry-current.geometry-jib .geometry-draft-peak-core {
   fill: #176d76;
 }
 
-.geometry-current .geometry-draft-row.is-selected path {
-  stroke-width: 3.5;
+.geometry-current .geometry-draft-row.is-selected .geometry-draft-stripe {
+  stroke-width: 4.6;
   opacity: 1;
 }
 
-.geometry-current .geometry-draft-row circle {
-  stroke-width: 0;
-  opacity: 0.8;
+.geometry-draft-peak-ring,
+.geometry-draft-peak-core {
+  vector-effect: non-scaling-stroke;
 }
 
-.geometry-current .geometry-draft-row.is-selected circle {
-  stroke: #f8faf7;
-  stroke-width: 1.5;
-  opacity: 1;
+.geometry-draft-peak-ring {
+  stroke-width: 1.4;
+}
+
+.geometry-draft-row:not(.is-selected) .geometry-draft-peak {
+  opacity: 0.86;
 }
 
 .geometry-target .geometry-sail-outline,
-.geometry-target .geometry-draft-row path {
+.geometry-target .geometry-draft-stripe {
   stroke: #168077;
   stroke-width: 1.4;
   stroke-dasharray: 6 4;
   opacity: 0.78;
 }
 
-.geometry-target .geometry-draft-row.is-selected path {
+.geometry-target .geometry-draft-row.is-selected .geometry-draft-stripe {
   stroke-width: 2.2;
   opacity: 1;
 }
 
 .geometry-target.is-previous .geometry-sail-outline,
-.geometry-target.is-previous .geometry-draft-row path {
+.geometry-target.is-previous .geometry-draft-stripe {
   stroke: #536d86;
   stroke-dasharray: 3 4;
 }
@@ -4949,7 +4962,7 @@ footer p { margin: 0; }
   z-index: 1;
   display: grid;
   grid-template-columns: minmax(135px, 0.55fr) minmax(230px, 1fr) minmax(255px, 1.18fr);
-  min-height: 105px;
+  min-height: 132px;
   background: #eef2ef;
   border-top: 1px solid #7f9394;
 }
@@ -4991,18 +5004,47 @@ footer p { margin: 0; }
 
 .geometry-profile-chord,
 .geometry-profile-current,
-.geometry-profile-target {
+.geometry-profile-target,
+.geometry-profile-depth-measure,
+.geometry-profile-position-measure,
+.geometry-profile-measure-ticks {
   fill: none;
   vector-effect: non-scaling-stroke;
 }
 
 .geometry-profile-chord { stroke: #829493; stroke-width: 1; }
 .geometry-profile-current { stroke: #d64e2d; stroke-width: 3; }
+.geometry-profile-current-fill { fill: rgba(214, 78, 45, 0.12); stroke: none; }
+.geometry-inspector > svg.is-jib .geometry-profile-current { stroke: #176d76; }
+.geometry-inspector > svg.is-jib .geometry-profile-current-fill { fill: rgba(23, 109, 118, 0.13); }
 .geometry-profile-target { stroke: #168077; stroke-width: 2; stroke-dasharray: 6 4; }
 .geometry-profile-target.is-previous { stroke: #536d86; stroke-dasharray: 3 4; }
 .geometry-profile-current-point { fill: #d64e2d; stroke: #fff; stroke-width: 1.2; }
+.geometry-inspector > svg.is-jib .geometry-profile-current-point { fill: #176d76; }
 .geometry-profile-target-point { fill: #168077; stroke: #fff; stroke-width: 1; }
 .geometry-profile-target-point.is-previous { fill: #536d86; }
+
+.geometry-profile-depth-measure,
+.geometry-profile-position-measure,
+.geometry-profile-measure-ticks {
+  stroke: #183f48;
+  stroke-width: 1;
+}
+
+.geometry-profile-depth-measure,
+.geometry-profile-position-measure {
+  stroke-dasharray: 2 2;
+}
+
+.geometry-profile-depth-label,
+.geometry-profile-position-label {
+  fill: #183f48 !important;
+  paint-order: stroke;
+  stroke: rgba(250, 251, 247, 0.96);
+  stroke-width: 2.5px;
+  font-size: 7.5px !important;
+  font-weight: 900 !important;
+}
 
 .geometry-inspector svg text {
   fill: #667b7d;
@@ -5011,32 +5053,51 @@ footer p { margin: 0; }
   font-weight: 700;
 }
 
-.geometry-readings {
+.geometry-stripe-readings {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
 }
 
-.geometry-readings > div {
-  display: flex;
+.geometry-stripe-readings > div {
+  display: grid;
+  grid-template-columns: minmax(58px, 0.7fr) repeat(2, minmax(62px, 0.8fr));
+  gap: 3px 7px;
+  align-items: center;
   min-width: 0;
-  flex-direction: column;
-  justify-content: center;
-  padding: 8px 9px;
-  border-right: 1px solid #c0cbc8;
+  padding: 5px 9px;
+  border-bottom: 1px solid #c0cbc8;
+  border-left: 4px solid transparent;
 }
 
-.geometry-readings > div:last-child { border-right: 0; }
+.geometry-stripe-readings > div:last-child { border-bottom: 0; }
 
-.geometry-readings span,
-.geometry-readings small {
+.geometry-stripe-readings > div.is-selected {
+  background: #fffaf2;
+  border-left-color: #d64e2d;
+}
+
+.geometry-stripe-readings span,
+.geometry-stripe-readings small {
   color: #5c7073;
-  font-size: 0.5rem;
+  font-size: 0.47rem;
 }
 
-.geometry-readings strong {
-  margin: 3px 0;
+.geometry-stripe-readings span {
+  font-weight: 800;
+}
+
+.geometry-stripe-readings strong,
+.geometry-stripe-readings b {
   font-family: var(--mono);
-  font-size: clamp(0.82rem, 1.25vw, 1.05rem);
+  font-size: clamp(0.58rem, 0.78vw, 0.72rem);
+}
+
+.geometry-stripe-readings b {
+  font-weight: 900;
+}
+
+.geometry-stripe-readings small {
+  grid-column: 2 / -1;
 }
 
 .geometry-course-notice {
@@ -5169,16 +5230,20 @@ footer p { margin: 0; }
 
   .geometry-inspector {
     grid-template-columns: minmax(135px, 1fr) minmax(175px, 1.25fr);
-    min-height: 112px;
+    min-height: 126px;
   }
 
   .geometry-profile-title { display: none; }
   .geometry-inspector > svg { padding: 2px 4px; }
-  .geometry-readings > div { padding: 5px 4px; }
-  .geometry-readings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .geometry-readings span,
-  .geometry-readings small { font-size: 0.41rem; }
-  .geometry-readings strong { font-size: 0.7rem; }
+  .geometry-stripe-readings > div {
+    grid-template-columns: minmax(42px, 0.7fr) repeat(2, minmax(48px, 0.8fr));
+    gap: 2px 4px;
+    padding: 4px 5px;
+  }
+  .geometry-stripe-readings span,
+  .geometry-stripe-readings small { font-size: 0.38rem; }
+  .geometry-stripe-readings strong,
+  .geometry-stripe-readings b { font-size: 0.5rem; }
 
   .shape-delta-strip {
     grid-template-columns: minmax(90px, 1.15fr) repeat(3, minmax(58px, 0.85fr));
@@ -5238,13 +5303,13 @@ footer p { margin: 0; }
   border-left: 2px solid #687d7f;
 }
 
-.geometry-panel-aft .geometry-current .geometry-draft-row path {
-  stroke-width: 2.35;
-  opacity: 0.8;
+.geometry-panel-aft .geometry-current .geometry-draft-stripe {
+  stroke-width: 3.2;
+  opacity: 0.92;
 }
 
-.geometry-panel-aft .geometry-current .geometry-draft-row.is-selected path {
-  stroke-width: 4.2;
+.geometry-panel-aft .geometry-current .geometry-draft-row.is-selected .geometry-draft-stripe {
+  stroke-width: 5.2;
   opacity: 1;
 }
 
@@ -5279,19 +5344,6 @@ footer p { margin: 0; }
 
 .geometry-current.geometry-jib .geometry-sail-face {
   fill: #3f9697;
-}
-
-.geometry-current .geometry-draft-spine {
-  fill: none;
-  stroke: #b63f20;
-  stroke-width: 2.35;
-  stroke-linecap: round;
-  opacity: 0.95;
-  vector-effect: non-scaling-stroke;
-}
-
-.geometry-current.geometry-jib .geometry-draft-spine {
-  stroke: #0e666d;
 }
 
 .geometry-current .geometry-draft-row .geometry-section-band {
@@ -5329,7 +5381,7 @@ footer p { margin: 0; }
 }
 
 .geometry-inspector {
-  min-height: 112px;
+  min-height: 132px;
   grid-template-columns: minmax(150px, 0.52fr) minmax(260px, 1.08fr) minmax(270px, 1fr);
 }
 
@@ -5537,12 +5589,8 @@ footer p { margin: 0; }
     display: none;
   }
 
-  .geometry-current .geometry-draft-spine {
-    stroke-width: 1.65;
-  }
-
-  .geometry-panel-aft .geometry-current .geometry-draft-row path {
-    stroke-width: 2.7;
+  .geometry-panel-aft .geometry-current .geometry-draft-stripe {
+    stroke-width: 3;
   }
 
   .practice-library {

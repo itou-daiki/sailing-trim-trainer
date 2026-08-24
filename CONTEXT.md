@@ -6,7 +6,8 @@ This context describes the observable sail-shape model used to teach 420 and 470
 
 **Draft stripe section**:
 A horizontal chordwise slice through a sail at upper (75%), middle (50%), or lower (25%) height. Each section owns its own depth, draft position, and twist.
-_Avoid_: One global sail curve, cosmetic height multiplier
+The surface mesh remains uniformly sampled along the chord, while the exact maximum-camber point is stored independently from the nearest mesh vertex.
+_Avoid_: One global sail curve, cosmetic height multiplier, forcing a display-mesh column to be the peak
 
 **Draft depth**:
 The maximum camber of a draft stripe divided by its chord length, expressed as a percentage.
@@ -14,7 +15,8 @@ _Avoid_: Sail fullness without a measurement plane
 
 **Draft position**:
 The distance from the luff to maximum camber divided by chord length, expressed as a percentage from the luff.
-_Avoid_: Draft as an unlocated amount
+The displayed peak ring, section dimension, and numeric reading all use the same exact three-dimensional point.
+_Avoid_: Draft as an unlocated amount, locating the peak from a projected screen extremum
 
 **Entry / exit angle**:
 The tangent angle of the first and last sampled segments of a draft stripe relative to its chord. These values help describe how abruptly the section turns at the luff and how it releases at the leech. They are measurements of the learning geometry, not wind-tunnel flow angles.
@@ -66,7 +68,8 @@ _Avoid_: Uniformly scaling one generic dinghy sail, claiming an exact M-12/N14 c
 
 **Sail projection**:
 An orthographic observation of a sail surface from above, from an oblique side angle, or from the current boom end looking toward the mast. The boom-end projection follows the live boom azimuth and explicitly magnifies only the horizontal draft-depth axis by three so small camber changes remain readable.
-_Avoid_: Independent top, side, and aft models
+Three horizontal draft stripes and their exact peak rings are projected with the surface. A spanwise line connecting peaks is not used because an oblique projection can make it look like a false deepest edge.
+_Avoid_: Independent top, side, and aft models, treating a spanwise peak connector as a physical sail seam
 
 **Boom outer point / aft end**:
 The class-controlled outer point is the fore edge of the 10 mm outer limit mark at the boom's upper edge, measured aft from the mast: 2400 mm for 420 and 2650 mm for 470. The physical aft end fitting may continue beyond it.

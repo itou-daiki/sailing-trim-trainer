@@ -45,6 +45,8 @@ export type SurfaceRow = {
   battenStartU?: number
   rotationDegrees: number
   section: SailSection
+  /** Exact maximum-camber point, independent of the display mesh sampling. */
+  draftPeak: SurfacePoint
   points: SurfacePoint[]
 }
 
@@ -89,10 +91,11 @@ export type ProjectedPoint = Pick<
 export type ProjectedSurface = {
   sail: SailKey
   view: ProjectionView
-  rows: Array<Omit<SurfaceRow, 'points'> & { points: ProjectedPoint[] }>
+  rows: Array<Omit<SurfaceRow, 'points' | 'draftPeak'> & {
+    draftPeak: ProjectedPoint
+    points: ProjectedPoint[]
+  }>
 }
-
-export const DRAFT_PEAK_COLUMN = 10
 
 type MainCrossWidth = {
   height: number
@@ -418,15 +421,6 @@ export function sectionAtHeight(shape: SailShape, height: number): SailSection {
     draftPosition: clamp(interpolate('draftPosition'), 0.05, 0.95),
     twist: clamp(interpolate('twist'), -20, 50),
   }
-}
-
-function chordSample(column: number, peakPosition: number) {
-  if (column <= DRAFT_PEAK_COLUMN) {
-    return (column / DRAFT_PEAK_COLUMN) * peakPosition
-  }
-  return peakPosition +
-    ((column - DRAFT_PEAK_COLUMN) / (POINT_COUNT - 1 - DRAFT_PEAK_COLUMN)) *
-      (1 - peakPosition)
 }
 
 function stationAtHeight(stations: SailOutlineStation[], height: number) {
@@ -788,8 +782,7 @@ export function buildSailSurface(
       (batten) => Math.abs(batten.height - height) < 1e-9,
     )?.startU
 
-    const points = Array.from({ length: POINT_COUNT }, (_, column) => {
-      const u = chordSample(column, section.draftPosition)
+    const pointAt = (u: number, column: number, idSuffix = String(column)): SurfacePoint => {
       // The 420 / 470 mainsail foot is displayed as attached to the boom.
       // Draft starts immediately above it; applying section camber to this
       // lowest row would make the middle of the foot float beside the boom
@@ -799,7 +792,7 @@ export function buildSailSurface(
         ? 0
         : camberAt(u, section.draftDepth, section.draftPosition) * rig.chord
       return {
-        id: `${sail}:${rowIndex}:${column}`,
+        id: `${sail}:${rowIndex}:${idSuffix}`,
         sail,
         row: rowIndex,
         column,
@@ -818,7 +811,10 @@ export function buildSailSurface(
           rig.chordDirection.z * u * rig.chord +
           rig.normalDirection.z * camber,
       }
-    })
+    }
+    const points = Array.from({ length: POINT_COUNT }, (_, column) =>
+      pointAt(column / (POINT_COUNT - 1), column))
+    const draftPeak = pointAt(section.draftPosition, -1, 'draft-peak')
 
     return {
       height,
@@ -826,6 +822,7 @@ export function buildSailSurface(
       battenStartU,
       rotationDegrees: shape.angle + section.twist,
       section,
+      draftPeak,
       points,
     }
   })
@@ -994,25 +991,18 @@ export function measureSurfaceRow(row: SurfaceRow, baseAngle: number) {
   const chordLength = vectorLength(chordVector)
   const chordDirection = normalizeVector(chordVector)
 
-  let maxDepth = -Infinity
-  let draftPosition = 0
-  for (const point of row.points) {
-    const offset = {
-      x: point.x - luff.x,
-      y: point.y - luff.y,
-      z: point.z - luff.z,
-    }
-    const along = dotVector(offset, chordDirection)
-    const normalOffset = addVector(
-      offset,
-      scaleVector(chordDirection, -along),
-    )
-    const depth = vectorLength(normalOffset)
-    if (depth > maxDepth) {
-      maxDepth = depth
-      draftPosition = along / chordLength
-    }
+  const peakOffset = {
+    x: row.draftPeak.x - luff.x,
+    y: row.draftPeak.y - luff.y,
+    z: row.draftPeak.z - luff.z,
   }
+  const peakAlong = dotVector(peakOffset, chordDirection)
+  const peakNormalOffset = addVector(
+    peakOffset,
+    scaleVector(chordDirection, -peakAlong),
+  )
+  const maxDepth = vectorLength(peakNormalOffset)
+  const draftPosition = peakAlong / chordLength
 
   const entryPoint = row.points[1]
   const exitPoint = row.points.at(-2)
@@ -1050,22 +1040,24 @@ export function surfaceRowProfile(row: SurfaceRow) {
   }
   const chordLength = vectorLength(chordVector)
   const chordDirection = normalizeVector(chordVector)
-  return row.points.map((point) => {
-    const offset = {
-      x: point.x - luff.x,
-      y: point.y - luff.y,
-      z: point.z - luff.z,
-    }
-    const along = dotVector(offset, chordDirection)
-    const normalOffset = addVector(
-      offset,
-      scaleVector(chordDirection, -along),
-    )
-    return {
-      u: along / chordLength,
-      depth: vectorLength(normalOffset) / chordLength,
-    }
-  })
+  return [...row.points, row.draftPeak]
+    .sort((a, b) => a.u - b.u)
+    .map((point) => {
+      const offset = {
+        x: point.x - luff.x,
+        y: point.y - luff.y,
+        z: point.z - luff.z,
+      }
+      const along = dotVector(offset, chordDirection)
+      const normalOffset = addVector(
+        offset,
+        scaleVector(chordDirection, -along),
+      )
+      return {
+        u: along / chordLength,
+        depth: vectorLength(normalOffset) / chordLength,
+      }
+    })
 }
 
 export function projectSurface(
@@ -1078,6 +1070,10 @@ export function projectSurface(
     view,
     rows: surface.rows.map((row) => ({
       ...row,
+      draftPeak: {
+        ...row.draftPeak,
+        ...projectCoordinate(row.draftPeak, view, aftAzimuthDegrees),
+      },
       points: row.points.map((point): ProjectedPoint => ({
         ...point,
         ...projectCoordinate(point, view, aftAzimuthDegrees),

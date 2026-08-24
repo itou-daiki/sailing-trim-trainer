@@ -245,6 +245,27 @@ describe('single sail surface geometry', () => {
     }
   })
 
+  it('keeps the surface mesh uniform while locating each draft peak exactly', () => {
+    const result = calculateTrim('470', 45, 16, targetControls('470', 45, 16))
+    const surfaces = buildRigSurfaces('470', result.actual)
+
+    for (const sailKey of ['main', 'jib'] as const) {
+      for (const level of LEVELS) {
+        const row = getLevelRow(surfaces[sailKey], level)
+        const lastColumn = row.points.length - 1
+
+        row.points.forEach((point, column) => {
+          expect(point.u).toBeCloseTo(column / lastColumn, 12)
+        })
+        expect(row.draftPeak.u).toBeCloseTo(
+          result.actual[sailKey].sections[level].draftPosition,
+          12,
+        )
+        expect(row.draftPeak.id).toContain(':draft-peak')
+      }
+    }
+  })
+
   it('reports finite entry and exit angles for professional stripe comparison', () => {
     const result = calculateTrim('470', 45, 16, targetControls('470', 45, 16))
     const row = getLevelRow(buildRigSurfaces('470', result.actual).main, 'middle')

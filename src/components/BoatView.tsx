@@ -5,7 +5,6 @@ import {
   buildRigHardpoints,
   buildRigSurfaces,
   CLASS_SAIL_SPECIFICATIONS,
-  DRAFT_PEAK_COLUMN,
   fitProjection,
   getLevelRow,
   measureSurfaceRow,
@@ -70,19 +69,19 @@ const VIEW_META: Record<
     index: '01',
     view: 'PLAN / 上から',
     title: '開きとドラフト',
-    note: '高さごとの曲線を重ねて見る',
+    note: '3本のドラフトストライプの曲がりを重ねて見る',
   },
   side: {
     index: '02',
     view: 'SIDE / 斜め横',
     title: 'ラフからリーチ',
-    note: '横18°・上12°から深さを残す',
+    note: '選択ストライプをラフからリーチへ追う',
   },
   aft: {
     index: '03',
     view: 'BOOM END / ブーム後端',
     title: 'ドラフトとツイスト',
-    note: 'ブーム後端から前を見る。深さ方向×3でふくらみと上部の開きを比べる',
+    note: 'ブーム後端から前を見る。深さ方向×3で3断面のふくらみを比べる',
   },
 }
 
@@ -375,13 +374,11 @@ function SurfaceLayer({
   referenceMode?: ComparisonMode
   view: ProjectionView
 }) {
-  const spanColumns = [0, 5, DRAFT_PEAK_COLUMN, 15, 20, 24]
+  const spanColumns = [0, 6, 12, 18, 24]
   const prefix = target
     ? `geometry-target is-${referenceMode ?? 'target'}`
     : 'geometry-current'
   const activeRow = surface.rows.find((row) => row.level === active.level)
-  const peakPoints = surface.rows.map((row) => row.points[DRAFT_PEAK_COLUMN])
-
   const faces = target ? [] : surface.rows.slice(0, -1).flatMap((row, rowIndex) => {
     const nextRow = surface.rows[rowIndex + 1]
     return row.points.slice(0, -1).map((point, column) => {
@@ -433,23 +430,28 @@ function SurfaceLayer({
           d={path(row.points.filter((point) => point.u >= row.battenStartU!), map)}
         />
       )) : null}
-      {!target ? (
-        <path className="geometry-draft-spine" d={path(peakPoints, map)} />
-      ) : null}
       {surface.rows.filter((row) => row.level).map((row) => {
         const selected = row.level === active.level && surface.sail === active.sail
-        const peak = map(row.points[DRAFT_PEAK_COLUMN])
+        const peak = map(row.draftPeak)
+        const levelLabel = row.level ? LEVEL_LABELS[row.level] : ''
+        const stripePoints = [...row.points, row.draftPeak].sort((a, b) => a.u - b.u)
         return (
           <g key={`draft-${row.level}`} className={selected ? 'geometry-draft-row is-selected' : 'geometry-draft-row'}>
-            {selected && !target ? <path className="geometry-section-band" d={path(row.points, map)} /> : null}
-            <path d={path(row.points, map)} />
-            {!target ? <circle cx={peak.x} cy={peak.y} r={selected ? 4.2 : 2.7} /> : null}
+            <title>{`${surface.sail === 'main' ? 'メイン' : 'ジブ'} ${levelLabel}：最大位置 ${Math.round(row.draftPeak.u * 100)}%`}</title>
+            {selected && !target ? <path className="geometry-section-band" d={path(stripePoints, map)} /> : null}
+            <path className="geometry-draft-stripe" d={path(stripePoints, map)} />
+            {!target ? (
+              <g className="geometry-draft-peak">
+                <circle className="geometry-draft-peak-ring" cx={peak.x} cy={peak.y} r={selected ? 4.4 : 3.2} />
+                <circle className="geometry-draft-peak-core" cx={peak.x} cy={peak.y} r={selected ? 1.8 : 1.25} />
+              </g>
+            ) : null}
           </g>
         )
       })}
       {!target && activeRow && surface.sail === active.sail ? (() => {
-        const peak = map(activeRow.points[DRAFT_PEAK_COLUMN])
-        return <text className="geometry-peak-label" x={peak.x + 7} y={peak.y - 7}>最大ドラフト</text>
+        const peak = map(activeRow.draftPeak)
+        return <text className="geometry-peak-label" x={peak.x + 7} y={peak.y - 7}>{`ピーク ${Math.round(activeRow.draftPeak.u * 100)}%`}</text>
       })() : null}
     </g>
   )
@@ -631,12 +633,25 @@ function ProjectionPanel({
   )
 }
 
-function profilePath(row: SurfaceRow) {
-  const points = surfaceRowProfile(row).map((point) => ({
-    x: 18 + point.u * 284,
-    y: 70 - point.depth * 310,
+const PROFILE_LEFT = 24
+const PROFILE_RIGHT = 336
+const PROFILE_CHORD_Y = 80
+const PROFILE_DEPTH_SCALE = 410
+
+function profilePoints(row: SurfaceRow) {
+  return surfaceRowProfile(row).map((point) => ({
+    x: PROFILE_LEFT + point.u * (PROFILE_RIGHT - PROFILE_LEFT),
+    y: PROFILE_CHORD_Y - point.depth * PROFILE_DEPTH_SCALE,
   }))
+}
+
+function profilePath(row: SurfaceRow) {
+  const points = profilePoints(row)
   return `M${points.map((point) => `${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join('L')}`
+}
+
+function profileAreaPath(row: SurfaceRow) {
+  return `${profilePath(row)}L${PROFILE_RIGHT} ${PROFILE_CHORD_Y}L${PROFILE_LEFT} ${PROFILE_CHORD_Y}Z`
 }
 
 function SectionInspector({
@@ -654,35 +669,52 @@ function SectionInspector({
   const referenceRow = getLevelRow(reference[active.sail], active.level)
   const current = measureSurfaceRow(currentRow, 0)
   const compared = measureSurfaceRow(referenceRow, 0)
-  const currentPeak = currentRow.points[DRAFT_PEAK_COLUMN]
-  const referencePeak = referenceRow.points[DRAFT_PEAK_COLUMN]
-  const currentPeakX = 18 + currentPeak.u * 284
-  const referencePeakX = 18 + referencePeak.u * 284
-  const currentPeakY = 70 - current.draftDepth * 310
-  const referencePeakY = 70 - compared.draftDepth * 310
+  const currentPeakX = PROFILE_LEFT + current.draftPosition * (PROFILE_RIGHT - PROFILE_LEFT)
+  const referencePeakX = PROFILE_LEFT + compared.draftPosition * (PROFILE_RIGHT - PROFILE_LEFT)
+  const currentPeakY = PROFILE_CHORD_Y - current.draftDepth * PROFILE_DEPTH_SCALE
+  const referencePeakY = PROFILE_CHORD_Y - compared.draftDepth * PROFILE_DEPTH_SCALE
   const sailLabel = active.sail === 'main' ? 'メイン' : 'ジブ'
   const referenceLabel = referenceMode === 'previous' ? '操作前' : '基準'
+  const stripeReadings = (['lower', 'middle', 'upper'] as const).map((level) => {
+    const actualRow = getLevelRow(actual[active.sail], level)
+    const comparedRow = getLevelRow(reference[active.sail], level)
+    return {
+      level,
+      actual: measureSurfaceRow(actualRow, 0),
+      compared: measureSurfaceRow(comparedRow, 0),
+    }
+  })
 
   return (
     <div className="geometry-inspector" aria-live="polite">
       <div className="geometry-profile-title">
-        <span>SELECTED STRIPE</span>
+        <span>STRIPE READER</span>
         <strong>{sailLabel}・{LEVEL_LABELS[active.level]}</strong>
-        <small>三面図の太線と同じ断面</small>
+        <small>太線の断面を寸法で読む</small>
       </div>
-      <svg viewBox="0 0 320 92" role="img" aria-label={`${sailLabel}${LEVEL_LABELS[active.level]}の水平断面`}>
-        <path className="geometry-profile-chord" d="M18 70H302" />
+      <svg className={`is-${active.sail}`} viewBox="0 0 360 126" role="img" aria-label={`${sailLabel}${LEVEL_LABELS[active.level]}。深さ${(current.draftDepth * 100).toFixed(1)}%、ピーク位置${Math.round(current.draftPosition * 100)}%`}>
+        <path className="geometry-profile-current-fill" d={profileAreaPath(currentRow)} />
+        <path className="geometry-profile-chord" d={`M${PROFILE_LEFT} ${PROFILE_CHORD_Y}H${PROFILE_RIGHT}`} />
         <path className={`geometry-profile-target is-${referenceMode}`} d={profilePath(referenceRow)} />
         <path className="geometry-profile-current" d={profilePath(currentRow)} />
         <circle className={`geometry-profile-target-point is-${referenceMode}`} cx={referencePeakX} cy={referencePeakY} r="3.2" />
         <circle className="geometry-profile-current-point" cx={currentPeakX} cy={currentPeakY} r="3.7" />
-        <text x="18" y="86">LUFF 0%</text><text x="302" y="86" textAnchor="end">LEECH 100%</text>
+        <path className="geometry-profile-depth-measure" d={`M${currentPeakX} ${PROFILE_CHORD_Y}V${currentPeakY}`} />
+        <path className="geometry-profile-position-measure" d={`M${PROFILE_LEFT} 103H${currentPeakX}`} />
+        <path className="geometry-profile-measure-ticks" d={`M${currentPeakX - 4} ${PROFILE_CHORD_Y}H${currentPeakX + 4}M${currentPeakX - 4} ${currentPeakY}H${currentPeakX + 4}M${PROFILE_LEFT} 99V107M${currentPeakX} 99V107`} />
+        <text className="geometry-profile-depth-label" x={currentPeakX + 7} y={(PROFILE_CHORD_Y + currentPeakY) / 2}>{`深さ ${(current.draftDepth * 100).toFixed(1)}%c`}</text>
+        <text className="geometry-profile-position-label" x={(PROFILE_LEFT + currentPeakX) / 2} y="117" textAnchor="middle">{`ピーク位置 ${Math.round(current.draftPosition * 100)}%c`}</text>
+        <text x={PROFILE_LEFT} y="94">LUFF 0%</text><text x={PROFILE_RIGHT} y="94" textAnchor="end">LEECH 100%</text>
       </svg>
-      <div className="geometry-readings">
-        <div><span>深さ</span><strong>{(current.draftDepth * 100).toFixed(1)}%</strong><small>{referenceLabel} {(compared.draftDepth * 100).toFixed(1)}%</small></div>
-        <div><span>最大位置</span><strong>{Math.round(current.draftPosition * 100)}%</strong><small>{referenceLabel} {Math.round(compared.draftPosition * 100)}%</small></div>
-        <div><span>ツイスト</span><strong>{currentRow.section.twist.toFixed(1)}°</strong><small>{referenceLabel} {referenceRow.section.twist.toFixed(1)}°</small></div>
-        <div><span>入口 / 出口角</span><strong>{current.entryAngle.toFixed(0)}° / {current.exitAngle.toFixed(0)}°</strong><small>{referenceLabel} {compared.entryAngle.toFixed(0)}° / {compared.exitAngle.toFixed(0)}°</small></div>
+      <div className="geometry-stripe-readings" aria-label={`${sailLabel}の3本のドラフトストライプ`}>
+        {stripeReadings.map((reading) => (
+          <div key={reading.level} className={reading.level === active.level ? 'is-selected' : ''}>
+            <span>{LEVEL_LABELS[reading.level]}</span>
+            <strong>深さ {(reading.actual.draftDepth * 100).toFixed(1)}%</strong>
+            <b>ピーク {Math.round(reading.actual.draftPosition * 100)}%</b>
+            <small>{referenceLabel} {(reading.compared.draftDepth * 100).toFixed(1)}% / {Math.round(reading.compared.draftPosition * 100)}%</small>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -762,8 +794,8 @@ export function BoatView({
         <div className="section-heading light-heading">
           <span className="section-index">B</span>
           <div>
-            <p>LOCKED LUFF / CLASS CORNERS + SAILMAKER SILHOUETTE / THREE CAMERAS</p>
-            <h2 id="boat-view-title">{boat}実艇形状を、三方向で見てトリム</h2>
+            <p>THREE DRAFT STRIPES / EXACT CAMBER PEAKS / THREE CAMERAS</p>
+            <h2 id="boat-view-title">{boat}の3本のドラフトストライプを、三方向で読む</h2>
           </div>
         </div>
         <div className="geometry-head-tools">
@@ -773,7 +805,7 @@ export function BoatView({
           <div className="geometry-legend" aria-label="形状の凡例">
             <span><i className="legend-main" />メイン</span>
             <span><i className="legend-jib" />ジブ</span>
-            <span><i className="legend-draft" />最大ドラフト線</span>
+            <span><i className="legend-draft" />ストライプ／ピーク</span>
             <span><i className="legend-black-band" />ブラックバンド</span>
             <span><i className={`legend-reference is-${comparisonMode}`} />{referenceLabel}</span>
           </div>

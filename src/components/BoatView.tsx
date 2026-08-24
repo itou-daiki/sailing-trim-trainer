@@ -4,17 +4,21 @@ import {
   buildMastGeometry,
   buildRigHardpoints,
   buildRigSurfaces,
+  CLASS_RIG_SPECIFICATIONS,
   CLASS_SAIL_SPECIFICATIONS,
-  createBoomAftSailCamera,
+  createSternObservationCamera,
   fitProjection,
   getLevelRow,
+  mastBendMillimeters,
   measureSurfaceRow,
   projectBoomEndCoordinate,
   projectCoordinate,
   projectSurface,
   SAIL_GEOMETRY_UNIT_MM,
+  STERN_CAMERA_DISTANCE_IN_HULL_LENGTHS,
   surfaceRowProfile,
 } from '../domain/sailGeometry'
+import { diagnoseMainCloth, type MainClothState } from '../domain/sailCloth'
 import {
   buildHullGeometry,
   HULL_SPECIFICATIONS,
@@ -40,6 +44,7 @@ import type {
   BoatClass,
   ControlKey,
   SailLevel,
+  TrimControls,
   TrimResult,
 } from '../domain/types'
 
@@ -47,6 +52,7 @@ type BoatViewProps = {
   boat: BoatClass
   angle: number
   windSpeed: number
+  controls: TrimControls
   result: TrimResult
   previousResult: TrimResult
   courseNotice: string
@@ -60,7 +66,7 @@ type BoatViewProps = {
 }
 
 export type ComparisonMode = 'previous' | 'target'
-type AftDisplayMode = 'shape' | 'true'
+type AftDisplayMode = 'shape' | 'boat'
 
 type Focus = { sail: 'main' | 'jib'; level: SailLevel }
 
@@ -84,9 +90,9 @@ const VIEW_META: Record<
   },
   aft: {
     index: '03',
-    view: 'BOOM END / ブーム後方',
-    title: 'メインの後方シェイプ',
-    note: 'ブーム後端の後方からメイン中央へ見上げる。3本の横線をラフからリーチまで追う',
+    view: 'STERN / 真後ろ',
+    title: '実艇後方とメインシェイプ',
+    note: '船体中心線の後方から、トランサム・マスト・セール全体を見る',
   },
 }
 
@@ -242,12 +248,14 @@ function BoomLayer({
   map,
   aftAzimuthDegrees,
   coordinateProjector,
+  showAftMouthLabel = true,
 }: {
   boom: BoomGeometry
   view: ProjectionView
   map: Mapper
   aftAzimuthDegrees?: number
   coordinateProjector?: CoordinateProjector
+  showAftMouthLabel?: boolean
 }) {
   const projectPoint = coordinateProjector ?? ((point) =>
     projectCoordinate(point, view, aftAzimuthDegrees))
@@ -286,7 +294,7 @@ function BoomLayer({
           >{`${boom.outhaulEaseMm.toFixed(0)} mm`}</text>
         </g>
       ) : null}
-      {view === 'aft' ? (
+      {view === 'aft' && showAftMouthLabel ? (
         <g className="geometry-boom-mouth-label" aria-hidden="true">
           <circle cx={endCenter.x} cy={endCenter.y} r="5.5" />
           <path d={`M${(endCenter.x + 7).toFixed(2)} ${endCenter.y.toFixed(2)}h20`} />
@@ -308,6 +316,7 @@ function MastLayer({
   coordinateProjector,
   reference,
   referenceMode,
+  bendMillimeters,
 }: {
   mast: MastGeometry
   view: ProjectionView
@@ -316,6 +325,7 @@ function MastLayer({
   coordinateProjector?: CoordinateProjector
   reference: boolean
   referenceMode?: ComparisonMode
+  bendMillimeters: number
 }) {
   const projectPoint = coordinateProjector ?? ((point) =>
     projectCoordinate(point, view, aftAzimuthDegrees))
@@ -333,6 +343,32 @@ function MastLayer({
       .map((face) => path(project(face), map, true))
       .join(''),
   )
+  const bendGauge = !reference && view === 'side' && mast.centreline.length > 2
+    ? (() => {
+        const lower = mast.centreline[0]
+        const upper = mast.centreline.at(-1)!
+        const candidates = mast.centreline.slice(1, -1).map((point) => {
+          const amount = (point.z - lower.z) / Math.max(1e-9, upper.z - lower.z)
+          const baseline = {
+            x: lower.x + (upper.x - lower.x) * amount,
+            y: lower.y + (upper.y - lower.y) * amount,
+            z: point.z,
+          }
+          return {
+            point,
+            baseline,
+            distance: Math.hypot(point.x - baseline.x, point.y - baseline.y),
+          }
+        })
+        const maximum = candidates.sort((a, b) => b.distance - a.distance)[0]
+        if (!maximum) return undefined
+        return {
+          mast: map(projectPoint(maximum.point)),
+          baseline: map(projectPoint(maximum.baseline)),
+          straight: [map(projectPoint(lower)), map(projectPoint(upper))],
+        }
+      })()
+    : undefined
 
   return (
     <g className={`geometry-mast-model ${stateClass} is-${view}`}>
@@ -352,8 +388,48 @@ function MastLayer({
           d={path(project(mast.sections.map((section) => section[0])), map)}
         />
       ) : null}
+      {bendGauge ? (
+        <g className="geometry-mast-bend-gauge" aria-label={`推定マストベンド ${bendMillimeters.toFixed(0)} mm`}>
+          <path d={`M${bendGauge.straight[0].x.toFixed(2)} ${bendGauge.straight[0].y.toFixed(2)}L${bendGauge.straight[1].x.toFixed(2)} ${bendGauge.straight[1].y.toFixed(2)}`} />
+          <path className="geometry-mast-bend-measure" d={`M${bendGauge.mast.x.toFixed(2)} ${bendGauge.mast.y.toFixed(2)}L${bendGauge.baseline.x.toFixed(2)} ${bendGauge.baseline.y.toFixed(2)}`} />
+          <circle cx={bendGauge.mast.x} cy={bendGauge.mast.y} r="2.8" />
+          <text x={Math.min(bendGauge.mast.x, bendGauge.baseline.x) - 7} y={bendGauge.mast.y - 7} textAnchor="end">{`BEND ≈ ${bendMillimeters.toFixed(0)} mm`}</text>
+        </g>
+      ) : null}
     </g>
   )
+}
+
+function pointAtProjectedSurface(
+  surface: ProjectedSurface,
+  height: number,
+  u: number,
+) {
+  const rows = surface.rows
+  const upperIndex = rows.findIndex((row) => row.height >= height)
+  const lowerRow = rows[Math.max(0, upperIndex <= 0 ? 0 : upperIndex - 1)]
+  const upperRow = rows[upperIndex < 0 ? rows.length - 1 : upperIndex]
+  const pointOnRow = (row: (typeof rows)[number]) => {
+    const scaled = Math.max(0, Math.min(1, u)) * (row.points.length - 1)
+    const lowerIndex = Math.floor(scaled)
+    const upperPointIndex = Math.min(row.points.length - 1, lowerIndex + 1)
+    const amount = scaled - lowerIndex
+    const lowerPoint = row.points[lowerIndex]
+    const upperPoint = row.points[upperPointIndex]
+    return {
+      x: lowerPoint.x + (upperPoint.x - lowerPoint.x) * amount,
+      y: lowerPoint.y + (upperPoint.y - lowerPoint.y) * amount,
+    }
+  }
+  const lowerPoint = pointOnRow(lowerRow)
+  const upperPoint = pointOnRow(upperRow)
+  const amount = lowerRow === upperRow
+    ? 0
+    : (height - lowerRow.height) / (upperRow.height - lowerRow.height)
+  return {
+    x: lowerPoint.x + (upperPoint.x - lowerPoint.x) * amount,
+    y: lowerPoint.y + (upperPoint.y - lowerPoint.y) * amount,
+  }
 }
 
 function SurfaceLayer({
@@ -363,6 +439,8 @@ function SurfaceLayer({
   target,
   referenceMode,
   view,
+  aftAnalysis = false,
+  clothState,
 }: {
   surface: ProjectedSurface
   map: Mapper
@@ -370,6 +448,8 @@ function SurfaceLayer({
   target: boolean
   referenceMode?: ComparisonMode
   view: ProjectionView
+  aftAnalysis?: boolean
+  clothState?: MainClothState
 }) {
   const spanColumns = [0, 6, 12, 18, 24]
   const prefix = target
@@ -409,13 +489,25 @@ function SurfaceLayer({
       <path className="geometry-sail-fill" d={path(outlinePoints(surface), map, true)} />
       {faces}
       <path className="geometry-sail-outline" d={path(outlinePoints(surface), map, true)} />
-      {!target && view === 'aft' && surface.sail === 'main' ? (
+      {!target && surface.sail === 'main' && clothState?.traces.length ? (
+        <g className={`geometry-cloth-wrinkles is-${clothState.status}`} aria-label={clothState.label}>
+          {clothState.traces.map((trace) => (
+            <path
+              key={trace.id}
+              className={`geometry-cloth-wrinkle is-${trace.kind}`}
+              d={path(trace.points.map((point) => pointAtProjectedSurface(surface, point.height, point.u)), map)}
+              style={{ '--wrinkle-severity': trace.severity } as CSSProperties}
+            />
+          ))}
+        </g>
+      ) : null}
+      {!target && view === 'aft' && aftAnalysis && surface.sail === 'main' ? (
         <g className="geometry-aft-sail-edges" aria-hidden="true">
           <path className="geometry-aft-luff" d={path(surface.rows.map((row) => row.points[0]), map)} />
           <path className="geometry-aft-leech" d={path(surface.rows.map((row) => row.points.at(-1)!), map)} />
         </g>
       ) : null}
-      {!target && view === 'aft' && surface.sail === 'main' ? (
+      {!target && view === 'aft' && aftAnalysis && surface.sail === 'main' ? (
         <g className="geometry-aft-chord-guides" aria-hidden="true">
           {surface.rows.filter((row) => row.level).map((row) => (
             <path
@@ -463,7 +555,7 @@ function SurfaceLayer({
                 <circle className="geometry-draft-peak-core" cx={peak.x} cy={peak.y} r={selected ? 1.8 : 1.25} />
               </g>
             ) : null}
-            {!target && view === 'aft' && surface.sail === 'main' ? (
+            {!target && view === 'aft' && aftAnalysis && surface.sail === 'main' ? (
               <text className="geometry-aft-stripe-label" x={peak.x + 7} y={peak.y - 6}>
                 {row.level === 'lower' ? '25%' : row.level === 'middle' ? '50%' : '75%'}
               </text>
@@ -490,6 +582,7 @@ function ProjectionPanel({
   referenceMastBend,
   aftDisplayMode,
   onAftDisplayModeChange,
+  clothState,
 }: {
   view: ProjectionView
   actual: RigSurfaces
@@ -501,6 +594,7 @@ function ProjectionPanel({
   referenceMastBend: number
   aftDisplayMode: AftDisplayMode
   onAftDisplayModeChange: (mode: AftDisplayMode) => void
+  clothState: MainClothState
 }) {
   const dimensions: Record<ProjectionView, { width: number; height: number }> = {
     top: { width: 760, height: 160 },
@@ -508,6 +602,8 @@ function ProjectionPanel({
     aft: { width: 420, height: 330 },
   }
   const { width, height } = dimensions[view]
+  const hull = buildHullGeometry(boat)
+  const specification = HULL_SPECIFICATIONS[boat]
   const boom = buildBoomGeometry(boat, actual.main)
   const actualMastGeometry = buildMastGeometry(boat, mastBend)
   const referenceMastGeometry = buildMastGeometry(boat, referenceMastBend)
@@ -515,19 +611,28 @@ function ProjectionPanel({
   const boomAzimuthDegrees = view === 'aft'
     ? Math.atan2(boomEnd.y - boomStart.y, boomEnd.x - boomStart.x) * 180 / Math.PI
     : undefined
-  const aftTarget = view === 'aft'
+  const sternTarget = view === 'aft'
     ? {
-        x: boomStart.x + (boomEnd.x - boomStart.x) * 0.43,
-        y: boomStart.y + (boomEnd.y - boomStart.y) * 0.43,
+        x: 0,
+        y: 0,
         z: boomStart.z + CLASS_SAIL_SPECIFICATIONS[boat].main.luffMm /
-          SAIL_GEOMETRY_UNIT_MM * 0.5,
+          SAIL_GEOMETRY_UNIT_MM * 0.47,
       }
     : undefined
-  const boomEndCamera = view === 'aft' && aftTarget
-    ? createBoomAftSailCamera(boomStart, boomEnd, aftTarget)
+  const transomDatum = {
+    x: specification.mastFromAftMm / SAIL_GEOMETRY_UNIT_MM,
+    y: 0,
+    z: -40 / SAIL_GEOMETRY_UNIT_MM,
+  }
+  const sternCamera = view === 'aft' && sternTarget
+    ? createSternObservationCamera(
+        transomDatum,
+        sternTarget,
+        specification.lengthMm * STERN_CAMERA_DISTANCE_IN_HULL_LENGTHS,
+      )
     : undefined
-  const rigProject: CoordinateProjector = boomEndCamera
-    ? (point) => projectBoomEndCoordinate(point, boomEndCamera)
+  const rigProject: CoordinateProjector = sternCamera
+    ? (point) => projectBoomEndCoordinate(point, sternCamera)
     : (point) => projectCoordinate(point, view, boomAzimuthDegrees)
   const project: CoordinateProjector = view === 'aft' && aftDisplayMode === 'shape'
     ? (point) => {
@@ -536,13 +641,23 @@ function ProjectionPanel({
       }
     : rigProject
   const actualProjected = view === 'aft'
-    ? [projectSurface(actual.main, view, boomAzimuthDegrees, project)]
+    ? (aftDisplayMode === 'shape'
+        ? [projectSurface(actual.main, view, boomAzimuthDegrees, project)]
+        : [
+            projectSurface(actual.jib, view, boomAzimuthDegrees, project),
+            projectSurface(actual.main, view, boomAzimuthDegrees, project),
+          ])
     : [
         projectSurface(actual.jib, view, boomAzimuthDegrees, project),
         projectSurface(actual.main, view, boomAzimuthDegrees, project),
       ]
   const referenceProjected = view === 'aft'
-    ? [projectSurface(reference.main, view, boomAzimuthDegrees, project)]
+    ? (aftDisplayMode === 'shape'
+        ? [projectSurface(reference.main, view, boomAzimuthDegrees, project)]
+        : [
+            projectSurface(reference.jib, view, boomAzimuthDegrees, project),
+            projectSurface(reference.main, view, boomAzimuthDegrees, project),
+          ])
     : [
         projectSurface(reference.jib, view, boomAzimuthDegrees, project),
         projectSurface(reference.main, view, boomAzimuthDegrees, project),
@@ -567,7 +682,6 @@ function ProjectionPanel({
   ]
     .filter((point) => point.z >= boomStart.z - 0.04)
     .map(project)
-  const hull = buildHullGeometry(boat)
   const rigHardpoints = buildRigHardpoints(boat, mastBend)
   const projectedHullPoints = hull.allPoints.map(project)
   const map = createMapper(
@@ -577,10 +691,9 @@ function ProjectionPanel({
     view,
     boat,
     view === 'aft'
-      ? [
-          ...projectedBoomPoints,
-          ...(aftDisplayMode === 'shape' ? projectedSailHeightMastPoints : projectedMastPoints),
-        ]
+      ? (aftDisplayMode === 'shape'
+          ? [...projectedBoomPoints, ...projectedSailHeightMastPoints]
+          : [...projectedHullPoints, ...projectedBoomPoints, ...projectedMastPoints])
       : [...projectedHullPoints, ...projectedBoomPoints, ...projectedMastPoints],
     !(view === 'aft' && aftDisplayMode === 'shape'),
   )
@@ -608,7 +721,6 @@ function ProjectionPanel({
         { x: 0, y: Math.max(...aftBounds.map((point) => point.y)) },
       ]
     : []
-  const specification = HULL_SPECIFICATIONS[boat]
   const water = view !== 'side' ? [] : projectHullLine([
     {
       id: `${boat}:water-a`,
@@ -623,6 +735,9 @@ function ProjectionPanel({
       z: -0.24,
     },
   ], view, boomAzimuthDegrees, project)
+  const sternWaterY = view === 'aft' && aftDisplayMode === 'boat'
+    ? map(project({ ...transomDatum, z: -0.13 })).y
+    : undefined
   const orderedReference = [...referenceProjected].sort((a, b) =>
     Number(a.sail === active.sail) - Number(b.sail === active.sail))
   const orderedActual = [...actualProjected].sort((a, b) =>
@@ -635,12 +750,14 @@ function ProjectionPanel({
     : undefined
   const aftLuff = aftMiddleRow ? map(aftMiddleRow.points[0]) : undefined
   const aftLeech = aftMiddleRow ? map(aftMiddleRow.points.at(-1)!) : undefined
-  const cameraNote = view === 'aft' && aftDisplayMode === 'shape'
-    ? `横方向×${AFT_SHAPE_LENS_SCALE}・セール中心へ拡大。ブーム後方の視点と3D形状は固定`
+  const cameraNote = view === 'aft'
+    ? (aftDisplayMode === 'shape'
+        ? `真後ろの同じカメラをセールへ拡大し、横方向だけ×${AFT_SHAPE_LENS_SCALE}`
+        : '船体中心線の後方・水面近くから、船体とリグ全体を見る')
     : meta.note
 
   return (
-    <figure className={`geometry-panel geometry-panel-${view}`}>
+    <figure className={`geometry-panel geometry-panel-${view}${view === 'aft' ? ` is-${aftDisplayMode}` : ''}`}>
       <figcaption>
         <span>{meta.index}</span>
         <div>
@@ -648,19 +765,19 @@ function ProjectionPanel({
           <small>{meta.title}{view === 'aft' ? ` · ${boat} M${classSails.main.battens.length}バテン` : ''}</small>
         </div>
         {view === 'aft' ? (
-          <div className="geometry-aft-mode-switch" aria-label="後方シェイプの表示倍率">
+          <div className="geometry-aft-mode-switch" aria-label="後方ビューの表示">
             <button
               type="button"
               className={aftDisplayMode === 'shape' ? 'is-active' : ''}
               aria-pressed={aftDisplayMode === 'shape'}
               onClick={() => onAftDisplayModeChange('shape')}
-            >形×{AFT_SHAPE_LENS_SCALE}</button>
+            >形を読む</button>
             <button
               type="button"
-              className={aftDisplayMode === 'true' ? 'is-active' : ''}
-              aria-pressed={aftDisplayMode === 'true'}
-              onClick={() => onAftDisplayModeChange('true')}
-            >実視</button>
+              className={aftDisplayMode === 'boat' ? 'is-active' : ''}
+              aria-pressed={aftDisplayMode === 'boat'}
+              onClick={() => onAftDisplayModeChange('boat')}
+            >実艇</button>
           </div>
         ) : null}
       </figcaption>
@@ -670,10 +787,16 @@ function ProjectionPanel({
         aria-label={`${meta.view}。単一の3Dセール面を投影し、${cameraNote}。`}
       >
         {water.length ? <path className="geometry-waterline" d={path(water, map)} /> : null}
+        {sternWaterY !== undefined ? (
+          <g className="geometry-stern-waterline" aria-hidden="true">
+            <path d={`M0 ${sternWaterY.toFixed(2)}H${width}`} />
+            <text x="14" y={sternWaterY - 6}>WATERLINE / 水面</text>
+          </g>
+        ) : null}
         {aftCentreline.length ? (
           <path className="geometry-camera-centreline" d={path(aftCentreline, map)} />
         ) : null}
-        {view !== 'aft' ? (
+        {view !== 'aft' || aftDisplayMode === 'boat' ? (
           <HullLayer
             boat={boat}
             view={view}
@@ -682,7 +805,7 @@ function ProjectionPanel({
             coordinateProjector={project}
           />
         ) : null}
-        {view !== 'aft' ? (
+        {view !== 'aft' || aftDisplayMode === 'boat' ? (
           <>
             <path className="geometry-jib-tack-strop" d={path(jibTackStrop, map)} />
             <path className="geometry-forestay" d={path(jibLuffAndHalyard, map)} />
@@ -696,6 +819,7 @@ function ProjectionPanel({
           coordinateProjector={project}
           reference
           referenceMode={referenceMode}
+          bendMillimeters={mastBendMillimeters(boat, referenceMastBend)}
         />
         {orderedReference.map((surface) => (
           <SurfaceLayer
@@ -706,10 +830,20 @@ function ProjectionPanel({
             target
             referenceMode={referenceMode}
             view={view}
+            aftAnalysis={view === 'aft' && aftDisplayMode === 'shape'}
           />
         ))}
         {orderedActual.map((surface) => (
-          <SurfaceLayer key={surface.sail} surface={surface} map={map} active={displayActive} target={false} view={view} />
+          <SurfaceLayer
+            key={surface.sail}
+            surface={surface}
+            map={map}
+            active={displayActive}
+            target={false}
+            view={view}
+            aftAnalysis={view === 'aft' && aftDisplayMode === 'shape'}
+            clothState={clothState}
+          />
         ))}
         <MastLayer
           mast={actualMastGeometry}
@@ -718,6 +852,7 @@ function ProjectionPanel({
           aftAzimuthDegrees={boomAzimuthDegrees}
           coordinateProjector={project}
           reference={false}
+          bendMillimeters={mastBendMillimeters(boat, mastBend)}
         />
         <BoomLayer
           boom={boom}
@@ -725,6 +860,7 @@ function ProjectionPanel({
           map={map}
           aftAzimuthDegrees={boomAzimuthDegrees}
           coordinateProjector={project}
+          showAftMouthLabel={view === 'aft' && aftDisplayMode === 'shape'}
         />
         {view === 'aft' && aftDisplayMode === 'shape' && aftLuff && aftLeech ? (
           <g className="geometry-aft-edge-labels" aria-hidden="true">
@@ -736,9 +872,11 @@ function ProjectionPanel({
         ) : null}
         {view === 'aft' ? (
           <g className="geometry-perspective-key" aria-hidden="true">
-            <rect x="12" y="11" width={aftDisplayMode === 'shape' ? 154 : 134} height="18" />
+            <rect x="12" y="11" width={aftDisplayMode === 'shape' ? 154 : 188} height="18" />
             <text x="20" y="23">
-              {aftDisplayMode === 'shape' ? `SHAPE LENS · WIDTH ×${AFT_SHAPE_LENS_SCALE}` : 'TRUE BOOM-AFT VIEW'}
+              {aftDisplayMode === 'shape'
+                ? `SHAPE LENS · WIDTH ×${AFT_SHAPE_LENS_SCALE}`
+                : 'STERN OBSERVATION · FULL RIG'}
             </text>
           </g>
         ) : null}
@@ -780,6 +918,29 @@ function profileAreaPath(row: SurfaceRow) {
 function measureStripe(surface: RigSurfaces['main'], level: SailLevel) {
   const lowerRotation = getLevelRow(surface, 'lower').rotationDegrees
   return measureSurfaceRow(getLevelRow(surface, level), lowerRotation)
+}
+
+function diagnoseShapeDifference(
+  delta: number,
+  tolerance: number,
+  referenceMode: ComparisonMode,
+  targetLow: string,
+  targetHigh: string,
+  changeLow: string,
+  changeHigh: string,
+) {
+  if (Math.abs(delta) <= tolerance) {
+    return {
+      label: referenceMode === 'target' ? '適正' : 'ほぼ同じ',
+      tone: 'is-good',
+    }
+  }
+  return {
+    label: delta < 0
+      ? (referenceMode === 'target' ? targetLow : changeLow)
+      : (referenceMode === 'target' ? targetHigh : changeHigh),
+    tone: 'is-warning',
+  }
 }
 
 function ShapeCheckRail({
@@ -863,6 +1024,44 @@ function SectionInspector({
   const referencePeakY = PROFILE_CHORD_Y - compared.draftDepth * PROFILE_DEPTH_SCALE
   const sailLabel = active.sail === 'main' ? 'メイン' : 'ジブ'
   const referenceLabel = referenceMode === 'previous' ? '操作前' : '基準'
+  const selectedDiagnosis = [
+    {
+      key: '深さ',
+      ...diagnoseShapeDifference(
+        current.draftDepth - compared.draftDepth,
+        0.004,
+        referenceMode,
+        'フラットすぎ',
+        '深すぎ',
+        '浅くなった',
+        '深くなった',
+      ),
+    },
+    {
+      key: '位置',
+      ...diagnoseShapeDifference(
+        current.draftPosition - compared.draftPosition,
+        0.015,
+        referenceMode,
+        '前すぎ',
+        '後ろすぎ',
+        '前へ移動',
+        '後ろへ移動',
+      ),
+    },
+    {
+      key: '開き',
+      ...diagnoseShapeDifference(
+        current.twist - compared.twist,
+        1.3,
+        referenceMode,
+        '閉じすぎ',
+        '開きすぎ',
+        '閉じた',
+        '開いた',
+      ),
+    },
+  ]
   const stripeReadings = (['lower', 'middle', 'upper'] as const).map((level) => {
     return {
       level,
@@ -876,7 +1075,14 @@ function SectionInspector({
       <div className="geometry-profile-title">
         <span>MEASURED SECTION</span>
         <strong>{sailLabel}・{LEVEL_LABELS[active.level]}</strong>
-        <small>深さ → ピーク → 縁 → ツイスト</small>
+        <small>{referenceMode === 'target' ? '条件別の良い形との差' : '操作前からの変化'}</small>
+        <div className="geometry-shape-diagnosis" aria-label={`${sailLabel}${LEVEL_LABELS[active.level]}の形状診断`}>
+          {selectedDiagnosis.map((item) => (
+            <div key={item.key} className={item.tone}>
+              <span>{item.key}</span><b>{item.label}</b>
+            </div>
+          ))}
+        </div>
       </div>
       <svg className={`is-${active.sail}`} viewBox="0 0 360 126" role="img" aria-label={`${sailLabel}${LEVEL_LABELS[active.level]}。深さ${(current.draftDepth * 100).toFixed(1)}%、ピーク位置${Math.round(current.draftPosition * 100)}%`}>
         <path className="geometry-profile-current-fill" d={profileAreaPath(currentRow)} />
@@ -953,6 +1159,7 @@ export function BoatView({
   boat,
   angle,
   windSpeed,
+  controls,
   result,
   previousResult,
   courseNotice,
@@ -966,7 +1173,7 @@ export function BoatView({
 }: BoatViewProps) {
   const suggestedFocus = focusForControl(focusControl)
   const [inspectionFocus, setInspectionFocus] = useState<Focus | null>(null)
-  const [aftDisplayMode, setAftDisplayMode] = useState<AftDisplayMode>('shape')
+  const [aftDisplayMode, setAftDisplayMode] = useState<AftDisplayMode>('boat')
   const active = inspectionFocus ?? suggestedFocus
   const actualSurfaces = buildRigSurfaces(boat, result.actual)
   const referenceSurfaces = buildRigSurfaces(
@@ -974,6 +1181,14 @@ export function BoatView({
     comparisonMode === 'previous' ? previousResult.actual : result.target,
   )
   const referenceLabel = comparisonMode === 'previous' ? '操作前' : '基準形'
+  const clothState = diagnoseMainCloth({
+    boat,
+    windSpeed,
+    controls,
+    targetControls: result.targetControls,
+    mastBend: result.actual.main.mastBend,
+    targetMastBend: result.target.main.mastBend,
+  })
   const geometryReference = boat === '420'
     ? 'WS DRAWING #5J · NORTH M-12'
     : 'WS 470-003 · NORTH N17-L26'
@@ -1026,8 +1241,18 @@ export function BoatView({
             }
             aftDisplayMode={aftDisplayMode}
             onAftDisplayModeChange={setAftDisplayMode}
+            clothState={clothState}
           />
         ))}
+      </div>
+
+      <div className={`geometry-cloth-readout is-${clothState.tone}`} role="status">
+        <span>CLOTH / シワを読む</span>
+        <strong>{clothState.label}</strong>
+        <p>{clothState.explanation}</p>
+        <small>
+          {`推定ベンド ${clothState.mastBendMm.toFixed(0)} mm · 基準 ${clothState.targetMastBendMm.toFixed(0)} mm · ${boat}ガイド ${CLASS_RIG_SPECIFICATIONS[boat].tuningPrebendRangeMm.join('–')} mm`}
+        </small>
       </div>
 
       <ShapeCheckRail

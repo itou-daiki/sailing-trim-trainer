@@ -8,6 +8,7 @@ describe('trim challenges', () => {
       'foundation', 'foundation', 'foundation',
       'class', 'class', 'class', 'class', 'class',
       'transfer',
+      'class', 'class', 'class', 'class', 'transfer', 'class',
     ])
 
     for (const challenge of TRIM_CHALLENGES) {

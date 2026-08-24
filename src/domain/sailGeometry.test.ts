@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { buildHullGeometry, HULL_SPECIFICATIONS } from './hullGeometry'
 import { calculateTrim, outhaulEaseMillimeters, targetControls } from './trimModel'
 import {
   AFT_VIEW_DEGREES,
@@ -13,13 +14,17 @@ import {
   CLASS_SAIL_SPECIFICATIONS,
   createBoomAftSailCamera,
   createBoomEndCamera,
+  createSternObservationCamera,
   fitProjection,
   getLevelRow,
+  mastBendMillimeters,
   measureSurfaceRow,
   projectBoomEndCoordinate,
   projectCoordinate,
   projectSurface,
   SAIL_GEOMETRY_UNIT_MM,
+  STERN_CAMERA_DISTANCE_IN_HULL_LENGTHS,
+  STERN_CAMERA_EYE_ABOVE_TRANSOM_MM,
   sectionAtHeight,
   SIDE_ELEVATION_DEGREES,
   SIDE_OBLIQUE_DEGREES,
@@ -571,6 +576,40 @@ describe('single sail surface geometry', () => {
     }
   })
 
+  it('places the observation eye low and centred behind each class transom', () => {
+    for (const boat of ['420', '470'] as const) {
+      const hull = buildHullGeometry(boat)
+      const specification = HULL_SPECIFICATIONS[boat]
+      const transom = {
+        x: specification.mastFromAftMm / SAIL_GEOMETRY_UNIT_MM,
+        y: 0,
+        z: -40 / SAIL_GEOMETRY_UNIT_MM,
+      }
+      const target = {
+        x: 0,
+        y: 0,
+        z: CLASS_SAIL_SPECIFICATIONS[boat].main.luffMm /
+          SAIL_GEOMETRY_UNIT_MM * 0.47,
+      }
+      const distanceMm = specification.lengthMm *
+        STERN_CAMERA_DISTANCE_IN_HULL_LENGTHS
+      const camera = createSternObservationCamera(transom, target, distanceMm)
+      const targetProjection = projectBoomEndCoordinate(target, camera)
+      const transomProjection = projectBoomEndCoordinate(hull.sections[0][4], camera)
+
+      expect((camera.origin.x - transom.x) * SAIL_GEOMETRY_UNIT_MM)
+        .toBeCloseTo(distanceMm, 10)
+      expect((camera.origin.z - transom.z) * SAIL_GEOMETRY_UNIT_MM)
+        .toBeCloseTo(STERN_CAMERA_EYE_ABOVE_TRANSOM_MM, 10)
+      expect(camera.origin.y).toBe(0)
+      expect(camera.forward.x).toBeLessThan(0)
+      expect(camera.forward.z).toBeGreaterThan(0)
+      expect(targetProjection.x).toBeCloseTo(0, 12)
+      expect(targetProjection.y).toBeCloseTo(0, 12)
+      expect(transomProjection.depth).toBeGreaterThan(0)
+    }
+  })
+
   it('anchors the jib at the deck fitting and treats hoist height as a halyard limit', () => {
     for (const boat of ['420', '470'] as const) {
       const hardpoints = buildRigHardpoints(boat)
@@ -595,7 +634,7 @@ describe('single sail surface geometry', () => {
     }
   })
 
-  it('maps normalized mast controls inside the 40 mm class curvature envelope', () => {
+  it('separates loaded tuning bend from the 40 mm unloaded spar rule', () => {
     for (const boat of ['420', '470'] as const) {
       const result = calculateTrim(boat, 45, 20, targetControls(boat, 45, 20))
       const extreme = buildRigSurfaces(boat, {
@@ -612,7 +651,16 @@ describe('single sail surface geometry', () => {
       ) * SAIL_GEOMETRY_UNIT_MM
 
       expect(maximumDeflectionMm).toBeLessThanOrEqual(
-        CLASS_RIG_SPECIFICATIONS[boat].mastCurvatureMm + 1e-8,
+        CLASS_RIG_SPECIFICATIONS[boat].loadedBendMaxMm,
+      )
+      expect(maximumDeflectionMm).toBeGreaterThan(
+        CLASS_RIG_SPECIFICATIONS[boat].loadedBendMaxMm * 0.9,
+      )
+      expect(mastBendMillimeters(boat, 0.012)).toBe(
+        CLASS_RIG_SPECIFICATIONS[boat].tuningPrebendRangeMm[0],
+      )
+      expect(maximumDeflectionMm).toBeGreaterThan(
+        CLASS_RIG_SPECIFICATIONS[boat].mastCurvatureMm,
       )
     }
   })

@@ -12,10 +12,13 @@ import {
   BOOM_END_CAMERA_OFFSET_MM,
   createBoomAftSailCamera,
   createBoomEndCamera,
+  createSternObservationCamera,
   fitProjection,
   projectBoomEndCoordinate,
   projectCoordinate,
   SAIL_GEOMETRY_UNIT_MM,
+  STERN_CAMERA_DISTANCE_IN_HULL_LENGTHS,
+  STERN_CAMERA_EYE_ABOVE_TRANSOM_MM,
   SIDE_ELEVATION_DEGREES,
   SIDE_OBLIQUE_DEGREES,
   type BoomEndCamera,
@@ -30,10 +33,13 @@ export {
   BOOM_END_CAMERA_OFFSET_MM,
   createBoomAftSailCamera,
   createBoomEndCamera,
+  createSternObservationCamera,
   fitProjection,
   projectBoomEndCoordinate,
   projectCoordinate,
   SAIL_GEOMETRY_UNIT_MM,
+  STERN_CAMERA_DISTANCE_IN_HULL_LENGTHS,
+  STERN_CAMERA_EYE_ABOVE_TRANSOM_MM,
   SIDE_ELEVATION_DEGREES,
   SIDE_OBLIQUE_DEGREES,
 }
@@ -197,6 +203,10 @@ export type ClassRigSpecification = {
   headsailHoistHeightMm: number
   /** Maximum permitted unloaded mast-spar curvature. */
   mastCurvatureMm: number
+  /** Sailmaker tuning range measured from a taut halyard at spreader height. */
+  tuningPrebendRangeMm: readonly [number, number]
+  /** Upper visual envelope for the smooth, loaded fore-and-aft bend model. */
+  loadedBendMaxMm: number
 }
 
 /**
@@ -394,11 +404,15 @@ export const CLASS_RIG_SPECIFICATIONS: Record<BoatClass, ClassRigSpecification> 
     lowerPointHeightMm: 1160,
     headsailHoistHeightMm: 4520,
     mastCurvatureMm: 40,
+    tuningPrebendRangeMm: [55, 75],
+    loadedBendMaxMm: 100,
   },
   '470': {
     lowerPointHeightMm: 1055,
     headsailHoistHeightMm: 4870,
     mastCurvatureMm: 40,
+    tuningPrebendRangeMm: [40, 80],
+    loadedBendMaxMm: 105,
   },
 }
 
@@ -530,16 +544,30 @@ function mastAxisPoint(
   const mastHeel = buildHullGeometry(boat).mastBase
   const lowerPointZ =
     mastHeel.z + rig.lowerPointHeightMm / SAIL_GEOMETRY_UNIT_MM
-  const normalizedBend = clamp(mastBend / 0.08, -1, 1)
-  const permittedBend =
-    normalizedBend * rig.mastCurvatureMm / SAIL_GEOMETRY_UNIT_MM
+  const loadedBend = mastBendMillimeters(boat, mastBend) / SAIL_GEOMETRY_UNIT_MM
+  // A smooth, slightly head-biased curve follows the side-on shape used in
+  // 420/470 tuning guides. This is loaded rig bend, deliberately separate
+  // from the 40 mm unloaded-spar straightness rule.
+  const bendShape = Math.sin(Math.PI * height) * (0.92 + height * 0.08)
   return {
-    x: mastHeel.x - permittedBend * Math.sin(Math.PI * height),
+    x: mastHeel.x - loadedBend * bendShape,
     y: 0,
     z:
       lowerPointZ +
       (height * specification.main.luffMm) / SAIL_GEOMETRY_UNIT_MM,
   }
+}
+
+/**
+ * Converts the trim model's normalized bend signal to a class-specific loaded
+ * bend estimate. The low end is the sailmaker prebend baseline; the upper end
+ * includes the extra sailing load from vang/chock or fore/aft pullers.
+ */
+export function mastBendMillimeters(boat: BoatClass, mastBend: number) {
+  const rig = CLASS_RIG_SPECIFICATIONS[boat]
+  if (mastBend <= 0) return 0
+  const normalized = clamp((mastBend - 0.012) / (0.078 - 0.012), 0, 1)
+  return lerp(rig.tuningPrebendRangeMm[0], rig.loadedBendMaxMm, normalized)
 }
 
 function mainLuffPoint(

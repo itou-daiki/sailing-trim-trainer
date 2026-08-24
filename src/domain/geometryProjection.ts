@@ -7,6 +7,8 @@ export const AFT_VIEW_DEGREES = 0
 export const SAIL_GEOMETRY_UNIT_MM = 1900
 export const BOOM_END_CAMERA_OFFSET_MM = 520
 export const BOOM_END_CAMERA_NEAR_MM = 50
+export const STERN_CAMERA_DISTANCE_IN_HULL_LENGTHS = 2.1
+export const STERN_CAMERA_EYE_ABOVE_TRANSOM_MM = 260
 
 export type Coordinate3D = { x: number; y: number; z: number }
 export type CoordinateProjector = (
@@ -182,6 +184,64 @@ export function createBoomAftSailCamera(
     z: toTarget.z / targetDistance,
   }
   const horizontalForwardLength = Math.hypot(forward.x, forward.y)
+  const right = {
+    x: forward.y / horizontalForwardLength,
+    y: -forward.x / horizontalForwardLength,
+    z: 0,
+  }
+  const up = {
+    x: right.y * forward.z,
+    y: -right.x * forward.z,
+    z: right.x * forward.y - right.y * forward.x,
+  }
+
+  return {
+    origin,
+    forward,
+    right,
+    up,
+    near: BOOM_END_CAMERA_NEAR_MM / SAIL_GEOMETRY_UNIT_MM,
+  }
+}
+
+/**
+ * Places a low observation camera on the boat centreline behind the transom.
+ * This is the shore/coach-boat view used to read the complete stern, hull,
+ * mast and rig together. `distanceMm` is supplied by the class hull length so
+ * 420 and 470 retain the same photographic framing.
+ */
+export function createSternObservationCamera(
+  transom: Coordinate3D,
+  target: Coordinate3D,
+  distanceMm: number,
+  eyeAboveTransomMm = STERN_CAMERA_EYE_ABOVE_TRANSOM_MM,
+): BoomEndCamera {
+  if (distanceMm <= 0) {
+    throw new Error('Stern observation camera requires a positive distance')
+  }
+  const origin = {
+    x: transom.x + distanceMm / SAIL_GEOMETRY_UNIT_MM,
+    y: transom.y,
+    z: transom.z + eyeAboveTransomMm / SAIL_GEOMETRY_UNIT_MM,
+  }
+  const toTarget = {
+    x: target.x - origin.x,
+    y: target.y - origin.y,
+    z: target.z - origin.z,
+  }
+  const targetDistance = Math.hypot(toTarget.x, toTarget.y, toTarget.z)
+  if (targetDistance < 1e-12) {
+    throw new Error('Stern observation camera target must differ from its origin')
+  }
+  const forward = {
+    x: toTarget.x / targetDistance,
+    y: toTarget.y / targetDistance,
+    z: toTarget.z / targetDistance,
+  }
+  const horizontalForwardLength = Math.hypot(forward.x, forward.y)
+  if (horizontalForwardLength < 1e-12) {
+    throw new Error('Stern observation camera requires a non-vertical sightline')
+  }
   const right = {
     x: forward.y / horizontalForwardLength,
     y: -forward.x / horizontalForwardLength,

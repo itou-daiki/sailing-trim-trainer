@@ -26,6 +26,11 @@ _Avoid_: Angle of attack, exact cloth-edge measurement
 The opening angle of a section relative to the lower reference section. Upper, middle, and lower twist are observed separately.
 _Avoid_: Heel, boom angle
 
+**Sail-shape observation**:
+A repeatable real-boat sightline and reading order. For a mainsail, observe from the middle of the boom and slightly to windward; for a jib, observe from deck level at the middle of the foot. Aim toward the head and include all three draft stripes from luff to leech. Keep wind, course, camera position, and field of view comparable, then read depth, draft position, entry/exit, and twist before changing one control and comparing with the previous shape.
+The trainer's top, side, and boom-end orthographic projections are complementary teaching views; none is presented as a substitute for this calibrated onboard photo position. Draft stripes measure geometry, while telltales and leech ribbons are separate airflow cues.
+_Avoid_: Treating any convenient camera angle as directly comparable, reading one isolated stripe as the whole sail, using a telltale as a camber measurement
+
 **Mast bend**:
 The forward deflection pattern of the main-sail luff relative to a straight mast reference. It explains how the chock or fore/aft pullers redistribute depth through the lower and middle sail. The visual trace emphasizes change and is not a millimetre tuning-gauge reading.
 _Avoid_: A permanently straight luff, measured rig load, exact pre-bend millimetres

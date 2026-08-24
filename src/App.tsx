@@ -582,6 +582,8 @@ function App() {
               <li><a href="https://media.sailing.org/sailing/wp-content/uploads/2023/01/19160058/470_005_080623_GA.pdf" target="_blank" rel="noreferrer">World Sailing — 470 Building Specification Plan 2023</a></li>
               <li><a href="https://media.sailing.org/sailing/wp-content/uploads/2024/06/04011421/Equipment-Rules-of-Sailing-2025-2028-v.2.pdf" target="_blank" rel="noreferrer">World Sailing — Equipment Rules of Sailing 2025–2028</a></li>
               <li><a href="https://cmst.curtin.edu.au/products/sailtool-software/" target="_blank" rel="noreferrer">Curtin University CMST — SailTool / draft stripe measurement</a></li>
+              <li><a href="https://www.northsails.com/blogs/north-sails-blog/tips-for-taking-proper-sail-scan-photos" target="_blank" rel="noreferrer">North Sails — onboard Sail Scan photo position</a></li>
+              <li><a href="https://www.uksailmakers.com/wp-content/uploads/2024/03/UKSailmakersAccuMeasure2011.pdf" target="_blank" rel="noreferrer">UK Sailmakers — AccuMeasure photo and section method</a></li>
               <li><a href="https://northu.com/sail-trim-simulator-user-guide/" target="_blank" rel="noreferrer">North U — Sail Trim Simulator User Guide</a></li>
               <li><a href="https://github.com/flyinggorilla/simulator.atterwind.info" target="_blank" rel="noreferrer">Atterwind — model assumptions and shareable views</a></li>
               <li><a href="https://www.nauticed.org/sailing-simulator" target="_blank" rel="noreferrer">NauticEd NED — wind-angle trim and efficiency feedback</a></li>
@@ -596,7 +598,7 @@ function App() {
       </main>
 
       <footer>
-        <span>TRIM NOTE / TRAINING BUILD 0.13.8</span>
+        <span>TRIM NOTE / TRAINING BUILD 0.13.9</span>
         <span className="footer-credit">Created by Dit-Lab.</span>
         <p>タック、ジャイブ、レース戦術を扱わず、420 / 470のセール形状づくりに集中しています。</p>
       </footer>

@@ -26,6 +26,8 @@ Created by Dit-Lab.
 - 入口角／出口角を含むセールメーカー型のストライプ計測
 - 上・中・下のストライプ、各ピークリング、選択断面の深さ／ピーク位置寸法、現在／基準のマストベンド線を同時表示
 - 操作したコントロールに応じて観察すべきメイン／ジブ・上／中／下を自動選択し、同じメッシュ断面を大きく表示
+- 実艇ではメインをブーム中央・少し風上、ジブをフット中央・デッキ近くから見上げる観察位置を明示し、条件固定→3本全体→深さ／ピーク→ツイスト／入口／出口→一操作比較の順を画面内で練習
+- 操作連動に加えてメイン／ジブと25・50・75%断面を手動選択し、3本すべての深さ・ピーク・相対ツイスト・入口角・出口角を同時確認
 - ラフ、リーチ、コード、深さ、最大深さ位置を図中で直接測定
 - 現在形、基準帯、数値差、前後／深浅の判定を同時表示
 - 現在のずれから操作方向を含む修正順序を作り、調整中は固定して完了項目だけを外す
@@ -81,6 +83,8 @@ Viteの `base` は `/sailing-trim-trainer/` に設定済みです。mainブラ�
 
 後端カメラは現在のブーム方位へ追従し、ブーム後端からマスト方向を見る正投影です。実寸ではドラフトが全高に比べて数ピクセルになるため、このビューだけ深さ方向を3倍表示し、画面内にも倍率を明記します。色、3本のドラフトストライプ、各ピークリングでメインとジブ、ツイスト、リーチの開きを読み分けます。各断面の揚力・抗力・前進力の代理値を高さ方向へ積分して適合度と推定艇速を算出し、操作優先順位は条件開始時の改善量で決めます。調整中は各操作を艇種固有の固定位置に置いたまま、優先番号と完了表示だけを更新します。マスト曲がりは差を読み取れるよう強調した表示で、実艇のプリベンド実測値ではありません。用語は [`CONTEXT.md`](./CONTEXT.md) に定義しています。
 
+実艇の形状確認では、[North SailsのSail Scan撮影手順](https://www.northsails.com/blogs/north-sails-blog/tips-for-taking-proper-sail-scan-photos)と[UK Sailmakers AccuMeasure](https://www.uksailmakers.com/wp-content/uploads/2024/03/UKSailmakersAccuMeasure2011.pdf)に沿い、メインはブーム中央付近、ジブはフット中央のデッキ面近くからヘッドへ見上げ、3本のドラフトストライプをラフからリーチまで同じ画角へ入れます。比較時は風、コース、撮影位置、画角をそろえ、一本ずつ操作します。三方向モデルはこの実艇撮影を置き換えるカメラではなく、同じ3D形状を別方向から理解する補助図です。ストライプは形状、テルテール／リーチリボンは流れの手掛かりとして分けて扱います。
+
 基準づくりには以下を参照しています。
 
 調査比較と採用判断は [`docs/product-research-2026-08.md`](./docs/product-research-2026-08.md) にまとめています。
@@ -99,6 +103,8 @@ Viteの `base` は `/sailing-trim-trainer/` に設定済みです。mainブラ�
 - [World Sailing — 2025 Performance Scholarship 420 / 470 Tuning and Speed Guide](https://www.sailing.org/document/2025-performance-scholarship-420-470-tuning-and-speed-guide/)
 - [Science of the 470 Sailing Performance](https://doksi.net/en/get.php?lid=34356)
 - [UK Sailmakers — Draft Stripes](https://www.uksailmakers.com/racing/draft-stripes-2/)
+- [North Sails — Tips for Taking Proper Sail Scan Photos](https://www.northsails.com/blogs/north-sails-blog/tips-for-taking-proper-sail-scan-photos)
+- [UK Sailmakers — AccuMeasure Sail Shape Analysis](https://www.uksailmakers.com/wp-content/uploads/2024/03/UKSailmakersAccuMeasure2011.pdf)
 - [Curtin University CMST — SailTool](https://cmst.curtin.edu.au/products/sailtool-software/)
 - [NASA Glenn — The Lift Coefficient](https://www.grc.nasa.gov/WWW/k-12/FoilSim/Manual/fsim0007.htm)
 - [NASA Glenn — Induced Drag Coefficient](https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/induced-drag-coefficient/)

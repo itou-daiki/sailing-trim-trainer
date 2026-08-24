@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import {
   buildBoomGeometry,
   buildMastGeometry,
@@ -81,7 +81,7 @@ const VIEW_META: Record<
     index: '03',
     view: 'BOOM END / ブーム後端',
     title: 'ドラフトとツイスト',
-    note: 'ブーム後端から前を見る。深さ方向×3で3断面のふくらみを比べる',
+    note: 'ブーム後端から前を見る。深さ方向×3で上下のツイストと後半形状を補助確認',
   },
 }
 
@@ -654,6 +654,71 @@ function profileAreaPath(row: SurfaceRow) {
   return `${profilePath(row)}L${PROFILE_RIGHT} ${PROFILE_CHORD_Y}L${PROFILE_LEFT} ${PROFILE_CHORD_Y}Z`
 }
 
+function measureStripe(surface: RigSurfaces['main'], level: SailLevel) {
+  const lowerRotation = getLevelRow(surface, 'lower').rotationDegrees
+  return measureSurfaceRow(getLevelRow(surface, level), lowerRotation)
+}
+
+function ShapeCheckRail({
+  active,
+  automatic,
+  onActiveChange,
+  onAutomatic,
+}: {
+  active: Focus
+  automatic: boolean
+  onActiveChange: (focus: Focus) => void
+  onAutomatic: () => void
+}) {
+  const sailLabel = active.sail === 'main' ? 'メイン' : 'ジブ'
+  const viewpoint = active.sail === 'main'
+    ? 'ブーム中央・少し風上からヘッドへ'
+    : 'フット中央・デッキ近くからヘッドへ'
+
+  return (
+    <section className="shape-check-rail" aria-labelledby="shape-check-title">
+      <div className="shape-check-viewpoint">
+        <span id="shape-check-title">ACTUAL BOAT / 実艇の観察位置</span>
+        <strong>{sailLabel}：{viewpoint}</strong>
+        <small>3本をラフからリーチまで同じ画角に入れる</small>
+      </div>
+      <ol className="shape-check-sequence" aria-label="セールシェイプの確認順">
+        <li><b>01</b><span>条件・視点</span><small>風と画角を固定</small></li>
+        <li><b>02</b><span>横線全体</span><small>3本を端まで追う</small></li>
+        <li><b>03</b><span>断面</span><small>深さ → ピーク</small></li>
+        <li><b>04</b><span>上下差</span><small>ツイスト・入口／出口</small></li>
+        <li><b>05</b><span>一操作</span><small>操作前と比較</small></li>
+      </ol>
+      <div className="shape-check-focus">
+        <div className="shape-check-focus-row" aria-label="観察するセール">
+          <button type="button" className={automatic ? 'is-active' : ''} aria-pressed={automatic} onClick={onAutomatic}>操作連動</button>
+          {(['main', 'jib'] as const).map((sail) => (
+            <button
+              key={sail}
+              type="button"
+              className={!automatic && active.sail === sail ? 'is-active' : ''}
+              aria-pressed={!automatic && active.sail === sail}
+              onClick={() => onActiveChange({ ...active, sail })}
+            >{sail === 'main' ? 'メイン' : 'ジブ'}</button>
+          ))}
+        </div>
+        <div className="shape-check-focus-row is-level" aria-label="観察する高さ">
+          {(['lower', 'middle', 'upper'] as const).map((level) => (
+            <button
+              key={level}
+              type="button"
+              className={!automatic && active.level === level ? 'is-active' : ''}
+              aria-pressed={!automatic && active.level === level}
+              onClick={() => onActiveChange({ ...active, level })}
+            >{level === 'lower' ? '25%' : level === 'middle' ? '50%' : '75%'}</button>
+          ))}
+        </div>
+        <p><b>STRIPE = SHAPE</b><span>テルテール／リーチリボンは流れを確認</span></p>
+      </div>
+    </section>
+  )
+}
+
 function SectionInspector({
   active,
   actual,
@@ -667,8 +732,8 @@ function SectionInspector({
 }) {
   const currentRow = getLevelRow(actual[active.sail], active.level)
   const referenceRow = getLevelRow(reference[active.sail], active.level)
-  const current = measureSurfaceRow(currentRow, 0)
-  const compared = measureSurfaceRow(referenceRow, 0)
+  const current = measureStripe(actual[active.sail], active.level)
+  const compared = measureStripe(reference[active.sail], active.level)
   const currentPeakX = PROFILE_LEFT + current.draftPosition * (PROFILE_RIGHT - PROFILE_LEFT)
   const referencePeakX = PROFILE_LEFT + compared.draftPosition * (PROFILE_RIGHT - PROFILE_LEFT)
   const currentPeakY = PROFILE_CHORD_Y - current.draftDepth * PROFILE_DEPTH_SCALE
@@ -676,21 +741,19 @@ function SectionInspector({
   const sailLabel = active.sail === 'main' ? 'メイン' : 'ジブ'
   const referenceLabel = referenceMode === 'previous' ? '操作前' : '基準'
   const stripeReadings = (['lower', 'middle', 'upper'] as const).map((level) => {
-    const actualRow = getLevelRow(actual[active.sail], level)
-    const comparedRow = getLevelRow(reference[active.sail], level)
     return {
       level,
-      actual: measureSurfaceRow(actualRow, 0),
-      compared: measureSurfaceRow(comparedRow, 0),
+      actual: measureStripe(actual[active.sail], level),
+      compared: measureStripe(reference[active.sail], level),
     }
   })
 
   return (
     <div className="geometry-inspector" aria-live="polite">
       <div className="geometry-profile-title">
-        <span>STRIPE READER</span>
+        <span>MEASURED SECTION</span>
         <strong>{sailLabel}・{LEVEL_LABELS[active.level]}</strong>
-        <small>太線の断面を寸法で読む</small>
+        <small>深さ → ピーク → 縁 → ツイスト</small>
       </div>
       <svg className={`is-${active.sail}`} viewBox="0 0 360 126" role="img" aria-label={`${sailLabel}${LEVEL_LABELS[active.level]}。深さ${(current.draftDepth * 100).toFixed(1)}%、ピーク位置${Math.round(current.draftPosition * 100)}%`}>
         <path className="geometry-profile-current-fill" d={profileAreaPath(currentRow)} />
@@ -712,7 +775,8 @@ function SectionInspector({
             <span>{LEVEL_LABELS[reading.level]}</span>
             <strong>深さ {(reading.actual.draftDepth * 100).toFixed(1)}%</strong>
             <b>ピーク {Math.round(reading.actual.draftPosition * 100)}%</b>
-            <small>{referenceLabel} {(reading.compared.draftDepth * 100).toFixed(1)}% / {Math.round(reading.compared.draftPosition * 100)}%</small>
+            <em>ツイスト {reading.actual.twist.toFixed(1)}° · 入口 {reading.actual.entryAngle.toFixed(1)}° · 出口 {reading.actual.exitAngle.toFixed(1)}°</em>
+            <small>{referenceLabel} 深さ {(reading.compared.draftDepth * 100).toFixed(1)}% / ピーク {Math.round(reading.compared.draftPosition * 100)}% / ツイスト {reading.compared.twist.toFixed(1)}°</small>
           </div>
         ))}
       </div>
@@ -777,7 +841,9 @@ export function BoatView({
   onComparisonModeChange,
   onShareShape,
 }: BoatViewProps) {
-  const active = focusForControl(focusControl)
+  const suggestedFocus = focusForControl(focusControl)
+  const [inspectionFocus, setInspectionFocus] = useState<Focus | null>(null)
+  const active = inspectionFocus ?? suggestedFocus
   const actualSurfaces = buildRigSurfaces(boat, result.actual)
   const referenceSurfaces = buildRigSurfaces(
     boat,
@@ -794,8 +860,8 @@ export function BoatView({
         <div className="section-heading light-heading">
           <span className="section-index">B</span>
           <div>
-            <p>THREE DRAFT STRIPES / EXACT CAMBER PEAKS / THREE CAMERAS</p>
-            <h2 id="boat-view-title">{boat}の3本のドラフトストライプを、三方向で読む</h2>
+            <p>SAIL SCAN METHOD / THREE STRIPES / ONE CHANGE AT A TIME</p>
+            <h2 id="boat-view-title">{boat}のセールシェイプを、正しい位置と順番で確認する</h2>
           </div>
         </div>
         <div className="geometry-head-tools">
@@ -837,6 +903,13 @@ export function BoatView({
           />
         ))}
       </div>
+
+      <ShapeCheckRail
+        active={active}
+        automatic={inspectionFocus === null}
+        onActiveChange={setInspectionFocus}
+        onAutomatic={() => setInspectionFocus(null)}
+      />
 
       <SectionInspector
         active={active}

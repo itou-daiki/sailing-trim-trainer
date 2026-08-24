@@ -33,28 +33,37 @@ function browserStorage() {
   }
 }
 
-function challengeFromUrl() {
-  if (typeof window === 'undefined') return TRIM_CHALLENGES[0]
+function requestedChallengeFromUrl() {
+  if (typeof window === 'undefined') return undefined
   const id = new URLSearchParams(window.location.search).get('challenge')
-  return getChallenge(id) ?? TRIM_CHALLENGES[0]
+  return id ? getChallenge(id) : undefined
 }
 
 function initialSetup() {
-  const challenge = challengeFromUrl()
+  const requestedChallenge = requestedChallengeFromUrl()
+  const challenge = requestedChallenge ?? TRIM_CHALLENGES[0]
   const challengeSetup = buildChallengeSetup(challenge)
   const shared = typeof window === 'undefined'
     ? undefined
     : parseLabSnapshot(window.location.search)
+  const workspaceMode: 'challenge' | 'free' | 'shared' = shared
+    ? 'shared'
+    : requestedChallenge
+      ? 'challenge'
+      : 'free'
   const boat = shared?.boat ?? challengeSetup.boat
   const angle = shared?.angle ?? challengeSetup.angle
   const windSpeed = shared?.windSpeed ?? challengeSetup.windSpeed
   return {
     challenge,
     shared,
+    workspaceMode,
     boat,
     angle,
     windSpeed,
-    controls: shared?.controls ?? challengeSetup.controls,
+    controls: shared?.controls ?? (workspaceMode === 'free'
+      ? targetControls(boat, angle, windSpeed)
+      : challengeSetup.controls),
   }
 }
 
@@ -76,7 +85,7 @@ function App() {
   const [lastMove, setLastMove] = useState<ControlMove>()
   const [comparisonMode, setComparisonMode] = useState<ComparisonMode>('target')
   const [labShareStatus, setLabShareStatus] = useState('')
-  const [workspaceMode, setWorkspaceMode] = useState<'challenge' | 'free' | 'shared'>(initial.shared ? 'shared' : 'challenge')
+  const [workspaceMode, setWorkspaceMode] = useState<'challenge' | 'free' | 'shared'>(initial.workspaceMode)
   const [phase, setPhase] = useState<ChallengePhase>('preview')
   const [prediction, setPrediction] = useState<ControlKey>()
   const [confidence, setConfidence] = useState<PredictionConfidence>()
@@ -88,9 +97,11 @@ function App() {
   const [assisted, setAssisted] = useState(false)
   const [shareStatus, setShareStatus] = useState('')
   const [progress, setProgress] = useState(() => loadProgress(browserStorage()))
-  const [courseNotice, setCourseNotice] = useState(initial.shared
+  const [courseNotice, setCourseNotice] = useState(initial.workspaceMode === 'shared'
     ? `共有された${initial.boat}の形を読み込みました。三面図と断面を見ながら、同じ条件から比較できます。`
-    : `真風角${initial.angle}° / ${initial.windSpeed} kt。予想用にあえて崩した形を表示しています。`)
+    : initial.workspaceMode === 'free'
+      ? '自由練習です。風と艇種を変え、一本ずつ動かして形の応答を見ます。'
+      : `真風角${initial.angle}° / ${initial.windSpeed} kt。予想用にあえて崩した形を表示しています。`)
   const controlStartRef = useRef<{ control: ControlKey; controls: TrimControls } | undefined>(undefined)
 
   const result = useMemo(

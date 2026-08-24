@@ -8,23 +8,39 @@ import type {
 import { buildHullGeometry } from './hullGeometry'
 import {
   AFT_VIEW_DEGREES,
+  BOOM_END_CAMERA_NEAR_MM,
+  BOOM_END_CAMERA_OFFSET_MM,
+  createBoomEndCamera,
   fitProjection,
+  projectBoomEndCoordinate,
   projectCoordinate,
   SAIL_GEOMETRY_UNIT_MM,
   SIDE_ELEVATION_DEGREES,
   SIDE_OBLIQUE_DEGREES,
+  type BoomEndCamera,
+  type BoomEndProjectedPoint,
+  type CoordinateProjector,
   type ProjectionView,
 } from './geometryProjection'
 
 export {
   AFT_VIEW_DEGREES,
+  BOOM_END_CAMERA_NEAR_MM,
+  BOOM_END_CAMERA_OFFSET_MM,
+  createBoomEndCamera,
   fitProjection,
+  projectBoomEndCoordinate,
   projectCoordinate,
   SAIL_GEOMETRY_UNIT_MM,
   SIDE_ELEVATION_DEGREES,
   SIDE_OBLIQUE_DEGREES,
 }
-export type { ProjectionView }
+export type {
+  BoomEndCamera,
+  BoomEndProjectedPoint,
+  CoordinateProjector,
+  ProjectionView,
+}
 
 export type SailKey = 'main' | 'jib'
 export type SurfacePoint = {
@@ -1064,7 +1080,10 @@ export function projectSurface(
   surface: SailSurface,
   view: ProjectionView,
   aftAzimuthDegrees = AFT_VIEW_DEGREES,
+  coordinateProjector?: CoordinateProjector,
 ): ProjectedSurface {
+  const project = coordinateProjector ?? ((point) =>
+    projectCoordinate(point, view, aftAzimuthDegrees))
   return {
     sail: surface.sail,
     view,
@@ -1072,11 +1091,11 @@ export function projectSurface(
       ...row,
       draftPeak: {
         ...row.draftPeak,
-        ...projectCoordinate(row.draftPeak, view, aftAzimuthDegrees),
+        ...project(row.draftPeak),
       },
       points: row.points.map((point): ProjectedPoint => ({
         ...point,
-        ...projectCoordinate(point, view, aftAzimuthDegrees),
+        ...project(point),
       })),
     })),
   }

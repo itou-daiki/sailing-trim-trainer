@@ -5,9 +5,11 @@ import {
   buildRigHardpoints,
   buildRigSurfaces,
   CLASS_SAIL_SPECIFICATIONS,
+  createBoomEndCamera,
   fitProjection,
   getLevelRow,
   measureSurfaceRow,
+  projectBoomEndCoordinate,
   projectCoordinate,
   projectSurface,
   SAIL_GEOMETRY_UNIT_MM,
@@ -16,7 +18,6 @@ import {
 import {
   buildHullGeometry,
   HULL_SPECIFICATIONS,
-  projectHullPoint,
   type HullPoint,
 } from '../domain/hullGeometry'
 import {
@@ -32,6 +33,7 @@ import type {
   RigSurfaces,
   SurfaceRow,
   BoomGeometry,
+  CoordinateProjector,
   MastGeometry,
 } from '../domain/sailGeometry'
 import type {
@@ -79,9 +81,9 @@ const VIEW_META: Record<
   },
   aft: {
     index: '03',
-    view: 'BOOM END / ブーム後端',
-    title: 'ドラフトとツイスト',
-    note: 'ブーム後端から前を見る。深さ方向×3で上下のツイストと後半形状を補助確認',
+    view: 'BOOM END / ブーム後方',
+    title: '上段バテンとツイスト',
+    note: 'ブーム口の真後ろからマスト方向へ透視。口・ブーム・上段バテンの向きを比べる',
   },
 }
 
@@ -92,8 +94,6 @@ const LEVEL_LABELS: Record<SailLevel, string> = {
 }
 
 type Mapper = (point: { x: number; y: number }) => { x: number; y: number }
-
-const BOOM_END_DEPTH_DISPLAY_SCALE = 3
 
 function createMapper(
   surfaces: ProjectedSurface[],
@@ -112,16 +112,12 @@ function createMapper(
     ? [{ x: -1.12 * classScale, y: -0.24 }, { x: 1.28 * classScale, y: 0.24 }]
     : view === 'side'
       ? [{ x: -1.12 * classScale, y: -0.16 }, { x: 1.28 * classScale, y: rigHeight + 0.1 }]
-      : [{ x: -0.58, y: -0.16 }, { x: 0.66, y: rigHeight + 0.1 }]
-  const depthScale = view === 'aft' ? BOOM_END_DEPTH_DISPLAY_SCALE : 1
-  const all = [...points, ...framePoints, ...extra].map((point) => ({
-    x: point.x * depthScale,
-    y: point.y,
-  }))
+      : []
+  const all = [...points, ...framePoints, ...extra]
   const minX = Math.min(...all.map((point) => point.x))
   if (!Number.isFinite(minX)) return () => ({ x: width / 2, y: height / 2 })
-  const fitted = fitProjection(all, width, height, view)
-  return (point) => fitted({ x: point.x * depthScale, y: point.y })
+  const fitted = fitProjection(all, width, height, view, view === 'aft' ? 24 : 18)
+  return fitted
 }
 
 function path(points: Array<{ x: number; y: number }>, map: Mapper, close = false) {
@@ -143,10 +139,12 @@ function projectHullLine(
   points: HullPoint[],
   view: ProjectionView,
   aftAzimuthDegrees?: number,
+  coordinateProjector?: CoordinateProjector,
 ) {
   return points.map((point) => {
-    const projected = projectHullPoint(point, view, aftAzimuthDegrees)
-    return { x: projected.screenX, y: projected.screenY }
+    return coordinateProjector
+      ? coordinateProjector(point)
+      : projectCoordinate(point, view, aftAzimuthDegrees)
   })
 }
 
@@ -155,14 +153,17 @@ function HullLayer({
   view,
   map,
   aftAzimuthDegrees,
+  coordinateProjector,
 }: {
   boat: BoatClass
   view: ProjectionView
   map: Mapper
   aftAzimuthDegrees?: number
+  coordinateProjector?: CoordinateProjector
 }) {
   const hull = buildHullGeometry(boat)
-  const project = (points: HullPoint[]) => projectHullLine(points, view, aftAzimuthDegrees)
+  const project = (points: HullPoint[]) =>
+    projectHullLine(points, view, aftAzimuthDegrees, coordinateProjector)
   const panels = hull.panels.map(project)
   const transomFaces = hull.transomFaces.map(project)
   const deckFaces = hull.deckFaces.map(project)
@@ -232,31 +233,23 @@ function BoomLayer({
   view,
   map,
   aftAzimuthDegrees,
+  coordinateProjector,
 }: {
   boom: BoomGeometry
   view: ProjectionView
   map: Mapper
   aftAzimuthDegrees?: number
+  coordinateProjector?: CoordinateProjector
 }) {
+  const projectPoint = coordinateProjector ?? ((point) =>
+    projectCoordinate(point, view, aftAzimuthDegrees))
   const project = (points: Array<{ x: number; y: number; z: number }>) =>
-    points.map((point) => projectCoordinate(point, view, aftAzimuthDegrees))
-  const endCenter = map(projectCoordinate(boom.aftEnd.center, view, aftAzimuthDegrees))
-  const clew = map(projectCoordinate(boom.clew, view, aftAzimuthDegrees))
-  const outerPoint = map(projectCoordinate(boom.outerPoint, view, aftAzimuthDegrees))
+    points.map(projectPoint)
+  const endCenter = map(projectPoint(boom.aftEnd.center))
+  const clew = map(projectPoint(boom.clew))
+  const outerPoint = map(projectPoint(boom.outerPoint))
   const endOuter = project(boom.aftEnd.outer)
   const endInner = project(boom.aftEnd.inner)
-  const annotationRight = endCenter.x < 210
-  const detailCenter = {
-    x: Math.min(385, Math.max(35, endCenter.x + (annotationRight ? 43 : -43))),
-    y: Math.min(300, Math.max(30, endCenter.y - 32)),
-  }
-  const detailScale = view === 'aft' ? 2 : 6
-  const enlarge = (points: Array<{ x: number; y: number }>) => points
-    .map(map)
-    .map((point) => ({
-      x: detailCenter.x + (point.x - endCenter.x) * detailScale,
-      y: detailCenter.y + (point.y - endCenter.y) * detailScale,
-    }))
 
   return (
     <g className={`geometry-boom is-${view}`}>
@@ -286,21 +279,13 @@ function BoomLayer({
         </g>
       ) : null}
       {view === 'aft' ? (
-        <g className="geometry-boom-annotation" aria-hidden="true">
-          <circle cx={endCenter.x} cy={endCenter.y} r="8" />
-          <path d={`M${endCenter.x.toFixed(2)} ${endCenter.y.toFixed(2)}L${detailCenter.x.toFixed(2)} ${detailCenter.y.toFixed(2)}`} />
-          <path className="geometry-boom-end-detail" d={path(enlarge(endOuter), (point) => point, true)} />
-          <path className="geometry-boom-opening-detail" d={path(enlarge(endInner), (point) => point, true)} />
+        <g className="geometry-boom-mouth-label" aria-hidden="true">
+          <circle cx={endCenter.x} cy={endCenter.y} r="5.5" />
+          <path d={`M${(endCenter.x + 7).toFixed(2)} ${endCenter.y.toFixed(2)}h20`} />
           <text
-            x={detailCenter.x}
-            y={detailCenter.y - 14}
-            textAnchor="middle"
-          >END SECTION</text>
-          <text
-            x={detailCenter.x}
-            y={detailCenter.y + 18}
-            textAnchor="middle"
-          >ブーム後端</text>
+            x={endCenter.x + 30}
+            y={endCenter.y + 2.5}
+          >MOUTH / 開口</text>
         </g>
       ) : null}
     </g>
@@ -312,6 +297,7 @@ function MastLayer({
   view,
   map,
   aftAzimuthDegrees,
+  coordinateProjector,
   reference,
   referenceMode,
 }: {
@@ -319,11 +305,14 @@ function MastLayer({
   view: ProjectionView
   map: Mapper
   aftAzimuthDegrees?: number
+  coordinateProjector?: CoordinateProjector
   reference: boolean
   referenceMode?: ComparisonMode
 }) {
+  const projectPoint = coordinateProjector ?? ((point) =>
+    projectCoordinate(point, view, aftAzimuthDegrees))
   const project = (points: Array<{ x: number; y: number; z: number }>) =>
-    points.map((point) => projectCoordinate(point, view, aftAzimuthDegrees))
+    points.map(projectPoint)
   const stateClass = reference
     ? `is-reference is-${referenceMode ?? 'target'}`
     : 'is-actual'
@@ -378,6 +367,9 @@ function SurfaceLayer({
   const prefix = target
     ? `geometry-target is-${referenceMode ?? 'target'}`
     : 'geometry-current'
+  const focusClass = surface.sail === active.sail
+    ? 'is-active-sail'
+    : 'is-context-sail'
   const activeRow = surface.rows.find((row) => row.level === active.level)
   const faces = target ? [] : surface.rows.slice(0, -1).flatMap((row, rowIndex) => {
     const nextRow = surface.rows[rowIndex + 1]
@@ -405,7 +397,7 @@ function SurfaceLayer({
   })
 
   return (
-    <g className={`${prefix} geometry-${surface.sail}`}>
+    <g className={`${prefix} geometry-${surface.sail} ${focusClass}`}>
       <path className="geometry-sail-fill" d={path(outlinePoints(surface), map, true)} />
       {faces}
       <path className="geometry-sail-outline" d={path(outlinePoints(surface), map, true)} />
@@ -449,10 +441,60 @@ function SurfaceLayer({
           </g>
         )
       })}
-      {!target && activeRow && surface.sail === active.sail ? (() => {
+      {!target && view !== 'aft' && activeRow && surface.sail === active.sail ? (() => {
         const peak = map(activeRow.draftPeak)
         return <text className="geometry-peak-label" x={peak.x + 7} y={peak.y - 7}>{`ピーク ${Math.round(activeRow.draftPeak.u * 100)}%`}</text>
       })() : null}
+    </g>
+  )
+}
+
+const AFT_SECTION_LEFT = 18
+const AFT_SECTION_RIGHT = 142
+const AFT_SECTION_DEPTH_SCALE = 245
+
+function AftSectionStack({
+  active,
+  actual,
+  reference,
+  referenceMode,
+}: {
+  active: Focus
+  actual: RigSurfaces
+  reference: RigSurfaces
+  referenceMode: ComparisonMode
+}) {
+  const levels = ['upper', 'middle', 'lower'] as const
+  const sailLabel = active.sail === 'main' ? 'MAIN' : 'JIB'
+  const sectionPath = (row: SurfaceRow, baseline: number) => {
+    const points = surfaceRowProfile(row).map((point) => ({
+      x: AFT_SECTION_LEFT + point.u * (AFT_SECTION_RIGHT - AFT_SECTION_LEFT),
+      y: baseline - point.depth * AFT_SECTION_DEPTH_SCALE,
+    }))
+    return path(points, (point) => point)
+  }
+
+  return (
+    <g className={`geometry-aft-section-stack is-${active.sail}`} aria-hidden="true">
+      <text className="geometry-aft-section-title" x={AFT_SECTION_LEFT} y="67">{`${sailLabel} · 3 SECTIONS`}</text>
+      <text className="geometry-aft-section-axis" x={AFT_SECTION_LEFT} y="78">LUFF → LEECH</text>
+      {levels.map((level, index) => {
+        const baseline = 122 + index * 76
+        const actualRow = getLevelRow(actual[active.sail], level)
+        const referenceRow = getLevelRow(reference[active.sail], level)
+        const selected = level === active.level
+        return (
+          <g key={level} className={selected ? 'is-selected' : ''}>
+            <path className="geometry-aft-section-chord" d={`M${AFT_SECTION_LEFT} ${baseline}H${AFT_SECTION_RIGHT}`} />
+            <path className={`geometry-aft-section-reference is-${referenceMode}`} d={sectionPath(referenceRow, baseline)} />
+            <path className="geometry-aft-section-current" d={sectionPath(actualRow, baseline)} />
+            <text className="geometry-aft-section-level" x={AFT_SECTION_LEFT} y={baseline + 13}>{LEVEL_LABELS[level]}</text>
+            <text className="geometry-aft-section-value" x={AFT_SECTION_RIGHT} y={baseline + 13} textAnchor="end">
+              {`深さ ${(actualRow.section.draftDepth * 100).toFixed(1)}% · ピーク ${Math.round(actualRow.section.draftPosition * 100)}%`}
+            </text>
+          </g>
+        )
+      })}
     </g>
   )
 }
@@ -489,15 +531,19 @@ function ProjectionPanel({
   const boomAzimuthDegrees = view === 'aft'
     ? Math.atan2(boomEnd.y - boomStart.y, boomEnd.x - boomStart.x) * 180 / Math.PI
     : undefined
-  const project = (point: { x: number; y: number; z: number }) =>
-    projectCoordinate(point, view, boomAzimuthDegrees)
+  const boomEndCamera = view === 'aft'
+    ? createBoomEndCamera(boomStart, boomEnd)
+    : undefined
+  const project: CoordinateProjector = boomEndCamera
+    ? (point) => projectBoomEndCoordinate(point, boomEndCamera)
+    : (point) => projectCoordinate(point, view, boomAzimuthDegrees)
   const actualProjected = [
-    projectSurface(actual.jib, view, boomAzimuthDegrees),
-    projectSurface(actual.main, view, boomAzimuthDegrees),
+    projectSurface(actual.jib, view, boomAzimuthDegrees, project),
+    projectSurface(actual.main, view, boomAzimuthDegrees, project),
   ]
   const referenceProjected = [
-    projectSurface(reference.jib, view, boomAzimuthDegrees),
-    projectSurface(reference.main, view, boomAzimuthDegrees),
+    projectSurface(reference.jib, view, boomAzimuthDegrees, project),
+    projectSurface(reference.main, view, boomAzimuthDegrees, project),
   ]
   const projectedBoomPoints = [
     ...boom.faces.flat(),
@@ -515,11 +561,7 @@ function ProjectionPanel({
   ].map(project)
   const hull = buildHullGeometry(boat)
   const rigHardpoints = buildRigHardpoints(boat, mastBend)
-  const projectedHullPoints = hull.allPoints.map((point) => {
-    const projected = projectHullPoint(point, view, boomAzimuthDegrees)
-    return { x: projected.screenX, y: projected.screenY }
-  })
-  const hullBottom = Math.min(...hull.sections.flat().map((point) => point.z))
+  const projectedHullPoints = hull.allPoints.map(project)
   const map = createMapper(
     [...actualProjected, ...referenceProjected],
     width,
@@ -537,21 +579,25 @@ function ProjectionPanel({
     .rows.map((row) => row.points[0])
   const projectedStemhead = project(hull.jibTack)
   const projectedJibHalyardHoist = project(rigHardpoints.jibHalyardHoist)
-  const projectedMastAxis = actualMastGeometry.centreline.map(project)
   const jibTackStrop = [projectedStemhead, actualJibLuff[0]]
   const jibLuffAndHalyard = [
     projectedStemhead,
     ...actualJibLuff.slice(1),
     projectedJibHalyardHoist,
   ]
+  const aftBounds = [
+    ...actualProjected.flatMap((surface) => surface.rows.flatMap((row) => row.points)),
+    ...projectedBoomPoints,
+    ...projectedMastPoints,
+  ]
   const aftCentreline = view === 'aft'
     ? [
-        project({ x: 0, y: 0, z: hullBottom }),
-        { x: 0, y: Math.max(...projectedMastAxis.map((point) => point.y)) },
+        { x: 0, y: Math.min(...aftBounds.map((point) => point.y)) },
+        { x: 0, y: Math.max(...aftBounds.map((point) => point.y)) },
       ]
     : []
   const specification = HULL_SPECIFICATIONS[boat]
-  const water = view === 'top' ? [] : projectHullLine([
+  const water = view !== 'side' ? [] : projectHullLine([
     {
       id: `${boat}:water-a`,
       x: (specification.mastFromAftMm - specification.lengthMm - 120) / SAIL_GEOMETRY_UNIT_MM,
@@ -564,7 +610,11 @@ function ProjectionPanel({
       y: 0,
       z: -0.24,
     },
-  ], view, boomAzimuthDegrees)
+  ], view, boomAzimuthDegrees, project)
+  const orderedReference = [...referenceProjected].sort((a, b) =>
+    Number(a.sail === active.sail) - Number(b.sail === active.sail))
+  const orderedActual = [...actualProjected].sort((a, b) =>
+    Number(a.sail === active.sail) - Number(b.sail === active.sail))
 
   return (
     <figure className={`geometry-panel geometry-panel-${view}`}>
@@ -584,12 +634,15 @@ function ProjectionPanel({
         {aftCentreline.length ? (
           <path className="geometry-camera-centreline" d={path(aftCentreline, map)} />
         ) : null}
-        <HullLayer
-          boat={boat}
-          view={view}
-          map={map}
-          aftAzimuthDegrees={boomAzimuthDegrees}
-        />
+        {view !== 'aft' ? (
+          <HullLayer
+            boat={boat}
+            view={view}
+            map={map}
+            aftAzimuthDegrees={boomAzimuthDegrees}
+            coordinateProjector={project}
+          />
+        ) : null}
         <path className="geometry-jib-tack-strop" d={path(jibTackStrop, map)} />
         <path className="geometry-forestay" d={path(jibLuffAndHalyard, map)} />
         <MastLayer
@@ -597,10 +650,11 @@ function ProjectionPanel({
           view={view}
           map={map}
           aftAzimuthDegrees={boomAzimuthDegrees}
+          coordinateProjector={project}
           reference
           referenceMode={referenceMode}
         />
-        {referenceProjected.map((surface) => (
+        {orderedReference.map((surface) => (
           <SurfaceLayer
             key={`reference-${surface.sail}`}
             surface={surface}
@@ -611,7 +665,7 @@ function ProjectionPanel({
             view={view}
           />
         ))}
-        {actualProjected.map((surface) => (
+        {orderedActual.map((surface) => (
           <SurfaceLayer key={surface.sail} surface={surface} map={map} active={active} target={false} view={view} />
         ))}
         <MastLayer
@@ -619,6 +673,7 @@ function ProjectionPanel({
           view={view}
           map={map}
           aftAzimuthDegrees={boomAzimuthDegrees}
+          coordinateProjector={project}
           reference={false}
         />
         <BoomLayer
@@ -626,7 +681,24 @@ function ProjectionPanel({
           view={view}
           map={map}
           aftAzimuthDegrees={boomAzimuthDegrees}
+          coordinateProjector={project}
         />
+        {view === 'aft' ? (
+          <>
+            <AftSectionStack
+              active={active}
+              actual={actual}
+              reference={reference}
+              referenceMode={referenceMode}
+            />
+            <g className="geometry-perspective-key" aria-hidden="true">
+              <rect x="12" y="11" width="112" height="18" />
+              <text x="20" y="23">TRUE PERSPECTIVE</text>
+              <text className="is-port" x="164" y="47">PORT</text>
+              <text className="is-starboard" x={width - 14} y="47" textAnchor="end">STBD</text>
+            </g>
+          </>
+        ) : null}
         <text x="14" y={height - 10} className="geometry-camera-note">{meta.note}</text>
       </svg>
     </figure>

@@ -4719,9 +4719,7 @@ footer p { margin: 0; }
 .geometry-boom-centreline,
 .geometry-boom-outer-point,
 .geometry-boom-end,
-.geometry-boom-opening,
-.geometry-boom-annotation circle,
-.geometry-boom-annotation path {
+.geometry-boom-opening {
   vector-effect: non-scaling-stroke;
 }
 
@@ -4800,30 +4798,19 @@ footer p { margin: 0; }
   stroke-width: 0.65;
 }
 
-.geometry-boom-annotation circle,
-.geometry-boom-annotation > path {
+.geometry-boom-mouth-label circle,
+.geometry-boom-mouth-label path {
   fill: none;
   stroke: #d84f2d;
-  stroke-width: 1.05;
+  stroke-width: 1.15;
+  vector-effect: non-scaling-stroke;
 }
 
-.geometry-boom-annotation circle {
+.geometry-boom-mouth-label circle {
   stroke-dasharray: 2.5 2.5;
 }
 
-.geometry-boom-annotation .geometry-boom-end-detail {
-  fill: #dce2de;
-  stroke: #132f37;
-  stroke-width: 1.35;
-}
-
-.geometry-boom-annotation .geometry-boom-opening-detail {
-  fill: #102b33;
-  stroke: #f3f5ee;
-  stroke-width: 0.8;
-}
-
-.geometry-boom-annotation text {
+.geometry-boom-mouth-label text {
   fill: #8b341f;
   paint-order: stroke;
   stroke: rgba(250, 251, 247, 0.96);
@@ -5516,6 +5503,123 @@ footer p { margin: 0; }
 .geometry-panel-aft .geometry-current .geometry-draft-row.is-selected .geometry-draft-stripe {
   stroke-width: 5.2;
   opacity: 1;
+}
+
+.geometry-panel-aft .geometry-current.is-context-sail {
+  opacity: 0.26;
+}
+
+.geometry-panel-aft .geometry-target.is-context-sail {
+  opacity: 0.16;
+}
+
+.geometry-panel-aft .geometry-jib-tack-strop,
+.geometry-panel-aft .geometry-forestay {
+  opacity: 0.4;
+}
+
+.geometry-panel-aft .geometry-camera-centreline {
+  stroke: #5c7778;
+  stroke-dasharray: 2 5;
+  opacity: 0.55;
+}
+
+.geometry-perspective-key rect {
+  fill: rgba(20, 61, 71, 0.92);
+  stroke: none;
+}
+
+.geometry-perspective-key text {
+  fill: #f8faf6;
+  font-family: var(--mono);
+  font-size: 6.5px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.geometry-perspective-key .is-port,
+.geometry-perspective-key .is-starboard {
+  fill: #4e696c;
+  stroke: rgba(250, 251, 247, 0.96);
+  stroke-width: 2.2px;
+  paint-order: stroke fill;
+  font-size: 6px;
+}
+
+.geometry-aft-section-chord,
+.geometry-aft-section-current,
+.geometry-aft-section-reference {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-aft-section-chord {
+  stroke: #9badab;
+  stroke-width: 0.7;
+  stroke-dasharray: 2 3;
+}
+
+.geometry-aft-section-current {
+  stroke: #d64e2d;
+  stroke-width: 2.1;
+}
+
+.geometry-aft-section-stack.is-jib .geometry-aft-section-current {
+  stroke: #176d76;
+}
+
+.geometry-aft-section-reference {
+  stroke: #168077;
+  stroke-width: 1.15;
+  stroke-dasharray: 5 3;
+  opacity: 0.78;
+}
+
+.geometry-aft-section-reference.is-previous {
+  stroke: #536d86;
+  stroke-dasharray: 2 3;
+}
+
+.geometry-aft-section-stack > g:not(.is-selected) {
+  opacity: 0.7;
+}
+
+.geometry-aft-section-stack > g.is-selected .geometry-aft-section-current {
+  stroke-width: 3.25;
+}
+
+.geometry-aft-section-title,
+.geometry-aft-section-axis,
+.geometry-aft-section-level,
+.geometry-aft-section-value {
+  fill: #36565c;
+  paint-order: stroke;
+  stroke: rgba(250, 251, 247, 0.96);
+  stroke-width: 2.2px;
+  font-family: var(--mono);
+  font-size: 6px;
+  font-weight: 800;
+}
+
+.geometry-aft-section-title {
+  fill: #173d46;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+}
+
+.geometry-aft-section-axis {
+  fill: #728789;
+  font-size: 5.2px;
+}
+
+.geometry-aft-section-level {
+  font-size: 5.6px;
+}
+
+.geometry-aft-section-value {
+  fill: #6c4d43;
+  font-size: 5.2px;
 }
 
 .geometry-panel-aft figcaption {

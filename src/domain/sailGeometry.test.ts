@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { calculateTrim, outhaulEaseMillimeters, targetControls } from './trimModel'
 import {
   AFT_VIEW_DEGREES,
+  BOOM_END_CAMERA_OFFSET_MM,
   buildBoomGeometry,
   buildMastGeometry,
   buildRigHardpoints,
@@ -10,9 +11,11 @@ import {
   CLASS_MAST_SPECIFICATIONS,
   CLASS_RIG_SPECIFICATIONS,
   CLASS_SAIL_SPECIFICATIONS,
+  createBoomEndCamera,
   fitProjection,
   getLevelRow,
   measureSurfaceRow,
+  projectBoomEndCoordinate,
   projectCoordinate,
   projectSurface,
   SAIL_GEOMETRY_UNIT_MM,
@@ -461,6 +464,66 @@ describe('single sail surface geometry', () => {
       expect(polygonArea(outer)).toBeGreaterThan(0)
       expect(polygonArea(inner)).toBeGreaterThan(0)
       expect(polygonArea(outer)).toBeGreaterThan(polygonArea(inner))
+    }
+  })
+
+  it('uses a real boom-end eye point so the mouth is nearer and larger than the mast end', () => {
+    const polygonArea = (points: Array<{ x: number; y: number }>) => Math.abs(
+      points.reduce((sum, point, index) => {
+        const next = points[(index + 1) % points.length]
+        return sum + point.x * next.y - next.x * point.y
+      }, 0) / 2,
+    )
+
+    for (const boat of ['420', '470'] as const) {
+      for (const trueWindAngle of [45, 90, 140]) {
+        const result = calculateTrim(
+          boat,
+          trueWindAngle,
+          12,
+          targetControls(boat, trueWindAngle, 12),
+        )
+        const main = buildRigSurfaces(boat, result.actual).main
+        const boom = buildBoomGeometry(boat, main)
+        const [start, end] = boom.centreline
+        const camera = createBoomEndCamera(start, end)
+        const startProjection = projectBoomEndCoordinate(start, camera)
+        const endProjection = projectBoomEndCoordinate(end, camera)
+        const startSection = boom.faces.map((face) => face[0])
+        const startArea = polygonArea(startSection.map((point) =>
+          projectBoomEndCoordinate(point, camera)))
+        const mouthArea = polygonArea(boom.aftEnd.outer.map((point) =>
+          projectBoomEndCoordinate(point, camera)))
+        const cameraOffsetMm = Math.hypot(
+          camera.origin.x - end.x,
+          camera.origin.y - end.y,
+        ) * SAIL_GEOMETRY_UNIT_MM
+
+        expect(cameraOffsetMm).toBeCloseTo(BOOM_END_CAMERA_OFFSET_MM, 10)
+        expect(endProjection.depth).toBeGreaterThan(0)
+        expect(startProjection.depth).toBeGreaterThan(endProjection.depth)
+        expect(endProjection.x).toBeCloseTo(0, 12)
+        expect(endProjection.y).toBeCloseTo(0, 12)
+        expect(startProjection.x).toBeCloseTo(0, 12)
+        expect(startProjection.y).toBeCloseTo(0, 12)
+        expect(mouthArea).toBeGreaterThan(startArea)
+
+        const starboardDatum = {
+          x: camera.origin.x + camera.forward.x + camera.right.x * 0.1,
+          y: camera.origin.y + camera.forward.y + camera.right.y * 0.1,
+          z: camera.origin.z,
+        }
+        expect(projectBoomEndCoordinate(starboardDatum, camera).x).toBeGreaterThan(0)
+
+        const projectedMain = projectSurface(
+          main,
+          'aft',
+          AFT_VIEW_DEGREES,
+          (point) => projectBoomEndCoordinate(point, camera),
+        )
+        expect(projectedMain.rows.flatMap((row) => row.points).every((point) =>
+          Number.isFinite(point.x) && Number.isFinite(point.y))).toBe(true)
+      }
     }
   })
 

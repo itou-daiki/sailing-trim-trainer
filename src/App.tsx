@@ -477,6 +477,7 @@ function App() {
           <div className="trim-workbench">
             <div className="live-visual-column">
               <BoatView
+                key={`${workspaceMode}:${activeChallengeId}:${boat}`}
                 boat={boat}
                 angle={angle}
                 windSpeed={windSpeed}

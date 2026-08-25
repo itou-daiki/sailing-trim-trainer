@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import {
   buildBoomGeometry,
   buildMastGeometry,
@@ -24,12 +24,9 @@ import {
   HULL_SPECIFICATIONS,
   type HullPoint,
 } from '../domain/hullGeometry'
-import {
-  compareShapeChange,
-  focusForControl,
-} from '../domain/shapeComparison'
+import { focusForControl } from '../domain/shapeComparison'
 import type { ControlMove } from '../domain/shapeComparison'
-import { CONTROL_LABELS } from '../domain/trimModel'
+import { CONTROL_LABELS, outhaulEaseMillimeters } from '../domain/trimModel'
 import type {
   ProjectedPoint,
   ProjectedSurface,
@@ -920,6 +917,8 @@ function measureStripe(surface: RigSurfaces['main'], level: SailLevel) {
   return measureSurfaceRow(getLevelRow(surface, level), lowerRotation)
 }
 
+type StripeMeasurement = ReturnType<typeof measureStripe>
+
 function diagnoseShapeDifference(
   delta: number,
   tolerance: number,
@@ -1127,31 +1126,146 @@ function deltaReading(
   }
 }
 
-function ShapeDeltaStrip({
+function formatMovePosition(control: ControlKey, value: number) {
+  if (control !== 'outhaul') return String(value)
+  const millimeters = outhaulEaseMillimeters(value)
+  if (millimeters === 0) return 'ブラックバンド'
+  const formatted = Number.isInteger(millimeters) ? millimeters : millimeters.toFixed(1)
+  return `バンドから ${formatted} mm`
+}
+
+function SectionTrace({
+  phase,
+  sail,
+  level,
+  row,
+  reading,
+  controlPosition,
+}: {
+  phase: 'before' | 'after'
+  sail: Focus['sail']
+  level: SailLevel
+  row: SurfaceRow
+  reading: StripeMeasurement
+  controlPosition: string
+}) {
+  const peakX = PROFILE_LEFT + reading.draftPosition * (PROFILE_RIGHT - PROFILE_LEFT)
+  const peakY = PROFILE_CHORD_Y - reading.draftDepth * PROFILE_DEPTH_SCALE
+  const phaseLabel = phase === 'before' ? '操作前' : '操作後'
+  const sailLabel = sail === 'main' ? 'メイン' : 'ジブ'
+
+  return (
+    <figure className={`change-trace-card is-${phase} is-${sail}`}>
+      <figcaption>
+        <span>{phase === 'before' ? 'BEFORE' : 'AFTER'} / {phaseLabel}</span>
+        <strong>{sailLabel}・{LEVEL_LABELS[level]}</strong>
+        <small>{controlPosition}</small>
+      </figcaption>
+      <svg viewBox="0 0 360 108" role="img" aria-label={`${phaseLabel}の${sailLabel}${LEVEL_LABELS[level]}。深さ${(reading.draftDepth * 100).toFixed(1)}%、最大位置${Math.round(reading.draftPosition * 100)}%`}>
+        <path className="change-trace-grid" d={`M${PROFILE_LEFT} 24H${PROFILE_RIGHT}M${PROFILE_LEFT} 52H${PROFILE_RIGHT}`} />
+        <path className="change-trace-fill" d={profileAreaPath(row)} />
+        <path className="change-trace-chord" d={`M${PROFILE_LEFT} ${PROFILE_CHORD_Y}H${PROFILE_RIGHT}`} />
+        <path className="change-trace-line" d={profilePath(row)} />
+        <path className="change-trace-depth" d={`M${peakX} ${PROFILE_CHORD_Y}V${peakY}`} />
+        <circle className="change-trace-peak" cx={peakX} cy={peakY} r="4" />
+        <text x={PROFILE_LEFT} y="99">LUFF 0%</text>
+        <text x={peakX} y="99" textAnchor="middle">PEAK {Math.round(reading.draftPosition * 100)}%</text>
+        <text x={PROFILE_RIGHT} y="99" textAnchor="end">LEECH 100%</text>
+      </svg>
+      <dl>
+        <div><dt>深さ</dt><dd>{(reading.draftDepth * 100).toFixed(1)}<small>%c</small></dd></div>
+        <div><dt>最大位置</dt><dd>{Math.round(reading.draftPosition * 100)}<small>%c</small></dd></div>
+        <div><dt>ツイスト</dt><dd>{reading.twist.toFixed(1)}<small>°</small></dd></div>
+      </dl>
+    </figure>
+  )
+}
+
+function BeforeAfterBench({
+  active,
   before,
   after,
   move,
 }: {
-  before: TrimResult
-  after: TrimResult
+  active: Focus
+  before: RigSurfaces
+  after: RigSurfaces
   move: ControlMove
 }) {
-  const delta = compareShapeChange(before, after, move.control)
-  const depth = deltaReading(delta.draftDepthPoints, 'pt', '深く', '浅く', 0.05)
-  const position = deltaReading(delta.draftPositionPoints, 'pt', '後ろへ', '前へ', 0.05)
-  const twist = deltaReading(delta.twistDegrees, '°', '開く', '閉じる', 0.05)
+  const beforeSurface = before[active.sail]
+  const afterSurface = after[active.sail]
+  const beforeRow = getLevelRow(beforeSurface, active.level)
+  const afterRow = getLevelRow(afterSurface, active.level)
+  const beforeReading = measureStripe(beforeSurface, active.level)
+  const afterReading = measureStripe(afterSurface, active.level)
+  const depth = deltaReading(
+    (afterReading.draftDepth - beforeReading.draftDepth) * 100,
+    'pt',
+    '深くなった',
+    '浅くなった',
+    0.05,
+  )
+  const position = deltaReading(
+    (afterReading.draftPosition - beforeReading.draftPosition) * 100,
+    'pt',
+    '後ろへ移動',
+    '前へ移動',
+    0.05,
+  )
+  const twist = deltaReading(
+    afterReading.twist - beforeReading.twist,
+    '°',
+    '開いた',
+    '閉じた',
+    0.05,
+  )
+  const sailLabel = active.sail === 'main' ? 'メイン' : 'ジブ'
+  const focusLabel = `${sailLabel}・${LEVEL_LABELS[active.level]}`
+  const beforePosition = `${CONTROL_LABELS[move.control]} ${formatMovePosition(move.control, move.from)}`
+  const afterPosition = `${CONTROL_LABELS[move.control]} ${formatMovePosition(move.control, move.to)}`
 
   return (
-    <div className="shape-delta-strip" aria-live="polite">
-      <div className="shape-delta-control">
-        <span>LAST MOVE / 操作前との差</span>
-        <strong>{CONTROL_LABELS[move.control]}</strong>
-        <small>{move.from} → {move.to}</small>
+    <section className="before-after-bench" aria-labelledby="change-trace-title">
+      <p className="change-trace-announcement" aria-live="polite" aria-atomic="true">
+        {`${CONTROL_LABELS[move.control]}。操作前${formatMovePosition(move.control, move.from)}、操作後${formatMovePosition(move.control, move.to)}。${focusLabel}は、深さ${depth.direction}、最大位置${position.direction}、ツイスト${twist.direction}。`}
+      </p>
+      <header className="change-trace-head">
+        <span>CHANGE TRACE / 操作前後</span>
+        <h3 id="change-trace-title">{CONTROL_LABELS[move.control]}で、{focusLabel}はどう変わった？</h3>
+        <p>左は操作開始時のまま固定。右だけがスライダーに連動します。</p>
+        <small>{formatMovePosition(move.control, move.from)} → {formatMovePosition(move.control, move.to)}</small>
+      </header>
+
+      <div className="change-trace-comparison">
+        <SectionTrace
+          phase="before"
+          sail={active.sail}
+          level={active.level}
+          row={beforeRow}
+          reading={beforeReading}
+          controlPosition={beforePosition}
+        />
+        <div className="change-trace-arrow" aria-hidden="true">
+          <span>SAME STRIPE</span>
+          <b>→</b>
+          <small>同じ高さ</small>
+        </div>
+        <SectionTrace
+          phase="after"
+          sail={active.sail}
+          level={active.level}
+          row={afterRow}
+          reading={afterReading}
+          controlPosition={afterPosition}
+        />
       </div>
-      <div><span>深さ</span><strong>{depth.value}</strong><small>{depth.direction}</small></div>
-      <div><span>最大位置</span><strong>{position.value}</strong><small>{position.direction}</small></div>
-      <div><span>ツイスト</span><strong>{twist.value}</strong><small>{twist.direction}</small></div>
-    </div>
+
+      <div className="change-trace-deltas" aria-label={`${focusLabel}の変化量`}>
+        <div><span>深さの変化</span><strong>{depth.value}</strong><small>{depth.direction}</small></div>
+        <div><span>最大位置の変化</span><strong>{position.value}</strong><small>{position.direction}</small></div>
+        <div><span>ツイストの変化</span><strong>{twist.value}</strong><small>{twist.direction}</small></div>
+      </div>
+    </section>
   )
 }
 
@@ -1175,10 +1289,19 @@ export function BoatView({
   const [inspectionFocus, setInspectionFocus] = useState<Focus | null>(null)
   const [aftDisplayMode, setAftDisplayMode] = useState<AftDisplayMode>('boat')
   const active = inspectionFocus ?? suggestedFocus
-  const actualSurfaces = buildRigSurfaces(boat, result.actual)
-  const referenceSurfaces = buildRigSurfaces(
-    boat,
-    comparisonMode === 'previous' ? previousResult.actual : result.target,
+  const actualSurfaces = useMemo(
+    () => buildRigSurfaces(boat, result.actual),
+    [boat, result.actual],
+  )
+  const previousSurfaces = useMemo(
+    () => buildRigSurfaces(boat, previousResult.actual),
+    [boat, previousResult.actual],
+  )
+  const referenceSurfaces = useMemo(
+    () => comparisonMode === 'previous'
+      ? previousSurfaces
+      : buildRigSurfaces(boat, result.target),
+    [boat, comparisonMode, previousSurfaces, result.target],
   )
   const referenceLabel = comparisonMode === 'previous' ? '操作前' : '基準形'
   const clothState = diagnoseMainCloth({
@@ -1214,9 +1337,9 @@ export function BoatView({
             <span><i className="legend-black-band" />ブラックバンド</span>
             <span><i className={`legend-reference is-${comparisonMode}`} />{referenceLabel}</span>
           </div>
-          <div className="geometry-compare-switch" aria-label="比較する形">
-            <button type="button" className={comparisonMode === 'previous' ? 'is-active' : ''} disabled={!hasPrevious} aria-pressed={comparisonMode === 'previous'} onClick={() => onComparisonModeChange('previous')}>操作前</button>
-            <button type="button" className={comparisonMode === 'target' ? 'is-active' : ''} aria-pressed={comparisonMode === 'target'} onClick={() => onComparisonModeChange('target')}>基準形</button>
+          <div className="geometry-compare-switch" aria-label="三面図に重ねる形">
+            <button type="button" title="三面図に操作前の形を重ねる" className={comparisonMode === 'previous' ? 'is-active' : ''} disabled={!hasPrevious} aria-pressed={comparisonMode === 'previous'} onClick={() => onComparisonModeChange('previous')}>操作前</button>
+            <button type="button" title="三面図に良い形の基準を重ねる" className={comparisonMode === 'target' ? 'is-active' : ''} aria-pressed={comparisonMode === 'target'} onClick={() => onComparisonModeChange('target')}>基準形</button>
           </div>
           <button type="button" className="geometry-share-button" onClick={onShareShape}>この形を共有 ↗</button>
         </div>
@@ -1262,20 +1385,26 @@ export function BoatView({
         onAutomatic={() => setInspectionFocus(null)}
       />
 
-      <SectionInspector
-        active={active}
-        actual={actualSurfaces}
-        reference={referenceSurfaces}
-        referenceMode={comparisonMode}
-      />
-
       {lastMove ? (
-        <ShapeDeltaStrip before={previousResult} after={result} move={lastMove} />
+        <BeforeAfterBench
+          active={active}
+          before={previousSurfaces}
+          after={actualSurfaces}
+          move={lastMove}
+        />
       ) : (
-        <div className="course-notice geometry-course-notice">
-          <span>LIVE CAUSE → SHAPE</span>
-          <p>{courseNotice}</p>
-        </div>
+        <>
+          <SectionInspector
+            active={active}
+            actual={actualSurfaces}
+            reference={referenceSurfaces}
+            referenceMode={comparisonMode}
+          />
+          <div className="course-notice geometry-course-notice">
+            <span>LIVE CAUSE → SHAPE</span>
+            <p>{courseNotice}</p>
+          </div>
+        </>
       )}
     </section>
   )

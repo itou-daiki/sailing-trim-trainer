@@ -5364,54 +5364,260 @@ footer p { margin: 0; }
 
 .geometry-course-notice p { font-size: 0.65rem; }
 
-.shape-delta-strip {
+.before-after-bench {
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: minmax(175px, 1.4fr) repeat(3, minmax(88px, 0.8fr));
-  min-height: 54px;
-  background: #d7e9e5;
-  border-top: 1px solid #70aea5;
+  grid-template-columns: minmax(180px, 0.58fr) minmax(0, 2.42fr);
+  grid-template-rows: minmax(155px, auto) auto;
+  min-height: 218px;
+  background: #f6f7f2;
+  border-top: 5px solid var(--orange);
 }
 
-.shape-delta-strip > div {
+.change-trace-announcement {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.change-trace-head {
+  grid-row: 1 / 3;
+  padding: 16px 14px;
+  color: #f6f7f2;
+  background: #143d47;
+  border-right: 1px solid #789092;
+}
+
+.change-trace-head > span,
+.change-trace-head > small {
+  display: block;
+  color: #a8c9c6;
+  font-family: var(--mono);
+  font-size: 0.48rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.change-trace-head h3 {
+  margin: 9px 0 7px;
+  color: #fffdf5;
+  font-size: clamp(0.76rem, 1.05vw, 1rem);
+  line-height: 1.45;
+  text-wrap: balance;
+}
+
+.change-trace-head p {
+  margin: 0 0 14px;
+  color: #d7e7e3;
+  font-size: 0.58rem;
+  line-height: 1.65;
+}
+
+.change-trace-head > small {
+  padding-top: 10px;
+  color: #fff4dc;
+  border-top: 1px solid #54737a;
+  font-size: 0.58rem;
+  letter-spacing: 0.03em;
+}
+
+.change-trace-comparison {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 46px minmax(0, 1fr);
+  min-width: 0;
+  background: #a6b3b2;
+  gap: 1px;
+}
+
+.change-trace-card {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  grid-template-rows: auto minmax(84px, 1fr) auto;
+  background: #fbfcf8;
+}
+
+.change-trace-card figcaption {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: baseline;
+  min-height: 34px;
+  padding: 7px 9px 5px;
+  border-bottom: 1px solid #c5cfcc;
+}
+
+.change-trace-card figcaption span,
+.change-trace-card figcaption small {
+  color: #536d86;
+  font-family: var(--mono);
+  font-size: 0.45rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.change-trace-card.is-after figcaption span { color: #b54024; }
+.change-trace-card.is-after.is-jib figcaption span { color: #176d76; }
+
+.change-trace-card figcaption strong {
+  overflow: hidden;
+  color: #1e343a;
+  font-size: 0.62rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.change-trace-card figcaption small {
+  color: #627578;
+  letter-spacing: 0;
+}
+
+.change-trace-card > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 84px;
+  background: #fbfcf8;
+}
+
+.change-trace-card svg text {
+  fill: #6a7c7d;
+  font-family: var(--mono);
+  font-size: 7px;
+  font-weight: 800;
+}
+
+.change-trace-grid,
+.change-trace-chord,
+.change-trace-line,
+.change-trace-depth {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.change-trace-grid { stroke: #e0e5e1; stroke-width: 1; stroke-dasharray: 2 4; }
+.change-trace-chord { stroke: #829493; stroke-width: 1; }
+.change-trace-depth { stroke: #536d86; stroke-width: 1; stroke-dasharray: 2 2; }
+.change-trace-line { stroke: #536d86; stroke-width: 3; }
+.change-trace-fill { fill: rgba(83, 109, 134, 0.12); }
+.change-trace-peak { fill: #536d86; stroke: #fff; stroke-width: 1.3; }
+
+.change-trace-card.is-after .change-trace-line { stroke: #d64e2d; }
+.change-trace-card.is-after .change-trace-depth { stroke: #b54024; }
+.change-trace-card.is-after .change-trace-fill { fill: rgba(214, 78, 45, 0.15); }
+.change-trace-card.is-after .change-trace-peak { fill: #d64e2d; }
+.change-trace-card.is-after.is-jib .change-trace-line,
+.change-trace-card.is-after.is-jib .change-trace-depth { stroke: #176d76; }
+.change-trace-card.is-after.is-jib .change-trace-fill { fill: rgba(23, 109, 118, 0.15); }
+.change-trace-card.is-after.is-jib .change-trace-peak { fill: #176d76; }
+
+.change-trace-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid #c5cfcc;
+}
+
+.change-trace-card dl > div {
+  min-width: 0;
+  padding: 5px 7px 6px;
+  border-right: 1px solid #d6ddda;
+}
+
+.change-trace-card dl > div:last-child { border-right: 0; }
+
+.change-trace-card dt {
+  color: #607477;
+  font-size: 0.42rem;
+  font-weight: 800;
+}
+
+.change-trace-card dd {
+  margin: 2px 0 0;
+  color: #1c3940;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.change-trace-card dd small {
+  margin-left: 2px;
+  color: #647779;
+  font-size: 0.4rem;
+}
+
+.change-trace-arrow {
   display: flex;
   min-width: 0;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
+  color: #f4f7f2;
+  background: #31545c;
+}
+
+.change-trace-arrow span,
+.change-trace-arrow small {
+  color: #c8d9d5;
+  font-family: var(--mono);
+  font-size: 0.35rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  writing-mode: vertical-rl;
+}
+
+.change-trace-arrow b {
+  margin: 5px 0;
+  color: #ffdcb6;
+  font-size: 1.2rem;
+}
+
+.change-trace-deltas {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-height: 54px;
+  background: #d7e9e5;
+  border-top: 1px solid #8eaaa6;
+}
+
+.change-trace-deltas > div {
+  display: grid;
+  grid-template-columns: minmax(78px, 1fr) auto minmax(74px, 0.8fr);
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
   padding: 7px 10px;
   border-right: 1px solid #a5c2bd;
 }
 
-.shape-delta-strip > div:last-child { border-right: 0; }
+.change-trace-deltas > div:last-child { border-right: 0; }
 
-.shape-delta-strip span,
-.shape-delta-strip small {
+.change-trace-deltas span,
+.change-trace-deltas small {
   color: #4c686b;
   font-family: var(--mono);
-  font-size: 0.48rem;
-  letter-spacing: 0.05em;
+  font-size: 0.45rem;
+  font-weight: 800;
 }
 
-.shape-delta-strip strong {
-  margin: 2px 0;
+.change-trace-deltas strong {
+  color: #173b43;
   font-family: var(--mono);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
 }
 
-.shape-delta-control {
-  color: #f7faf7;
-  background: #143d47;
-  border-left: 5px solid var(--orange);
-}
-
-.shape-delta-strip .shape-delta-control span,
-.shape-delta-strip .shape-delta-control small {
-  color: #a8c9c6;
-}
-
-.shape-delta-strip .shape-delta-control strong {
-  color: #fffdf5;
+.change-trace-deltas small {
+  color: #8f3b25;
+  text-align: right;
 }
 
 @media (max-width: 1120px) {
@@ -5527,15 +5733,58 @@ footer p { margin: 0; }
   .geometry-stripe-readings strong,
   .geometry-stripe-readings b { font-size: 0.5rem; }
 
-  .shape-delta-strip {
-    grid-template-columns: minmax(90px, 1.15fr) repeat(3, minmax(58px, 0.85fr));
-    min-height: 69px;
+  .before-after-bench {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
   }
 
-  .shape-delta-strip > div { padding: 5px 4px; }
-  .shape-delta-strip span { font-size: 0.4rem; }
-  .shape-delta-strip strong { font-size: 0.62rem; }
-  .shape-delta-strip small { font-size: 0.4rem; }
+  .change-trace-head {
+    display: grid;
+    grid-row: auto;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 3px 8px;
+    padding: 8px 9px;
+    border-right: 0;
+  }
+
+  .change-trace-head > span,
+  .change-trace-head h3 { grid-column: 1; }
+  .change-trace-head h3 { margin: 2px 0; font-size: 0.62rem; }
+  .change-trace-head p { grid-column: 1 / -1; margin: 1px 0 0; font-size: 0.45rem; }
+  .change-trace-head > small {
+    grid-row: 1 / 3;
+    grid-column: 2;
+    align-self: center;
+    padding: 5px 0 5px 8px;
+    border-top: 0;
+    border-left: 1px solid #54737a;
+    font-size: 0.46rem;
+  }
+
+  .change-trace-comparison { grid-template-columns: minmax(0, 1fr) 30px minmax(0, 1fr); }
+  .change-trace-card { grid-template-rows: auto 78px auto; }
+  .change-trace-card figcaption { grid-template-columns: 1fr; gap: 1px; min-height: 39px; padding: 4px 5px; }
+  .change-trace-card figcaption span { font-size: 0.39rem; }
+  .change-trace-card figcaption strong { font-size: 0.49rem; }
+  .change-trace-card figcaption small { display: none; }
+  .change-trace-card > svg { min-height: 78px; }
+  .change-trace-card dt { font-size: 0.34rem; }
+  .change-trace-card dd { font-size: 0.52rem; }
+  .change-trace-card dl > div { padding: 4px 3px; }
+  .change-trace-arrow span,
+  .change-trace-arrow small { font-size: 0.29rem; }
+  .change-trace-arrow b { font-size: 0.85rem; }
+
+  .change-trace-deltas { min-height: 56px; }
+  .change-trace-deltas > div {
+    grid-template-columns: 1fr;
+    gap: 1px;
+    padding: 5px 4px;
+    text-align: center;
+  }
+  .change-trace-deltas span,
+  .change-trace-deltas small { font-size: 0.36rem; text-align: center; }
+  .change-trace-deltas strong { font-size: 0.58rem; }
 }
 
 /* Build 0.6 — the sailmaker's bench is the product, lessons follow it. */

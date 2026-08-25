@@ -1657,6 +1657,10 @@ function MastResponsePanel({
           <em>二次作用</em>
           <span>圧縮荷重 ↑</span><b>→</b><span>既存ベンドを増幅</span><b>→</b><span>上部が最も動く</span>
         </div>
+        <div className="is-coupled">
+          <em>連成</em>
+          <span>セールの深さ・ツイスト</span><b>→</b><span>風圧反力 → ベンド</span><b>↺</b><span>ベンド → セール形状</span>
+        </div>
       </div>
 
       <div className="mast-station-readout" aria-label="高さ別の前後ベンド">

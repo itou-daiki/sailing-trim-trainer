@@ -53,6 +53,8 @@ describe('teaching-oriented before and after comparison', () => {
     expect(markup).toContain('geometry-side-bend-lens')
     expect(markup).toContain('BEND LENS · ×20')
     expect(markup).toContain('後傾を除いたマストベンド拡大図')
+    expect(markup).toContain('風圧反力 → ベンド')
+    expect(markup).toContain('ベンド → セール形状')
     expect(markup).toContain('STERN / 真後ろのマストベンド')
     expect(markup).toContain('前後方向は奥行きに重なる')
     expect(markup).toContain('geometry-mast-depth-readings')

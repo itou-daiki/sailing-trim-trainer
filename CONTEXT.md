@@ -32,8 +32,8 @@ The trainer's top, side, and boom-end orthographic projections are complementary
 _Avoid_: Treating any convenient camera angle as directly comparable, reading one isolated stripe as the whole sail, using a telltale as a camber measurement
 
 **Mast bend**:
-The forward deflection pattern of the main-sail luff relative to a straight mast reference. It explains how the chock or fore/aft pullers redistribute depth through the lower and middle sail. The visual trace emphasizes change and is not a millimetre tuning-gauge reading.
-_Avoid_: A permanently straight luff, measured rig load, exact pre-bend millimetres
+The forward deflection pattern of the main-sail luff relative to a straight mast reference. It explains how the chock or fore/aft pullers redistribute depth through the lower and middle sail. Controls and standing rig establish the base curve; a small distributed reaction from the loaded flying sail is fed back into the same curve until sail sections and mast bend settle. The displayed millimetres are a class-calibrated teaching estimate, not a strain-gauge measurement.
+_Avoid_: A permanently straight luff, one-way shape response, measured rig load, manufacturer-specific stiffness claims
 
 **Reference shape**:
 A comparison shape for one boat class, wind speed, and true-wind angle. It is a useful starting range, not a single universally correct race setting.
@@ -56,7 +56,7 @@ The length of boltrope sewn into the mainsail foot: 1920 mm for 420 and 2200 mm 
 _Avoid_: Mainsail foot length, tack-to-clew chord, clew position
 
 **Control response**:
-The direction and relative vertical distribution of a shape change caused by one control. It represents a pedagogical sensitivity, not a force or rig load.
+The direction and relative vertical distribution of a shape change caused by one control. Direct control response and the smaller aeroelastic sail-load feedback are separated, then solved to a stable quasi-steady state. It represents a pedagogical sensitivity, not a measured force or rig load.
 _Avoid_: Physics coefficient, measured load
 
 **Sail surface**:

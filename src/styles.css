@@ -6532,6 +6532,12 @@ footer p { margin: 0; }
 }
 
 .mast-load-paths .is-secondary em { background: #536d86; }
+.mast-load-paths .is-coupled em { background: #b54024; }
+
+.mast-load-paths .is-coupled span {
+  background: #f1e8df;
+  border-bottom-color: #d7a48f;
+}
 
 .mast-load-paths span {
   padding: 6px 5px;

@@ -144,9 +144,26 @@ describe('trim model', () => {
 
     expect(outhaulEaseMillimeters(0)).toBe(25)
     expect(outhaulEaseMillimeters(100)).toBe(0)
-    expect(lowerChange).toBeCloseTo(0.025, 8)
+    // The nominal 25 mm foot response remains about 2.5% chord; the coupled
+    // mast reaction now absorbs a small part of the direct depth change.
+    expect(lowerChange).toBeCloseTo(0.025, 3)
     expect(lowerChange).toBeGreaterThan(middleChange * 2)
     expect(middleChange).toBeGreaterThan(upperChange * 2)
+  })
+
+  it('feeds the deeper mainsail load back into lower-mast bend', () => {
+    for (const boat of ['420', '470'] as const) {
+      const controls = targetControls(boat, 45, 14)
+      const powered = calculateTrim(boat, 45, 14, { ...controls, outhaul: 0 })
+      const flattened = calculateTrim(boat, 45, 14, { ...controls, outhaul: 100 })
+
+      expect(powered.actual.main.sections.lower.draftDepth).toBeGreaterThan(
+        flattened.actual.main.sections.lower.draftDepth,
+      )
+      expect(powered.actual.main.mastBendProfile.lower).toBeGreaterThan(
+        flattened.actual.main.mastBendProfile.lower,
+      )
+    }
   })
 
   it('moves all main draft stripes forward with cunningham tension', () => {

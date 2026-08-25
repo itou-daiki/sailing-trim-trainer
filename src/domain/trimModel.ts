@@ -1,6 +1,10 @@
 import { BOATS } from '../data/boats'
 import { evaluateAero } from './aeroModel'
-import { calculateMastBendProfile, mastBendSignal } from './mastResponse'
+import {
+  calculateMastBendProfile,
+  mastBendSignal,
+  mastProfileUnderSailLoad,
+} from './mastResponse'
 import { apparentWind, optimalMainTrim } from './windModel'
 import type {
   BoatClass,
@@ -212,9 +216,8 @@ function sailShapes(
   const cunningham = controls.cunningham / 100
   const outhaulEaseMm = outhaulEaseMillimeters(controls.outhaul)
   const sheet = controls.mainSheet / 100
-  const bend = calculateMastBendProfile(boat, controls)
-
-  const mainSections = {
+  const controlBend = calculateMastBendProfile(boat, controls)
+  const sectionsForBend = (bend: typeof controlBend) => ({
     lower: {
       height: 0.25,
       draftDepth: clamp(
@@ -257,6 +260,46 @@ function sailShapes(
       ),
       twist: clamp(20 - vang * 14 - sheet * 3 + bend.upper * 4.5 + cunningham * 2 + windLoad * 1.5, 4, 24),
     },
+  })
+  let bend = controlBend
+  let mainSections = sectionsForBend(bend)
+
+  // Quasi-steady aeroelastic teaching loop:
+  // flying shape sets a section-load proxy; that load bends the mast; the new
+  // mast curve changes the flying shape. Under-relaxation keeps the fixed-point
+  // iteration stable across the complete control range.
+  // Sources:
+  // https://sam.ensam.eu/bitstream/handle/10985/12555/Augier-PhysicsofSports.pdf
+  // https://doi.org/10.1016/j.ijnaoe.2019.02.003
+  const pressure = clamp((windSpeed / 18) ** 2, 0, 1.4)
+  const loadForSections = (sections: typeof mainSections) => ({
+    lower: pressure * sections.lower.draftDepth / 0.14 *
+      clamp(1 - sections.lower.twist / 12, 0.35, 1) * 0.86,
+    middle: pressure * sections.middle.draftDepth / 0.13 *
+      clamp(1 - sections.middle.twist / 22, 0.32, 1),
+    upper: pressure * sections.upper.draftDepth / 0.115 *
+      clamp(1 - sections.upper.twist / 30, 0.25, 1) * 0.78,
+  })
+
+  for (let iteration = 0; iteration < 10; iteration += 1) {
+    const loaded = mastProfileUnderSailLoad(
+      boat,
+      controlBend,
+      loadForSections(mainSections),
+    )
+    const next = {
+      lower: lerp(bend.lower, loaded.lower, 0.64),
+      middle: lerp(bend.middle, loaded.middle, 0.64),
+      upper: lerp(bend.upper, loaded.upper, 0.64),
+    }
+    const change = Math.max(
+      Math.abs(next.lower - bend.lower),
+      Math.abs(next.middle - bend.middle),
+      Math.abs(next.upper - bend.upper),
+    )
+    bend = next
+    mainSections = sectionsForBend(bend)
+    if (change < 0.00001) break
   }
   const mainAngle = mainAngleFromSheet(controls.mainSheet)
 

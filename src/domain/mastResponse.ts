@@ -66,6 +66,11 @@ const RESPONSE: Record<BoatClass, ProfileCoefficients> = {
 
 const LEVELS = ['lower', 'middle', 'upper'] as const
 
+const AEROELASTIC_COMPLIANCE: Record<BoatClass, MastBendProfile> = {
+  '420': { lower: 0.07, middle: 0.095, upper: 0.12 },
+  '470': { lower: 0.075, middle: 0.11, upper: 0.15 },
+}
+
 export function mastControlProfile(
   boat: BoatClass,
   control: ControlKey,
@@ -96,6 +101,39 @@ export function calculateMastBendProfile(
   return Object.fromEntries(LEVELS.map((level) => [
     level,
     clamp(profile[level] + floorAdjustment, 0, specification.limits[level]),
+  ])) as MastBendProfile
+}
+
+/**
+ * Adds the distributed reaction of the flying mainsail to the control-set
+ * mast profile. `sailLoad` is a dimensionless section load proxy calculated
+ * from wind pressure, camber and twist. The compliance is intentionally small:
+ * controls and standing rig establish the bend, while aerodynamic sail load
+ * closes the two-way teaching loop.
+ *
+ * 470 receives a slightly larger upper response because its tuning guidance
+ * distinguishes flexible top sections. This remains a calibrated learning
+ * approximation rather than a mast-section FEM solution.
+ *
+ * Sources:
+ * - https://colorcode.northsails.com/sailing/wp-content/uploads/2017/05/470_tuning_guide_e01.pdf
+ * - https://sam.ensam.eu/bitstream/handle/10985/12555/Augier-PhysicsofSports.pdf
+ */
+export function mastProfileUnderSailLoad(
+  boat: BoatClass,
+  controlProfile: MastBendProfile,
+  sailLoad: MastBendProfile,
+): MastBendProfile {
+  const specification = RESPONSE[boat]
+  const compliance = AEROELASTIC_COMPLIANCE[boat]
+
+  return Object.fromEntries(LEVELS.map((level) => [
+    level,
+    clamp(
+      controlProfile[level] + clamp(sailLoad[level], 0, 1.4) * compliance[level],
+      0,
+      specification.limits[level],
+    ),
   ])) as MastBendProfile
 }
 

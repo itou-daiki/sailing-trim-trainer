@@ -1182,11 +1182,11 @@ function MastBendTrace({
   return (
     <div className={`mast-bend-trace is-${phase}`}>
       <div className="mast-bend-label">
-        <span>MAST / SIDE PROFILE</span>
+        <span>マスト</span>
         <strong>{bendMillimeters.toFixed(0)}<small> mm</small></strong>
         <small>直線基準からの最大たわみ · 横変位 ×{MAST_BEND_LENS_SCALE}</small>
       </div>
-      <svg viewBox="0 0 104 68" role="img" aria-label={`${phaseLabel}のマストベンド${bendMillimeters.toFixed(0)} mm。艇首を左にして、直線基準との差を横方向${MAST_BEND_LENS_SCALE}倍で表示`}>
+      <svg viewBox="0 0 104 68" role="img" aria-label={`${phaseLabel}のマスト。最大たわみ${bendMillimeters.toFixed(0)} mm。艇首を左にして、直線基準との差を横方向${MAST_BEND_LENS_SCALE}倍で表示`}>
         <path className="mast-bend-straight" d={`M${trace.baselineX} ${trace.bottomY}V${trace.topY}`} />
         <path className="mast-bend-curve" d={trace.path} />
         <path className="mast-bend-measure" d={`M${trace.baselineX} ${trace.maximum.y}H${trace.maximum.x}`} />
@@ -1321,7 +1321,7 @@ function BeforeAfterBench({
   return (
     <section className="before-after-bench" aria-labelledby="change-trace-title">
       <p className="change-trace-announcement" aria-live="polite" aria-atomic="true">
-        {`${CONTROL_LABELS[move.control]}。操作前${formatMovePosition(move.control, move.from)}、操作後${formatMovePosition(move.control, move.to)}。${focusLabel}は、深さ${depth.direction}、最大位置${position.direction}、ツイスト${twist.direction}。マストベンドは${mastBend.direction}。`}
+        {`${CONTROL_LABELS[move.control]}。操作前${formatMovePosition(move.control, move.from)}、操作後${formatMovePosition(move.control, move.to)}。${focusLabel}は、深さ${depth.direction}、最大位置${position.direction}、ツイスト${twist.direction}。マストの曲がりは${mastBend.direction}。`}
       </p>
       <header className="change-trace-head">
         <span>CHANGE TRACE / 操作前後</span>
@@ -1362,7 +1362,7 @@ function BeforeAfterBench({
         <div><span>深さの変化</span><strong>{depth.value}</strong><small>{depth.direction}</small></div>
         <div><span>最大位置の変化</span><strong>{position.value}</strong><small>{position.direction}</small></div>
         <div><span>ツイストの変化</span><strong>{twist.value}</strong><small>{twist.direction}</small></div>
-        <div><span>マストベンド</span><strong>{mastBend.value}</strong><small>{mastBend.direction}</small></div>
+        <div><span>マストの曲がり</span><strong>{mastBend.value}</strong><small>{mastBend.direction}</small></div>
       </div>
     </section>
   )

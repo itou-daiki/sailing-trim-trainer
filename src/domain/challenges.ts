@@ -172,7 +172,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
       options: [
         { control: 'chock', label: 'チョックを厚くする', feedback: 'ロワーマストの前後移動を抑え、過剰なベンドを減らします。' },
         { control: 'outhaul', label: 'アウトホールを出す', feedback: '深さは戻せますが、原因のロワーマスト設定は残ります。' },
-        { control: 'jibHeight', label: 'ジブを高くする', feedback: 'ジブのリード角に効く操作で、メインのマストベンドとは別です。' },
+        { control: 'jibHeight', label: 'ジブを高くする', feedback: 'ジブのリード角に効く操作で、マストの曲がりとは別です。' },
       ],
     },
     evidence: { correct: 'draftDepth', statement: 'ロワーマストの過剰な曲がりが減り、メイン中部に深さが戻った。' },
@@ -201,7 +201,7 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
       options: [
         { control: 'jibHeight', label: 'ジブ高さを下げる', feedback: 'シートの下向き成分を弱め、ジブ上部を開きます。' },
         { control: 'vang', label: 'バングを出す', feedback: 'メインのツイストには効きますが、ジブのリード角は変わりません。' },
-        { control: 'chock', label: 'チョックを薄くする', feedback: 'メインのマストベンド操作で、ジブ上部の主操作ではありません。' },
+        { control: 'chock', label: 'チョックを薄くする', feedback: 'マストの曲がりを変える操作で、ジブ上部の主操作ではありません。' },
       ],
     },
     evidence: { correct: 'twist', statement: 'ジブ上部が開き、ツイストが基準帯へ戻った。' },

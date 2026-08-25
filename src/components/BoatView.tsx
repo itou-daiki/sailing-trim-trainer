@@ -68,6 +68,7 @@ type AftDisplayMode = 'shape' | 'boat'
 type Focus = { sail: 'main' | 'jib'; level: SailLevel }
 
 const AFT_SHAPE_LENS_SCALE = 3
+const SIDE_MAST_BEND_LENS_SCALE = 12
 
 const VIEW_META: Record<
   ProjectionView,
@@ -82,8 +83,8 @@ const VIEW_META: Record<
   side: {
     index: '02',
     view: 'SIDE / 斜め横',
-    title: 'ラフからリーチ',
-    note: '選択ストライプをラフからリーチへ追う',
+    title: 'ラフからリーチ／マスト',
+    note: 'ストライプと、マストの曲がりを同じ側面で読む',
   },
   aft: {
     index: '03',
@@ -340,7 +341,7 @@ function MastLayer({
       .map((face) => path(project(face), map, true))
       .join(''),
   )
-  const bendGauge = !reference && view === 'side' && mast.centreline.length > 2
+  const bendLens = view === 'side' && mast.centreline.length > 2
     ? (() => {
         const lower = mast.centreline[0]
         const upper = mast.centreline.at(-1)!
@@ -357,10 +358,27 @@ function MastLayer({
             distance: Math.hypot(point.x - baseline.x, point.y - baseline.y),
           }
         })
-        const maximum = candidates.sort((a, b) => b.distance - a.distance)[0]
+        const maximum = candidates.reduce((current, candidate) =>
+          candidate.distance > current.distance ? candidate : current,
+        )
         if (!maximum) return undefined
+        const magnify = (point: (typeof mast.centreline)[number]) => {
+          const amount = (point.z - lower.z) / Math.max(1e-9, upper.z - lower.z)
+          const baseline = {
+            x: lower.x + (upper.x - lower.x) * amount,
+            y: lower.y + (upper.y - lower.y) * amount,
+            z: point.z,
+          }
+          return {
+            x: baseline.x + (point.x - baseline.x) * SIDE_MAST_BEND_LENS_SCALE,
+            y: baseline.y + (point.y - baseline.y) * SIDE_MAST_BEND_LENS_SCALE,
+            z: point.z,
+          }
+        }
         return {
-          mast: map(projectPoint(maximum.point)),
+          curve: mast.centreline.map(magnify).map(projectPoint).map(map),
+          exact: mast.centreline.map(projectPoint).map(map),
+          mast: map(projectPoint(magnify(maximum.point))),
           baseline: map(projectPoint(maximum.baseline)),
           straight: [map(projectPoint(lower)), map(projectPoint(upper))],
         }
@@ -385,12 +403,26 @@ function MastLayer({
           d={path(project(mast.sections.map((section) => section[0])), map)}
         />
       ) : null}
-      {bendGauge ? (
-        <g className="geometry-mast-bend-gauge" aria-label={`推定マストベンド ${bendMillimeters.toFixed(0)} mm`}>
-          <path d={`M${bendGauge.straight[0].x.toFixed(2)} ${bendGauge.straight[0].y.toFixed(2)}L${bendGauge.straight[1].x.toFixed(2)} ${bendGauge.straight[1].y.toFixed(2)}`} />
-          <path className="geometry-mast-bend-measure" d={`M${bendGauge.mast.x.toFixed(2)} ${bendGauge.mast.y.toFixed(2)}L${bendGauge.baseline.x.toFixed(2)} ${bendGauge.baseline.y.toFixed(2)}`} />
-          <circle cx={bendGauge.mast.x} cy={bendGauge.mast.y} r="2.8" />
-          <text x={Math.min(bendGauge.mast.x, bendGauge.baseline.x) - 7} y={bendGauge.mast.y - 7} textAnchor="end">{`BEND ≈ ${bendMillimeters.toFixed(0)} mm`}</text>
+      {bendLens ? (
+        <g
+          className={`geometry-mast-bend-lens ${reference ? 'is-reference' : 'is-actual'}`}
+          aria-label={`SIDE / 斜め横の${reference ? '比較基準' : '現在'}のマスト。最大たわみ${bendMillimeters.toFixed(0)} mm。横変位${SIDE_MAST_BEND_LENS_SCALE}倍`}
+        >
+          <title>{`マストの曲がりを横方向${SIDE_MAST_BEND_LENS_SCALE}倍で表示`}</title>
+          {!reference ? (
+            <>
+              <path className="geometry-mast-exact-centreline" d={path(bendLens.exact, (point) => point)} />
+              <path className="geometry-mast-bend-baseline" d={path(bendLens.straight, (point) => point)} />
+            </>
+          ) : null}
+          <path className="geometry-mast-bend-lens-curve" d={path(bendLens.curve, (point) => point)} />
+          {!reference ? (
+            <>
+              <path className="geometry-mast-bend-measure" d={`M${bendLens.mast.x.toFixed(2)} ${bendLens.mast.y.toFixed(2)}L${bendLens.baseline.x.toFixed(2)} ${bendLens.baseline.y.toFixed(2)}`} />
+              <circle cx={bendLens.mast.x} cy={bendLens.mast.y} r="3.2" />
+              <text x={Math.min(bendLens.mast.x, bendLens.baseline.x) - 7} y={bendLens.mast.y - 8} textAnchor="end">{`マスト ${bendMillimeters.toFixed(0)} mm · 横×${SIDE_MAST_BEND_LENS_SCALE}`}</text>
+            </>
+          ) : null}
         </g>
       ) : null}
     </g>

@@ -4714,33 +4714,55 @@ footer p { margin: 0; }
   stroke: #536d86;
 }
 
-.geometry-mast-bend-gauge > path,
-.geometry-mast-bend-gauge circle {
+.geometry-mast-bend-lens path,
+.geometry-mast-bend-lens circle {
   fill: none;
-  stroke: #d64e2d;
-  stroke-width: 1.05;
-  stroke-dasharray: 3 3;
   vector-effect: non-scaling-stroke;
 }
 
-.geometry-mast-bend-gauge .geometry-mast-bend-measure {
-  stroke-width: 2.2;
-  stroke-dasharray: none;
+.geometry-mast-bend-lens .geometry-mast-exact-centreline {
+  stroke: #173f48;
+  stroke-width: 1.2;
 }
 
-.geometry-mast-bend-gauge circle {
+.geometry-mast-bend-lens .geometry-mast-bend-baseline {
+  stroke: #71888a;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.geometry-mast-bend-lens .geometry-mast-bend-lens-curve {
+  stroke: #d64e2d;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.geometry-mast-bend-lens.is-reference .geometry-mast-bend-lens-curve {
+  stroke: #168077;
+  stroke-width: 1.7;
+  stroke-dasharray: 4 3;
+}
+
+.geometry-mast-bend-lens .geometry-mast-bend-measure {
+  stroke: #d64e2d;
+  stroke-width: 1.2;
+  stroke-dasharray: 2 2;
+}
+
+.geometry-mast-bend-lens circle {
   fill: #f8faf7;
+  stroke: #d64e2d;
   stroke-width: 1.5;
-  stroke-dasharray: none;
 }
 
-.geometry-mast-bend-gauge text {
+.geometry-mast-bend-lens text {
   fill: #96361f;
   paint-order: stroke;
   stroke: rgba(250, 251, 247, 0.98);
   stroke-width: 3px;
   font-family: var(--mono);
-  font-size: 8px;
+  font-size: 8.5px;
   font-weight: 900;
 }
 

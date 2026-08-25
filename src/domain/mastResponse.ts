@@ -38,25 +38,29 @@ export const MAST_BEND_ENVELOPE: Record<
  */
 const RESPONSE: Record<BoatClass, ProfileCoefficients> = {
   '420': {
-    base: { lower: 0.34, middle: 0.48, upper: 0.34 },
+    // The standing-rig prebend is read at spreader height (about 30% of the
+    // mainsail luff), so the absolute displacement must stay concentrated in
+    // the lower/middle mast. Upper controls change curvature without making
+    // 75% height the apex of the whole spar.
+    base: { lower: 0.55, middle: 0.5, upper: 0.25 },
     controls: {
-      mainSheet: { lower: 0.02, middle: 0.1, upper: 0.18 },
-      vang: { lower: 0.2, middle: 0.34, upper: 0.42 },
-      cunningham: { lower: 0.01, middle: 0.04, upper: 0.14 },
-      chock: { lower: -0.5, middle: -0.3, upper: -0.06 },
+      mainSheet: { lower: 0.04, middle: 0.09, upper: 0.14 },
+      vang: { lower: 0.18, middle: 0.24, upper: 0.28 },
+      cunningham: { lower: 0.01, middle: 0.03, upper: 0.08 },
+      chock: { lower: -0.55, middle: -0.25, upper: -0.04 },
     },
-    limits: { lower: 0.78, middle: 0.9, upper: 0.96 },
+    limits: { lower: 0.92, middle: 0.9, upper: 0.82 },
   },
   '470': {
-    base: { lower: 0.28, middle: 0.38, upper: 0.28 },
+    base: { lower: 0.38, middle: 0.34, upper: 0.18 },
     controls: {
-      mainSheet: { lower: 0.015, middle: 0.09, upper: 0.18 },
-      vang: { lower: 0.16, middle: 0.28, upper: 0.42 },
-      cunningham: { lower: 0.01, middle: 0.055, upper: 0.2 },
-      forePuller: { lower: 0.45, middle: 0.34, upper: 0.14 },
-      aftPuller: { lower: -0.35, middle: -0.25, upper: -0.09 },
+      mainSheet: { lower: 0.04, middle: 0.09, upper: 0.14 },
+      vang: { lower: 0.16, middle: 0.24, upper: 0.28 },
+      cunningham: { lower: 0.01, middle: 0.035, upper: 0.1 },
+      forePuller: { lower: 0.45, middle: 0.24, upper: 0.08 },
+      aftPuller: { lower: -0.35, middle: -0.18, upper: -0.06 },
     },
-    limits: { lower: 0.92, middle: 0.95, upper: 0.98 },
+    limits: { lower: 0.95, middle: 0.92, upper: 0.84 },
   },
 }
 

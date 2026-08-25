@@ -71,7 +71,6 @@ type AftDisplayMode = 'shape' | 'boat'
 type Focus = { sail: 'main' | 'jib'; level: SailLevel }
 
 const AFT_SHAPE_LENS_SCALE = 3
-const SIDE_MAST_BEND_LENS_SCALE = 12
 
 const VIEW_META: Record<
   ProjectionView,
@@ -200,7 +199,7 @@ function HullLayer({
 
   return (
     <g className={`geometry-hull-model is-${view}`}>
-      <title>{boat}級の外板、甲板、コクピット、センターボードケース</title>
+      <title>{`${boat}級の外板、甲板、コクピット、センターボードケース`}</title>
       {panels.map((panel, index) => (
         <path key={`panel-${index}`} className="geometry-hull-panel" d={path(panel, map, true)} />
       ))}
@@ -344,69 +343,46 @@ function MastLayer({
       .map((face) => path(project(face), map, true))
       .join(''),
   )
-  const bendLens = view === 'side' && mast.centreline.length > 2
+  const bendMeasure = view === 'side' && mast.centreline.length > 2
     ? (() => {
         const lower = mast.centreline[0]
         const upper = mast.centreline.at(-1)!
+        const axis = {
+          x: upper.x - lower.x,
+          y: upper.y - lower.y,
+          z: upper.z - lower.z,
+        }
+        const axisLengthSquared = axis.x ** 2 + axis.y ** 2 + axis.z ** 2
         const candidates = mast.centreline.slice(1, -1).map((point) => {
-          const amount = (point.z - lower.z) / Math.max(1e-9, upper.z - lower.z)
+          const amount = (
+            (point.x - lower.x) * axis.x +
+            (point.y - lower.y) * axis.y +
+            (point.z - lower.z) * axis.z
+          ) / Math.max(1e-9, axisLengthSquared)
           const baseline = {
-            x: lower.x + (upper.x - lower.x) * amount,
-            y: lower.y + (upper.y - lower.y) * amount,
-            z: point.z,
+            x: lower.x + axis.x * amount,
+            y: lower.y + axis.y * amount,
+            z: lower.z + axis.z * amount,
           }
           return {
             point,
             baseline,
-            distance: Math.hypot(point.x - baseline.x, point.y - baseline.y),
+            distance: Math.hypot(
+              point.x - baseline.x,
+              point.y - baseline.y,
+              point.z - baseline.z,
+            ),
           }
         })
         const maximum = candidates.reduce((current, candidate) =>
           candidate.distance > current.distance ? candidate : current,
         )
         if (!maximum) return undefined
-        const magnify = (point: (typeof mast.centreline)[number]) => {
-          const amount = (point.z - lower.z) / Math.max(1e-9, upper.z - lower.z)
-          const baseline = {
-            x: lower.x + (upper.x - lower.x) * amount,
-            y: lower.y + (upper.y - lower.y) * amount,
-            z: point.z,
-          }
-          return {
-            x: baseline.x + (point.x - baseline.x) * SIDE_MAST_BEND_LENS_SCALE,
-            y: baseline.y + (point.y - baseline.y) * SIDE_MAST_BEND_LENS_SCALE,
-            z: point.z,
-          }
-        }
         return {
-          curve: mast.centreline.map(magnify).map(projectPoint).map(map),
-          exact: mast.centreline.map(projectPoint).map(map),
-          mast: map(projectPoint(magnify(maximum.point))),
+          mast: map(projectPoint(maximum.point)),
           baseline: map(projectPoint(maximum.baseline)),
           straight: [map(projectPoint(lower)), map(projectPoint(upper))],
         }
-      })()
-    : undefined
-  const bendLensBody = bendLens
-    ? (() => {
-        const halfWidth = reference ? 2.3 : 3.8
-        const offsets = bendLens.curve.map((point, index, points) => {
-          const previous = points[Math.max(0, index - 1)]
-          const next = points[Math.min(points.length - 1, index + 1)]
-          const dx = next.x - previous.x
-          const dy = next.y - previous.y
-          const length = Math.max(1e-9, Math.hypot(dx, dy))
-          return { x: -dy / length * halfWidth, y: dx / length * halfWidth }
-        })
-        const port = bendLens.curve.map((point, index) => ({
-          x: point.x + offsets[index].x,
-          y: point.y + offsets[index].y,
-        }))
-        const starboard = bendLens.curve.map((point, index) => ({
-          x: point.x - offsets[index].x,
-          y: point.y - offsets[index].y,
-        })).reverse()
-        return path([...port, ...starboard], (point) => point, true)
       })()
     : undefined
 
@@ -428,27 +404,16 @@ function MastLayer({
           d={path(project(mast.sections.map((section) => section[0])), map)}
         />
       ) : null}
-      {bendLens ? (
+      {bendMeasure && !reference ? (
         <g
-          className={`geometry-mast-bend-lens ${reference ? 'is-reference' : 'is-actual'}`}
-          aria-label={`SIDE / 斜め横の${reference ? '比較基準' : '現在'}のマスト。最大たわみ${bendMillimeters.toFixed(0)} mm。横変位${SIDE_MAST_BEND_LENS_SCALE}倍`}
+          className="geometry-mast-bend-measurement"
+          aria-label={`SIDE / 斜め横の現在のマスト。実寸最大たわみ${bendMillimeters.toFixed(0)} mm`}
         >
-          <title>{`マストの曲がりを横方向${SIDE_MAST_BEND_LENS_SCALE}倍で表示`}</title>
-          {!reference ? (
-            <>
-              <path className="geometry-mast-exact-centreline" d={path(bendLens.exact, (point) => point)} />
-              <path className="geometry-mast-bend-baseline" d={path(bendLens.straight, (point) => point)} />
-            </>
-          ) : null}
-          <path className="geometry-mast-bend-lens-body" d={bendLensBody} />
-          <path className="geometry-mast-bend-lens-curve" d={path(bendLens.curve, (point) => point)} />
-          {!reference ? (
-            <>
-              <path className="geometry-mast-bend-measure" d={`M${bendLens.mast.x.toFixed(2)} ${bendLens.mast.y.toFixed(2)}L${bendLens.baseline.x.toFixed(2)} ${bendLens.baseline.y.toFixed(2)}`} />
-              <circle cx={bendLens.mast.x} cy={bendLens.mast.y} r="3.2" />
-              <text x={Math.min(bendLens.mast.x, bendLens.baseline.x) - 7} y={bendLens.mast.y - 8} textAnchor="end">{`マスト ${bendMillimeters.toFixed(0)} mm · 横×${SIDE_MAST_BEND_LENS_SCALE}`}</text>
-            </>
-          ) : null}
+          <title>後傾基準線と帆走中の立体マストを実寸で比較</title>
+          <path className="geometry-mast-bend-baseline" d={path(bendMeasure.straight, (point) => point)} />
+          <path className="geometry-mast-bend-measure" d={`M${bendMeasure.mast.x.toFixed(2)} ${bendMeasure.mast.y.toFixed(2)}L${bendMeasure.baseline.x.toFixed(2)} ${bendMeasure.baseline.y.toFixed(2)}`} />
+          <circle cx={bendMeasure.mast.x} cy={bendMeasure.mast.y} r="2.6" />
+          <text x={Math.min(bendMeasure.mast.x, bendMeasure.baseline.x) - 7} y={bendMeasure.mast.y - 8} textAnchor="end">{`実寸 ${bendMillimeters.toFixed(0)} mm`}</text>
         </g>
       ) : null}
     </g>

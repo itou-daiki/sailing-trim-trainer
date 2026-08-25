@@ -6,7 +6,7 @@ import type {
   SailSection,
   SailShape,
 } from './types'
-import { buildHullGeometry } from './hullGeometry'
+import { buildHullGeometry, HULL_SPECIFICATIONS } from './hullGeometry'
 import {
   AFT_VIEW_DEGREES,
   BOOM_END_CAMERA_NEAR_MM,
@@ -180,6 +180,10 @@ export type ClassMastSpecification = {
   foreAftMm: number
   /** Representative legal transverse section inside the class-rule range. */
   transverseMm: number
+  /** Height from the heel above which the production spar is represented as tapered. */
+  taperStartMm: number
+  /** Representative masthead section scale; manufacturer extrusions vary. */
+  mastheadScale: number
 }
 
 export type MastPoint = {
@@ -208,6 +212,8 @@ export type ClassRigSpecification = {
   tuningPrebendRangeMm: readonly [number, number]
   /** Upper visual envelope for the smooth, loaded fore-and-aft bend model. */
   loadedBendMaxMm: number
+  /** Standard tuning-guide distance from the upper black band to the transom. */
+  tuningMastRakeMm: number
 }
 
 /**
@@ -392,10 +398,14 @@ export const CLASS_MAST_SPECIFICATIONS: Record<BoatClass, ClassMastSpecification
   '420': {
     foreAftMm: 62.5,
     transverseMm: 60,
+    taperStartMm: 4500,
+    mastheadScale: 0.56,
   },
   '470': {
     foreAftMm: 70,
     transverseMm: 65,
+    taperStartMm: 5010,
+    mastheadScale: 0.52,
   },
 }
 
@@ -407,6 +417,7 @@ export const CLASS_RIG_SPECIFICATIONS: Record<BoatClass, ClassRigSpecification> 
     mastCurvatureMm: 40,
     tuningPrebendRangeMm: [55, 75],
     loadedBendMaxMm: 100,
+    tuningMastRakeMm: 6110,
   },
   '470': {
     lowerPointHeightMm: 1055,
@@ -414,6 +425,7 @@ export const CLASS_RIG_SPECIFICATIONS: Record<BoatClass, ClassRigSpecification> 
     mastCurvatureMm: 40,
     tuningPrebendRangeMm: [40, 80],
     loadedBendMaxMm: 105,
+    tuningMastRakeMm: 6700,
   },
 }
 
@@ -527,6 +539,95 @@ function jibTriangle(specification: ClassSailSpecification['jib']) {
   }
 }
 
+type MastReferenceFrame = {
+  heel: Vector3
+  lowerPoint: Vector3
+  upperPoint: Vector3
+  direction: Vector3
+  aftNormal: Vector3
+}
+
+const mastRakeAngleCache: Partial<Record<BoatClass, number>> = {}
+const mastReferenceFrameCache: Partial<Record<BoatClass, MastReferenceFrame>> = {}
+
+function mastRakeDistanceAtAngle(boat: BoatClass, angle: number) {
+  const hull = buildHullGeometry(boat)
+  const hullSpecification = HULL_SPECIFICATIONS[boat]
+  const sail = CLASS_SAIL_SPECIFICATIONS[boat].main
+  const rig = CLASS_RIG_SPECIFICATIONS[boat]
+  const direction = { x: Math.sin(angle), y: 0, z: Math.cos(angle) }
+  const deckRise = hull.mastDeck.z - hull.mastBase.z
+  const heel = {
+    x: hull.mastDeck.x - Math.tan(angle) * deckRise,
+    y: 0,
+    z: hull.mastBase.z,
+  }
+  const upperPoint = addVector(
+    heel,
+    scaleVector(
+      direction,
+      (rig.lowerPointHeightMm + sail.luffMm) / SAIL_GEOMETRY_UNIT_MM,
+    ),
+  )
+  const transom = {
+    x: hullSpecification.mastFromAftMm / SAIL_GEOMETRY_UNIT_MM,
+    y: 0,
+    z: -40 / SAIL_GEOMETRY_UNIT_MM,
+  }
+  return Math.hypot(
+    upperPoint.x - transom.x,
+    upperPoint.z - transom.z,
+  ) * SAIL_GEOMETRY_UNIT_MM
+}
+
+/**
+ * Solves the guide's upper-black-band-to-transom measurement into a geometric
+ * rake angle while keeping the spar passing through the class mast partner.
+ */
+export function mastRakeAngleDegrees(boat: BoatClass) {
+  const cached = mastRakeAngleCache[boat]
+  if (cached !== undefined) return cached
+  const target = CLASS_RIG_SPECIFICATIONS[boat].tuningMastRakeMm
+  let lower = 0
+  let upper = 15 * Math.PI / 180
+  for (let iteration = 0; iteration < 60; iteration += 1) {
+    const middle = (lower + upper) / 2
+    if (mastRakeDistanceAtAngle(boat, middle) > target) lower = middle
+    else upper = middle
+  }
+  const angle = ((lower + upper) / 2) * 180 / Math.PI
+  mastRakeAngleCache[boat] = angle
+  return angle
+}
+
+function mastReferenceFrame(boat: BoatClass): MastReferenceFrame {
+  const cached = mastReferenceFrameCache[boat]
+  if (cached) return cached
+  const hull = buildHullGeometry(boat)
+  const sail = CLASS_SAIL_SPECIFICATIONS[boat].main
+  const rig = CLASS_RIG_SPECIFICATIONS[boat]
+  const angle = mastRakeAngleDegrees(boat) * Math.PI / 180
+  const direction = { x: Math.sin(angle), y: 0, z: Math.cos(angle) }
+  const aftNormal = { x: Math.cos(angle), y: 0, z: -Math.sin(angle) }
+  const deckRise = hull.mastDeck.z - hull.mastBase.z
+  const heel = {
+    x: hull.mastDeck.x - Math.tan(angle) * deckRise,
+    y: 0,
+    z: hull.mastBase.z,
+  }
+  const lowerPoint = addVector(
+    heel,
+    scaleVector(direction, rig.lowerPointHeightMm / SAIL_GEOMETRY_UNIT_MM),
+  )
+  const upperPoint = addVector(
+    lowerPoint,
+    scaleVector(direction, sail.luffMm / SAIL_GEOMETRY_UNIT_MM),
+  )
+  const frame = { heel, lowerPoint, upperPoint, direction, aftNormal }
+  mastReferenceFrameCache[boat] = frame
+  return frame
+}
+
 export function camberAt(u: number, depth: number, position: number) {
   const peak = clamp(position, 0.05, 0.95)
   if (u <= peak) {
@@ -542,23 +643,23 @@ function mastAxisPoint(
   mastBendProfile?: MastBendProfile,
 ): Vector3 {
   const specification = CLASS_SAIL_SPECIFICATIONS[boat]
-  const rig = CLASS_RIG_SPECIFICATIONS[boat]
-  const mastHeel = buildHullGeometry(boat).mastBase
-  const lowerPointZ =
-    mastHeel.z + rig.lowerPointHeightMm / SAIL_GEOMETRY_UNIT_MM
+  const frame = mastReferenceFrame(boat)
+  const h = clamp(height, 0, 1)
   const loadedBend = mastBendAtHeightMillimeters(
     boat,
     mastBend,
     mastBendProfile,
-    height,
+    h,
   ) / SAIL_GEOMETRY_UNIT_MM
-  return {
-    x: mastHeel.x - loadedBend,
-    y: 0,
-    z:
-      lowerPointZ +
-      (height * specification.main.luffMm) / SAIL_GEOMETRY_UNIT_MM,
-  }
+  const rakePoint = addVector(
+    frame.lowerPoint,
+    scaleVector(
+      frame.direction,
+      h * specification.main.luffMm / SAIL_GEOMETRY_UNIT_MM,
+    ),
+  )
+  // Prebend moves the spar's middle towards the bow, normal to the raked axis.
+  return addVector(rakePoint, scaleVector(frame.aftNormal, -loadedBend))
 }
 
 /**
@@ -593,9 +694,39 @@ export function mastBendProfileMillimeters(
   }
 }
 
+function clampedShapePreservingSpline(values: number[], height: number) {
+  const intervalCount = values.length - 1
+  const step = 1 / intervalCount
+  const secants = values.slice(0, -1).map((value, index) =>
+    (values[index + 1] - value) / step)
+  const slopes = values.map((_, index) => {
+    if (index === 0 || index === intervalCount) return 0
+    const previous = secants[index - 1]
+    const next = secants[index]
+    if (previous === 0 || next === 0 || previous * next < 0) return 0
+    return (2 * previous * next) / (previous + next)
+  })
+  const h = clamp(height, 0, 1)
+  const scaled = h * intervalCount
+  const index = Math.min(intervalCount - 1, Math.floor(scaled))
+  const amount = scaled - index
+  const amount2 = amount * amount
+  const amount3 = amount2 * amount
+  const h00 = 2 * amount3 - 3 * amount2 + 1
+  const h10 = amount3 - 2 * amount2 + amount
+  const h01 = -2 * amount3 + 3 * amount2
+  const h11 = amount3 - amount2
+  return h00 * values[index] +
+    h10 * step * slopes[index] +
+    h01 * values[index + 1] +
+    h11 * step * slopes[index + 1]
+}
+
 /**
- * Interpolates a smooth spar curve through the lower/middle/upper response
- * stations while keeping the lower and upper black-band endpoints fixed.
+ * Interpolates a C1-continuous, non-overshooting spar curve through the three
+ * teaching stations. Zero endpoint slopes avoid a visual hinge at either
+ * black band. The apex follows the class/control profile without growing a
+ * separate hook in the unsupported upper section.
  */
 export function mastBendAtHeightMillimeters(
   boat: BoatClass,
@@ -611,23 +742,50 @@ export function mastBendAtHeightMillimeters(
     profile ?? DEFAULT_MAST_PROFILE,
   )
   const values = [0, stations.lower, stations.middle, stations.upper, 0]
-  const clampedHeight = clamp(height, 0, 1)
-  const scaled = clampedHeight * 4
-  const index = Math.min(3, Math.floor(scaled))
-  const amount = scaled - index
-  const p0 = values[Math.max(0, index - 1)]
-  const p1 = values[index]
-  const p2 = values[index + 1]
-  const p3 = values[Math.min(4, index + 2)]
-  const amount2 = amount * amount
-  const amount3 = amount2 * amount
-  const interpolated = 0.5 * (
-    2 * p1 +
-    (-p0 + p2) * amount +
-    (2 * p0 - 5 * p1 + 4 * p2 - p3) * amount2 +
-    (-p0 + 3 * p1 - 3 * p2 + p3) * amount3
-  )
+  const interpolated = clampedShapePreservingSpline(values, height)
   return clamp(interpolated, 0, mastBendMillimeters(boat, mastBend))
+}
+
+function mastAftNormalAtHeight(
+  boat: BoatClass,
+  height: number,
+  mastBend: number,
+  mastBendProfile?: MastBendProfile,
+) {
+  const delta = 0.002
+  const lower = mastAxisPoint(
+    boat,
+    Math.max(0, height - delta),
+    mastBend,
+    mastBendProfile,
+  )
+  const upper = mastAxisPoint(
+    boat,
+    Math.min(1, height + delta),
+    mastBend,
+    mastBendProfile,
+  )
+  const tangent = normalizeVector({
+    x: upper.x - lower.x,
+    y: upper.y - lower.y,
+    z: upper.z - lower.z,
+  })
+  return normalizeVector({ x: tangent.z, y: 0, z: -tangent.x })
+}
+
+function mastSectionScale(boat: BoatClass, heightFromHeelMm: number) {
+  const section = CLASS_MAST_SPECIFICATIONS[boat]
+  const rig = CLASS_RIG_SPECIFICATIONS[boat]
+  const upperPointHeightMm =
+    rig.lowerPointHeightMm + CLASS_SAIL_SPECIFICATIONS[boat].main.luffMm
+  const taper = clamp(
+    (heightFromHeelMm - section.taperStartMm) /
+      Math.max(1, upperPointHeightMm - section.taperStartMm),
+    0,
+    1,
+  )
+  const eased = taper * taper * (3 - 2 * taper)
+  return lerp(1, section.mastheadScale, eased)
 }
 
 function mainLuffPoint(
@@ -637,13 +795,23 @@ function mainLuffPoint(
   mastBendProfile?: MastBendProfile,
 ): Vector3 {
   const axis = mastAxisPoint(boat, height, mastBend, mastBendProfile)
+  const aftNormal = mastAftNormalAtHeight(
+    boat,
+    height,
+    mastBend,
+    mastBendProfile,
+  )
+  const rig = CLASS_RIG_SPECIFICATIONS[boat]
+  const sectionScale = mastSectionScale(
+    boat,
+    rig.lowerPointHeightMm + clamp(height, 0, 1) *
+      CLASS_SAIL_SPECIFICATIONS[boat].main.luffMm,
+  )
   const mastTrackOffset =
-    CLASS_MAST_SPECIFICATIONS[boat].foreAftMm / 2 / SAIL_GEOMETRY_UNIT_MM
-  return {
-    // The luff is in the groove on the mast's aft face, not on its centreline.
-    ...axis,
-    x: axis.x + mastTrackOffset,
-  }
+    CLASS_MAST_SPECIFICATIONS[boat].foreAftMm * sectionScale /
+    2 / SAIL_GEOMETRY_UNIT_MM
+  // The luff follows the groove on the local aft face of the curved spar.
+  return addVector(axis, scaleVector(aftNormal, mastTrackOffset))
 }
 
 export type RigHardpoints = {
@@ -697,9 +865,10 @@ export function buildRigHardpoints(
   const jibHead = {
     ...addVector(jibTack, scaleVector(jibLuffDirection, luffLength)),
   }
+  const frame = mastReferenceFrame(boat)
 
   return {
-    mastHeel: hull.mastBase,
+    mastHeel: frame.heel,
     mainTack,
     mainHead,
     stemhead: hull.jibTack,
@@ -726,36 +895,35 @@ export function buildMastGeometry(
   const sail = CLASS_SAIL_SPECIFICATIONS[boat].main
   const rig = CLASS_RIG_SPECIFICATIONS[boat]
   const section = CLASS_MAST_SPECIFICATIONS[boat]
-  const deckHeightMm =
-    (hull.mastDeck.z - hull.mastBase.z) * SAIL_GEOMETRY_UNIT_MM
-  const stationHeightsMm = [
-    deckHeightMm,
+  const frame = mastReferenceFrame(boat)
+  const deckDistanceMm = vectorLength({
+    x: hull.mastDeck.x - frame.heel.x,
+    y: hull.mastDeck.y - frame.heel.y,
+    z: hull.mastDeck.z - frame.heel.z,
+  }) * SAIL_GEOMETRY_UNIT_MM
+  const stationDistancesMm = [
+    deckDistanceMm,
     rig.lowerPointHeightMm,
     ...ROW_HEIGHTS.slice(1).map(
       (height) => rig.lowerPointHeightMm + height * sail.luffMm,
     ),
   ]
 
-  const centreline = stationHeightsMm.map((heightMm, stationIndex): MastPoint => {
-    if (heightMm <= rig.lowerPointHeightMm) {
-      const amount = clamp(
-        (heightMm - deckHeightMm) /
-          Math.max(1, rig.lowerPointHeightMm - deckHeightMm),
-        0,
-        1,
+  const centreline = stationDistancesMm.map((distanceMm, stationIndex): MastPoint => {
+    if (distanceMm <= rig.lowerPointHeightMm) {
+      const point = addVector(
+        frame.heel,
+        scaleVector(frame.direction, distanceMm / SAIL_GEOMETRY_UNIT_MM),
       )
-      const tack = mastAxisPoint(boat, 0, mastBend, mastBendProfile)
       return {
         id: `${boat}:mast-axis:${stationIndex}`,
-        x: lerp(hull.mastDeck.x, tack.x, amount),
-        y: 0,
-        z: hull.mastBase.z + heightMm / SAIL_GEOMETRY_UNIT_MM,
+        ...point,
       }
     }
 
     const point = mastAxisPoint(
       boat,
-      (heightMm - rig.lowerPointHeightMm) / sail.luffMm,
+      (distanceMm - rig.lowerPointHeightMm) / sail.luffMm,
       mastBend,
       mastBendProfile,
     )
@@ -765,19 +933,38 @@ export function buildMastGeometry(
     }
   })
 
-  const foreAftRadius = section.foreAftMm / SAIL_GEOMETRY_UNIT_MM / 2
-  const transverseRadius = section.transverseMm / SAIL_GEOMETRY_UNIT_MM / 2
-  const sections = centreline.map((axis, stationIndex) =>
-    Array.from({ length: MAST_SECTION_POINT_COUNT }, (_, pointIndex): MastPoint => {
+  const sections = centreline.map((axis, stationIndex) => {
+    const previous = centreline[Math.max(0, stationIndex - 1)]
+    const next = centreline[Math.min(centreline.length - 1, stationIndex + 1)]
+    const tangent = normalizeVector({
+      x: next.x - previous.x,
+      y: next.y - previous.y,
+      z: next.z - previous.z,
+    })
+    const aftNormal = normalizeVector({ x: tangent.z, y: 0, z: -tangent.x })
+    const transverseNormal = { x: 0, y: 1, z: 0 }
+    const sectionScale = mastSectionScale(boat, stationDistancesMm[stationIndex])
+    const foreAftRadius = section.foreAftMm * sectionScale /
+      SAIL_GEOMETRY_UNIT_MM / 2
+    const transverseRadius = section.transverseMm * sectionScale /
+      SAIL_GEOMETRY_UNIT_MM / 2
+    return Array.from(
+      { length: MAST_SECTION_POINT_COUNT },
+      (_, pointIndex): MastPoint => {
       const angle = (pointIndex / MAST_SECTION_POINT_COUNT) * Math.PI * 2
+      const point = addVector(
+        addVector(
+          axis,
+          scaleVector(aftNormal, Math.cos(angle) * foreAftRadius),
+        ),
+        scaleVector(transverseNormal, Math.sin(angle) * transverseRadius),
+      )
       return {
         id: `${boat}:mast:${stationIndex}:${pointIndex}`,
-        x: axis.x + Math.cos(angle) * foreAftRadius,
-        y: axis.y + Math.sin(angle) * transverseRadius,
-        z: axis.z,
+        ...point,
       }
-    }),
-  )
+    })
+  })
   const faces = sections.slice(0, -1).flatMap((lower, stationIndex) =>
     lower.map((point, pointIndex) => {
       const nextPointIndex = (pointIndex + 1) % MAST_SECTION_POINT_COUNT

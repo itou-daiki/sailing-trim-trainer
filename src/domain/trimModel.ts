@@ -218,7 +218,7 @@ function sailShapes(
     lower: {
       height: 0.25,
       draftDepth: clamp(
-        0.14 + outhaulEaseMm * 0.001 - bend.lower * 0.05 - cunningham * 0.01 + windLoad * 0.007,
+        0.145 + outhaulEaseMm * 0.001 - bend.lower * 0.05 - cunningham * 0.01 + windLoad * 0.007,
         0.075,
         0.19,
       ),

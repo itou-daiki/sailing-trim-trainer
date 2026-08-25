@@ -20,6 +20,7 @@ import {
   mastBendMillimeters,
   mastBendAtHeightMillimeters,
   mastBendProfileMillimeters,
+  mastRakeAngleDegrees,
   measureSurfaceRow,
   projectBoomEndCoordinate,
   projectCoordinate,
@@ -58,11 +59,19 @@ describe('single sail surface geometry', () => {
   it('uses the class mast limit distance for mainsail luff height', () => {
     for (const boat of ['420', '470'] as const) {
       const result = calculateTrim(boat, 45, 12, targetControls(boat, 45, 12))
-      const main = buildRigSurfaces(boat, result.actual).main
-      const tack = main.rows[0].points[0]
-      const head = main.rows.at(-1)!.points[0]
+      const mast = buildMastGeometry(
+        boat,
+        result.actual.main.mastBend,
+        result.actual.main.mastBendProfile,
+      )
+      const lowerPoint = mast.centreline[1]
+      const upperPoint = mast.centreline.at(-1)!
 
-      expect((head.z - tack.z) * SAIL_GEOMETRY_UNIT_MM).toBeCloseTo(
+      expect(Math.hypot(
+        upperPoint.x - lowerPoint.x,
+        upperPoint.y - lowerPoint.y,
+        upperPoint.z - lowerPoint.z,
+      ) * SAIL_GEOMETRY_UNIT_MM).toBeCloseTo(
         CLASS_SAIL_SPECIFICATIONS[boat].main.luffMm,
         8,
       )
@@ -222,7 +231,13 @@ describe('single sail surface geometry', () => {
       )
     }
 
-    expect(height(fourSeventy.main) / height(fourTwenty.main)).toBeCloseTo(5750 / 4900, 10)
+    const verticalHeightRatio =
+      5750 * Math.cos(mastRakeAngleDegrees('470') * Math.PI / 180) /
+      (4900 * Math.cos(mastRakeAngleDegrees('420') * Math.PI / 180))
+    expect(height(fourSeventy.main) / height(fourTwenty.main)).toBeCloseTo(
+      verticalHeightRatio,
+      3,
+    )
     expect(chord(fourSeventy.main, 'middle') / chord(fourTwenty.main, 'middle')).toBeCloseTo(
       (
         (2650 - 10) * 0.663 - fourSeventyShape.footEaseMm * 0.5 ** 3
@@ -391,14 +406,10 @@ describe('single sail surface geometry', () => {
       const mast = buildMastGeometry(boat, 0.05)
       const specification = CLASS_MAST_SPECIFICATIONS[boat]
       const section = mast.sections[Math.floor(mast.sections.length / 2)]
-      const foreAftMm = (
-        Math.max(...section.map((point) => point.x)) -
-        Math.min(...section.map((point) => point.x))
-      ) * SAIL_GEOMETRY_UNIT_MM
-      const transverseMm = (
-        Math.max(...section.map((point) => point.y)) -
-        Math.min(...section.map((point) => point.y))
-      ) * SAIL_GEOMETRY_UNIT_MM
+      const pointDistanceMm = (a: typeof section[number], b: typeof a) =>
+        Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) * SAIL_GEOMETRY_UNIT_MM
+      const foreAftMm = pointDistanceMm(section[0], section[6])
+      const transverseMm = pointDistanceMm(section[3], section[9])
 
       expect(foreAftMm).toBeCloseTo(specification.foreAftMm, 8)
       expect(transverseMm).toBeCloseTo(specification.transverseMm, 8)
@@ -615,12 +626,13 @@ describe('single sail surface geometry', () => {
   it('anchors the jib at the deck fitting and treats hoist height as a halyard limit', () => {
     for (const boat of ['420', '470'] as const) {
       const hardpoints = buildRigHardpoints(boat)
+      const mast = buildMastGeometry(boat)
       const rig = CLASS_RIG_SPECIFICATIONS[boat]
       const jib = CLASS_SAIL_SPECIFICATIONS[boat].jib
       const distanceMm = (a: typeof hardpoints.jibTack, b: typeof a) =>
         Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) * SAIL_GEOMETRY_UNIT_MM
 
-      expect((hardpoints.mainTack.z - hardpoints.mastHeel.z) * SAIL_GEOMETRY_UNIT_MM)
+      expect(distanceMm(mast.centreline[1], hardpoints.mastHeel))
         .toBeCloseTo(rig.lowerPointHeightMm, 8)
       expect((hardpoints.jibHead.z - hardpoints.mastHeel.z) * SAIL_GEOMETRY_UNIT_MM)
         .toBeLessThan(rig.headsailHoistHeightMm)
@@ -726,18 +738,125 @@ describe('single sail surface geometry', () => {
       )
       const lower = mast.centreline[0]
       const upper = mast.centreline.at(-1)!
+      const axis = {
+        x: upper.x - lower.x,
+        y: upper.y - lower.y,
+        z: upper.z - lower.z,
+      }
+      const axisLengthSquared = axis.x ** 2 + axis.y ** 2 + axis.z ** 2
       const maximumOffsetMm = Math.max(...mast.centreline.map((point) => {
-        const amount = (point.z - lower.z) / (upper.z - lower.z)
-        const straightX = lower.x + (upper.x - lower.x) * amount
-        return Math.abs(point.x - straightX) * SAIL_GEOMETRY_UNIT_MM
+        const amount = (
+          (point.x - lower.x) * axis.x +
+          (point.y - lower.y) * axis.y +
+          (point.z - lower.z) * axis.z
+        ) / axisLengthSquared
+        const baseline = {
+          x: lower.x + axis.x * amount,
+          y: lower.y + axis.y * amount,
+          z: lower.z + axis.z * amount,
+        }
+        return Math.hypot(
+          point.x - baseline.x,
+          point.y - baseline.y,
+          point.z - baseline.z,
+        ) * SAIL_GEOMETRY_UNIT_MM
       }))
 
-      expect(maximumOffsetMm).toBeCloseTo(
+      expect(Math.abs(
+        maximumOffsetMm -
         CLASS_RIG_SPECIFICATIONS[boat].tuningPrebendRangeMm[0],
-        8,
-      )
+      )).toBeLessThan(1)
       expect(mast.faces.length).toBeGreaterThan(100)
       expect(mast.sections[0].length).toBe(12)
+    }
+  })
+
+  it('uses the class tuning rake and never hooks the mast back towards the bow', () => {
+    expect(mastRakeAngleDegrees('420')).toBeGreaterThan(6)
+    expect(mastRakeAngleDegrees('420')).toBeLessThan(8)
+    expect(mastRakeAngleDegrees('470')).toBeGreaterThan(8)
+    expect(mastRakeAngleDegrees('470')).toBeLessThan(10)
+
+    for (const boat of ['420', '470'] as const) {
+      const target = targetControls(boat, 45, 16)
+      const controlCases = [
+        target,
+        {
+          ...target,
+          vang: 0,
+          cunningham: 0,
+          chock: 100,
+          forePuller: 0,
+          aftPuller: 100,
+        },
+        {
+          ...target,
+          vang: 100,
+          cunningham: 100,
+          chock: 0,
+          forePuller: 100,
+          aftPuller: 0,
+        },
+      ]
+
+      for (const controls of controlCases) {
+        const main = calculateTrim(boat, 45, 16, controls).actual.main
+        const mast = buildMastGeometry(boat, main.mastBend, main.mastBendProfile)
+        for (let index = 1; index < mast.centreline.length; index += 1) {
+          expect(mast.centreline[index].x).toBeGreaterThan(
+            mast.centreline[index - 1].x,
+          )
+          expect(mast.centreline[index].z).toBeGreaterThan(
+            mast.centreline[index - 1].z,
+          )
+        }
+      }
+    }
+  })
+
+  it('keeps one smooth fore-and-aft bow instead of adding a second upper hook', () => {
+    for (const boat of ['420', '470'] as const) {
+      const target = targetControls(boat, 45, 16)
+      const controlCases = [
+        target,
+        { ...target, vang: 0, cunningham: 0, chock: 100, forePuller: 0, aftPuller: 100 },
+        { ...target, vang: 100, cunningham: 100, chock: 0, forePuller: 100, aftPuller: 0 },
+      ]
+
+      for (const controls of controlCases) {
+        const main = calculateTrim(boat, 45, 16, controls).actual.main
+        const samples = Array.from({ length: 101 }, (_, index) =>
+          mastBendAtHeightMillimeters(
+            boat,
+            main.mastBend,
+            main.mastBendProfile,
+            index / 100,
+          ))
+        const slopeSigns = samples.slice(1).map((value, index) =>
+          Math.sign(value - samples[index]))
+        const nonZeroSigns = slopeSigns.filter((sign) => sign !== 0)
+        const directionChanges = nonZeroSigns.slice(1).filter(
+          (sign, index) => sign !== nonZeroSigns[index],
+        )
+
+        expect(directionChanges).toHaveLength(1)
+        expect(nonZeroSigns[0]).toBe(1)
+        expect(nonZeroSigns.at(-1)).toBe(-1)
+      }
+    }
+  })
+
+  it('tapers the solid masthead instead of ending as a constant-width tube', () => {
+    for (const boat of ['420', '470'] as const) {
+      const mast = buildMastGeometry(boat, 0.05)
+      const diameter = (section: typeof mast.sections[number]) =>
+        Math.hypot(
+          section[0].x - section[6].x,
+          section[0].y - section[6].y,
+          section[0].z - section[6].z,
+        )
+      const middle = mast.sections[Math.floor(mast.sections.length / 2)]
+      expect(diameter(mast.top)).toBeLessThan(diameter(middle) * 0.65)
     }
   })
 

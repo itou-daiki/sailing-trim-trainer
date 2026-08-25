@@ -15,6 +15,55 @@ export type CoordinateProjector = (
   point: Coordinate3D,
 ) => { x: number; y: number }
 
+/**
+ * Makes the fore-aft curve of a real mast readable in the SIDE teaching view.
+ *
+ * The mast's rake is left untouched: only the horizontal departure from the
+ * straight heel-to-head axis is scaled. Callers can apply the same transform
+ * to the mast, mainsail and boom so their physical attachments stay together.
+ * A scale of 1 returns the original coordinate.
+ */
+export function emphasizeMastBendPoint<T extends Coordinate3D>(
+  point: T,
+  centreline: Coordinate3D[],
+  scale: number,
+): T {
+  if (scale === 1 || centreline.length < 2) return point
+
+  const lower = centreline[0]
+  const upper = centreline.at(-1)!
+  const verticalSpan = upper.z - lower.z
+  if (Math.abs(verticalSpan) < 1e-9) return point
+
+  const height = Math.min(1, Math.max(0, (point.z - lower.z) / verticalSpan))
+  const targetZ = lower.z + verticalSpan * height
+  let lowerStation = centreline[0]
+  let upperStation = centreline.at(-1)!
+
+  for (let index = 1; index < centreline.length; index += 1) {
+    const candidate = centreline[index]
+    if (candidate.z >= targetZ) {
+      lowerStation = centreline[index - 1]
+      upperStation = candidate
+      break
+    }
+  }
+
+  const stationSpan = upperStation.z - lowerStation.z
+  const stationAmount = Math.abs(stationSpan) < 1e-9
+    ? 0
+    : (targetZ - lowerStation.z) / stationSpan
+  const curvedX = lowerStation.x +
+    (upperStation.x - lowerStation.x) * stationAmount
+  const straightX = lower.x + (upper.x - lower.x) * height
+  const extraForeAft = (curvedX - straightX) * (scale - 1)
+
+  return {
+    ...point,
+    x: point.x + extraForeAft,
+  }
+}
+
 export type BoomEndCamera = {
   origin: Coordinate3D
   forward: Coordinate3D

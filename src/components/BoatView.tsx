@@ -27,6 +27,7 @@ import {
 } from '../domain/hullGeometry'
 import { focusForControl } from '../domain/shapeComparison'
 import type { ControlMove } from '../domain/shapeComparison'
+import { emphasizeMastBendPoint } from '../domain/geometryProjection'
 import { mastControlExplanation } from '../domain/mastResponse'
 import { calculateTrim, CONTROL_LABELS, outhaulEaseMillimeters } from '../domain/trimModel'
 import type {
@@ -71,6 +72,7 @@ type AftDisplayMode = 'shape' | 'boat'
 type Focus = { sail: 'main' | 'jib'; level: SailLevel }
 
 const AFT_SHAPE_LENS_SCALE = 3
+const SIDE_MAST_BEND_DISPLAY_SCALE = 4
 
 const VIEW_META: Record<
   ProjectionView,
@@ -316,6 +318,7 @@ function MastLayer({
   aftShapeLens,
   aftAzimuthDegrees,
   coordinateProjector,
+  bendDisplayScale = 1,
   reference,
   referenceMode,
   bendMillimeters,
@@ -327,12 +330,18 @@ function MastLayer({
   aftShapeLens?: boolean
   aftAzimuthDegrees?: number
   coordinateProjector?: CoordinateProjector
+  bendDisplayScale?: number
   reference: boolean
   referenceMode?: ComparisonMode
   bendMillimeters: number
 }) {
-  const projectPoint = coordinateProjector ?? ((point) =>
+  const baseProjectPoint = coordinateProjector ?? ((point) =>
     projectCoordinate(point, view, aftAzimuthDegrees))
+  const projectPoint: CoordinateProjector = bendDisplayScale === 1
+    ? baseProjectPoint
+    : (point) => baseProjectPoint(
+        emphasizeMastBendPoint(point, mast.centreline, bendDisplayScale),
+      )
   const project = (points: Array<{ x: number; y: number; z: number }>) =>
     points.map(projectPoint)
   const stateClass = reference
@@ -406,8 +415,8 @@ function MastLayer({
   const bendMeasure = bendReadings && view !== 'aft'
     ? {
         mast: map(projectPoint(bendReadings.maximum.point)),
-        baseline: map(projectPoint(bendReadings.maximum.baseline)),
-        straight: bendReadings.straight.map((point) => map(projectPoint(point))),
+        baseline: map(baseProjectPoint(bendReadings.maximum.baseline)),
+        straight: bendReadings.straight.map((point) => map(baseProjectPoint(point))),
       }
     : undefined
   const aftReadings = bendReadings && view === 'aft'
@@ -430,7 +439,7 @@ function MastLayer({
   const viewLabel = view === 'top' ? 'PLAN / 上から' : 'SIDE / 斜め横'
 
   return (
-    <g className={`geometry-mast-model ${stateClass} is-${view}`}>
+    <g className={`geometry-mast-model ${stateClass} is-${view}${bendDisplayScale > 1 ? ' is-bend-emphasized' : ''}`}>
       <title>{reference ? '比較基準の立体マスト' : 'クラス寸法の立体マスト'}</title>
       {shadedFaces.map((facePath, shade) => (
         <path
@@ -454,7 +463,9 @@ function MastLayer({
         >
           <title>{view === 'top'
             ? '上から見た後傾基準位置と、帆走中の前後ベンドを実寸で比較'
-            : '後傾基準線と帆走中の立体マストを実寸で比較'}</title>
+            : bendDisplayScale > 1
+              ? `後傾基準線とマスト本体。曲率を${bendDisplayScale}倍で強調し、数値は実寸`
+              : '後傾基準線と帆走中の立体マストを実寸で比較'}</title>
           <path className="geometry-mast-bend-baseline" d={path(bendMeasure.straight, (point) => point)} />
           <path className="geometry-mast-bend-measure" d={`M${bendMeasure.mast.x.toFixed(2)} ${bendMeasure.mast.y.toFixed(2)}L${bendMeasure.baseline.x.toFixed(2)} ${bendMeasure.baseline.y.toFixed(2)}`} />
           <circle cx={bendMeasure.mast.x} cy={bendMeasure.mast.y} r="2.6" />
@@ -728,6 +739,7 @@ function ProjectionPanel({
   expanded: boolean
   onToggleExpanded: () => void
 }) {
+  const [sideBendEmphasized, setSideBendEmphasized] = useState(true)
   const dimensions: Record<ProjectionView, { width: number; height: number }> = {
     top: { width: 760, height: 160 },
     side: { width: 500, height: 330 },
@@ -776,6 +788,23 @@ function ProjectionPanel({
         return { x: projected.x * AFT_SHAPE_LENS_SCALE, y: projected.y }
       }
     : rigProject
+  const sideBendDisplayScale = view === 'side' && sideBendEmphasized
+    ? SIDE_MAST_BEND_DISPLAY_SCALE
+    : 1
+  const actualRigProject: CoordinateProjector = sideBendDisplayScale === 1
+    ? project
+    : (point) => project(emphasizeMastBendPoint(
+        point,
+        actualMastGeometry.centreline,
+        sideBendDisplayScale,
+      ))
+  const referenceRigProject: CoordinateProjector = sideBendDisplayScale === 1
+    ? project
+    : (point) => project(emphasizeMastBendPoint(
+        point,
+        referenceMastGeometry.centreline,
+        sideBendDisplayScale,
+      ))
   const actualProjected = view === 'aft'
     ? (aftDisplayMode === 'shape'
         ? [projectSurface(actual.main, view, boomAzimuthDegrees, project)]
@@ -785,7 +814,7 @@ function ProjectionPanel({
           ])
     : [
         projectSurface(actual.jib, view, boomAzimuthDegrees, project),
-        projectSurface(actual.main, view, boomAzimuthDegrees, project),
+        projectSurface(actual.main, view, boomAzimuthDegrees, actualRigProject),
       ]
   const referenceProjected = view === 'aft'
     ? (aftDisplayMode === 'shape'
@@ -796,7 +825,7 @@ function ProjectionPanel({
           ])
     : [
         projectSurface(reference.jib, view, boomAzimuthDegrees, project),
-        projectSurface(reference.main, view, boomAzimuthDegrees, project),
+        projectSurface(reference.main, view, boomAzimuthDegrees, referenceRigProject),
       ]
   const projectedBoomPoints = [
     ...boom.faces.flat(),
@@ -807,11 +836,11 @@ function ProjectionPanel({
     ...boom.aftEnd.outer,
     ...boom.aftEnd.inner,
     ...boom.centreline,
-  ].map(project)
+  ].map(actualRigProject)
   const projectedMastPoints = [
-    ...actualMastGeometry.sections.flat(),
-    ...referenceMastGeometry.sections.flat(),
-  ].map(project)
+    ...actualMastGeometry.sections.flat().map(actualRigProject),
+    ...referenceMastGeometry.sections.flat().map(referenceRigProject),
+  ]
   const projectedSailHeightMastPoints = [
     ...actualMastGeometry.sections.flat(),
     ...referenceMastGeometry.sections.flat(),
@@ -839,7 +868,7 @@ function ProjectionPanel({
     .find((surface) => surface.sail === 'jib')
     ?.rows.map((row) => row.points[0]) ?? []
   const projectedStemhead = project(hull.jibTack)
-  const projectedJibHalyardHoist = project(rigHardpoints.jibHalyardHoist)
+  const projectedJibHalyardHoist = actualRigProject(rigHardpoints.jibHalyardHoist)
   const jibTackStrop = actualJibLuff.length
     ? [projectedStemhead, actualJibLuff[0]]
     : []
@@ -890,7 +919,9 @@ function ProjectionPanel({
     ? (aftDisplayMode === 'shape'
         ? `真後ろの同じカメラをセールへ拡大 · 横×${AFT_SHAPE_LENS_SCALE} · ベンドは奥行きmm`
         : '真後ろでは前後ベンドが奥行きに重なるため、TOP / MID / LOWのmmで読む')
-    : meta.note
+    : view === 'side' && sideBendEmphasized
+      ? `マスト本体とメインのラフを一体で×${SIDE_MAST_BEND_DISPLAY_SCALE}強調 · mm値は実寸`
+      : meta.note
 
   return (
     <figure className={`geometry-panel geometry-panel-${view}${view === 'aft' ? ` is-${aftDisplayMode}` : ''}${expanded ? ' is-expanded' : ''}`}>
@@ -901,6 +932,22 @@ function ProjectionPanel({
           <small>{meta.title}{view === 'aft' ? ` · ${boat} M${classSails.main.battens.length}バテン` : ''}</small>
         </div>
         <div className="geometry-panel-tools">
+          {view === 'side' ? (
+            <div className="geometry-side-bend-switch" aria-label="SIDEのマストベンド表示">
+              <button
+                type="button"
+                className={sideBendEmphasized ? 'is-active' : ''}
+                aria-pressed={sideBendEmphasized}
+                onClick={() => setSideBendEmphasized(true)}
+              >ベンド強調</button>
+              <button
+                type="button"
+                className={!sideBendEmphasized ? 'is-active' : ''}
+                aria-pressed={!sideBendEmphasized}
+                onClick={() => setSideBendEmphasized(false)}
+              >実寸</button>
+            </div>
+          ) : null}
           {view === 'aft' ? (
             <div className="geometry-aft-mode-switch" aria-label="後方ビューの表示">
               <button
@@ -966,6 +1013,7 @@ function ProjectionPanel({
           aftShapeLens={view === 'aft' && aftDisplayMode === 'shape'}
           aftAzimuthDegrees={boomAzimuthDegrees}
           coordinateProjector={project}
+          bendDisplayScale={sideBendDisplayScale}
           reference
           referenceMode={referenceMode}
           bendMillimeters={mastBendMillimeters(boat, referenceMastBend)}
@@ -1002,22 +1050,16 @@ function ProjectionPanel({
           aftShapeLens={view === 'aft' && aftDisplayMode === 'shape'}
           aftAzimuthDegrees={boomAzimuthDegrees}
           coordinateProjector={project}
+          bendDisplayScale={sideBendDisplayScale}
           reference={false}
           bendMillimeters={mastBendMillimeters(boat, mastBend)}
         />
-        {view === 'side' ? (
-          <SideMastBendLens
-            mast={actualMastGeometry}
-            bendMillimeters={mastBendMillimeters(boat, mastBend)}
-            canvasWidth={width}
-          />
-        ) : null}
         <BoomLayer
           boom={boom}
           view={view}
           map={map}
           aftAzimuthDegrees={boomAzimuthDegrees}
-          coordinateProjector={project}
+          coordinateProjector={actualRigProject}
           showAftMouthLabel={view === 'aft' && aftDisplayMode === 'shape'}
         />
         {view === 'aft' && aftDisplayMode === 'shape' && aftLuff && aftLeech ? (
@@ -1035,6 +1077,14 @@ function ProjectionPanel({
               {aftDisplayMode === 'shape'
                 ? `SHAPE LENS · WIDTH ×${AFT_SHAPE_LENS_SCALE}`
                 : 'STERN OBSERVATION · FULL RIG'}
+            </text>
+          </g>
+        ) : null}
+        {view === 'side' && sideBendEmphasized ? (
+          <g className="geometry-perspective-key geometry-side-bend-key" aria-hidden="true">
+            <rect x="12" y="11" width="196" height="18" />
+            <text x="20" y="23">
+              {`MAST + MAIN LUFF · BEND ×${SIDE_MAST_BEND_DISPLAY_SCALE}`}
             </text>
           </g>
         ) : null}
@@ -1333,65 +1383,6 @@ function mastBendTrace(
     maximum,
     path: `M${points.map((point) => `${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join('L')}`,
   }
-}
-
-function SideMastBendLens({
-  mast,
-  bendMillimeters,
-  canvasWidth,
-}: {
-  mast: MastGeometry
-  bendMillimeters: number
-  canvasWidth: number
-}) {
-  const frameWidth = 132
-  const frameHeight = 154
-  const trace = mastBendTrace(mast, {
-    baselineX: 98,
-    topY: 39,
-    bottomY: 133,
-  })
-
-  return (
-    <g
-      className="geometry-side-bend-lens"
-      transform={`translate(${canvasWidth - frameWidth - 12} 13)`}
-      role="img"
-      aria-label={`SIDEマストベンド拡大。後傾を除き、横変位を${MAST_BEND_LENS_SCALE}倍で表示。最大たわみ${bendMillimeters.toFixed(0)} mm`}
-    >
-      <title>実寸マストと対応する、後傾を除いたマストベンド拡大図</title>
-      <rect className="geometry-side-bend-lens-frame" width={frameWidth} height={frameHeight} />
-      <rect className="geometry-side-bend-lens-header" width={frameWidth} height="22" />
-      <text className="geometry-side-bend-lens-title" x="9" y="14">BEND LENS · ×{MAST_BEND_LENS_SCALE}</text>
-      <text className="geometry-side-bend-lens-value" x="9" y="34">MAX {bendMillimeters.toFixed(0)} mm</text>
-      {[0.25, 0.5, 0.75].map((height) => {
-        const y = trace.bottomY - height * (trace.bottomY - trace.topY)
-        return (
-          <g key={height} className="geometry-side-bend-lens-station">
-            <path d={`M13 ${y.toFixed(2)}H116`} />
-            <text x="119" y={y + 2.5} textAnchor="end">{Math.round(height * 100)}</text>
-          </g>
-        )
-      })}
-      <path
-        className="geometry-side-bend-lens-straight"
-        d={`M${trace.baselineX} ${trace.bottomY}V${trace.topY}`}
-      />
-      <path className="geometry-side-bend-lens-curve" d={trace.path} />
-      <path
-        className="geometry-side-bend-lens-measure"
-        d={`M${trace.baselineX} ${trace.maximum.y}H${trace.maximum.x}`}
-      />
-      <circle
-        className="geometry-side-bend-lens-point"
-        cx={trace.maximum.x}
-        cy={trace.maximum.y}
-        r="3.2"
-      />
-      <text className="geometry-side-bend-lens-head" x="12" y={trace.topY + 3}>HEAD</text>
-      <text className="geometry-side-bend-lens-foot" x="12" y="146">← BOW / 前 · 後傾を除く</text>
-    </g>
-  )
 }
 
 function MastBendTrace({

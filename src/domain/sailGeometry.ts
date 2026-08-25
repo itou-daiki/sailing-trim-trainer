@@ -1,5 +1,6 @@
 import type {
   BoatClass,
+  MastBendProfile,
   SailLevel,
   SailPair,
   SailSection,
@@ -538,19 +539,21 @@ function mastAxisPoint(
   boat: BoatClass,
   height: number,
   mastBend: number,
+  mastBendProfile?: MastBendProfile,
 ): Vector3 {
   const specification = CLASS_SAIL_SPECIFICATIONS[boat]
   const rig = CLASS_RIG_SPECIFICATIONS[boat]
   const mastHeel = buildHullGeometry(boat).mastBase
   const lowerPointZ =
     mastHeel.z + rig.lowerPointHeightMm / SAIL_GEOMETRY_UNIT_MM
-  const loadedBend = mastBendMillimeters(boat, mastBend) / SAIL_GEOMETRY_UNIT_MM
-  // A smooth, slightly head-biased curve follows the side-on shape used in
-  // 420/470 tuning guides. This is loaded rig bend, deliberately separate
-  // from the 40 mm unloaded-spar straightness rule.
-  const bendShape = Math.sin(Math.PI * height) * (0.92 + height * 0.08)
+  const loadedBend = mastBendAtHeightMillimeters(
+    boat,
+    mastBend,
+    mastBendProfile,
+    height,
+  ) / SAIL_GEOMETRY_UNIT_MM
   return {
-    x: mastHeel.x - loadedBend * bendShape,
+    x: mastHeel.x - loadedBend,
     y: 0,
     z:
       lowerPointZ +
@@ -570,12 +573,70 @@ export function mastBendMillimeters(boat: BoatClass, mastBend: number) {
   return lerp(rig.tuningPrebendRangeMm[0], rig.loadedBendMaxMm, normalized)
 }
 
+const DEFAULT_MAST_PROFILE: MastBendProfile = {
+  lower: 0.7,
+  middle: 1,
+  upper: 0.72,
+}
+
+export function mastBendProfileMillimeters(
+  boat: BoatClass,
+  mastBend: number,
+  profile: MastBendProfile = DEFAULT_MAST_PROFILE,
+): MastBendProfile {
+  const maximumMillimeters = mastBendMillimeters(boat, mastBend)
+  const maximumSignal = Math.max(profile.lower, profile.middle, profile.upper, 1e-9)
+  return {
+    lower: maximumMillimeters * profile.lower / maximumSignal,
+    middle: maximumMillimeters * profile.middle / maximumSignal,
+    upper: maximumMillimeters * profile.upper / maximumSignal,
+  }
+}
+
+/**
+ * Interpolates a smooth spar curve through the lower/middle/upper response
+ * stations while keeping the lower and upper black-band endpoints fixed.
+ */
+export function mastBendAtHeightMillimeters(
+  boat: BoatClass,
+  mastBend: number,
+  profile: MastBendProfile | undefined,
+  height: number,
+) {
+  if (mastBend <= 0) return 0
+  if (height <= 0 || height >= 1) return 0
+  const stations = mastBendProfileMillimeters(
+    boat,
+    mastBend,
+    profile ?? DEFAULT_MAST_PROFILE,
+  )
+  const values = [0, stations.lower, stations.middle, stations.upper, 0]
+  const clampedHeight = clamp(height, 0, 1)
+  const scaled = clampedHeight * 4
+  const index = Math.min(3, Math.floor(scaled))
+  const amount = scaled - index
+  const p0 = values[Math.max(0, index - 1)]
+  const p1 = values[index]
+  const p2 = values[index + 1]
+  const p3 = values[Math.min(4, index + 2)]
+  const amount2 = amount * amount
+  const amount3 = amount2 * amount
+  const interpolated = 0.5 * (
+    2 * p1 +
+    (-p0 + p2) * amount +
+    (2 * p0 - 5 * p1 + 4 * p2 - p3) * amount2 +
+    (-p0 + 3 * p1 - 3 * p2 + p3) * amount3
+  )
+  return clamp(interpolated, 0, mastBendMillimeters(boat, mastBend))
+}
+
 function mainLuffPoint(
   boat: BoatClass,
   height: number,
   mastBend: number,
+  mastBendProfile?: MastBendProfile,
 ): Vector3 {
-  const axis = mastAxisPoint(boat, height, mastBend)
+  const axis = mastAxisPoint(boat, height, mastBend, mastBendProfile)
   const mastTrackOffset =
     CLASS_MAST_SPECIFICATIONS[boat].foreAftMm / 2 / SAIL_GEOMETRY_UNIT_MM
   return {
@@ -606,12 +667,13 @@ export type RigHardpoints = {
 export function buildRigHardpoints(
   boat: BoatClass,
   mastBend = 0,
+  mastBendProfile?: MastBendProfile,
 ): RigHardpoints {
   const hull = buildHullGeometry(boat)
   const sails = CLASS_SAIL_SPECIFICATIONS[boat]
   const rig = CLASS_RIG_SPECIFICATIONS[boat]
-  const mainTack = mainLuffPoint(boat, 0, mastBend)
-  const mainHead = mainLuffPoint(boat, 1, mastBend)
+  const mainTack = mainLuffPoint(boat, 0, mastBend, mastBendProfile)
+  const mainHead = mainLuffPoint(boat, 1, mastBend, mastBendProfile)
   const halyardHoistFraction =
     (rig.headsailHoistHeightMm - rig.lowerPointHeightMm) /
     sails.main.luffMm
@@ -619,6 +681,7 @@ export function buildRigHardpoints(
     boat,
     halyardHoistFraction,
     mastBend,
+    mastBendProfile,
   )
   const jibTack = {
     x: hull.jibTack.x,
@@ -657,6 +720,7 @@ const MAST_SECTION_POINT_COUNT = 12
 export function buildMastGeometry(
   boat: BoatClass,
   mastBend = 0,
+  mastBendProfile?: MastBendProfile,
 ): MastGeometry {
   const hull = buildHullGeometry(boat)
   const sail = CLASS_SAIL_SPECIFICATIONS[boat].main
@@ -680,7 +744,7 @@ export function buildMastGeometry(
         0,
         1,
       )
-      const tack = mastAxisPoint(boat, 0, mastBend)
+      const tack = mastAxisPoint(boat, 0, mastBend, mastBendProfile)
       return {
         id: `${boat}:mast-axis:${stationIndex}`,
         x: lerp(hull.mastDeck.x, tack.x, amount),
@@ -693,6 +757,7 @@ export function buildMastGeometry(
       boat,
       (heightMm - rig.lowerPointHeightMm) / sail.luffMm,
       mastBend,
+      mastBendProfile,
     )
     return {
       id: `${boat}:mast-axis:${stationIndex}`,
@@ -739,6 +804,7 @@ function planform(
   sail: SailKey,
   height: number,
   mastBend: number,
+  mastBendProfile: MastBendProfile | undefined,
   rotation: number,
   footEaseMm: number,
 ) {
@@ -757,7 +823,7 @@ function planform(
     )
     return {
       luff: addVector(
-        mainLuffPoint(boat, height, mastBend),
+        mainLuffPoint(boat, height, mastBend, mastBendProfile),
         scaleVector(chordDirection, tackCutback / SAIL_GEOMETRY_UNIT_MM),
       ),
       chord: chordMm / SAIL_GEOMETRY_UNIT_MM,
@@ -769,7 +835,7 @@ function planform(
   const jib = specification.jib
   const triangle = jibTriangle(jib)
   const outline = stationAtHeight(jib.outline, height)
-  const hardpoints = buildRigHardpoints(boat, mastBend)
+  const hardpoints = buildRigHardpoints(boat, mastBend, mastBendProfile)
   const tack = hardpoints.jibTack
   const head = hardpoints.jibHead
   const luffVector = {
@@ -812,6 +878,7 @@ export function buildSailSurface(
   sail: SailKey,
   shape: SailShape,
   rigMastBend = shape.mastBend,
+  rigMastBendProfile = shape.mastBendProfile,
 ): SailSurface {
   const battens = CLASS_SAIL_SPECIFICATIONS[boat][sail].battens
   const rowHeights = [...new Set([
@@ -821,7 +888,15 @@ export function buildSailSurface(
   const rows = rowHeights.map((height, rowIndex): SurfaceRow => {
     const section = sectionAtHeight(shape, height)
     const angle = ((shape.angle + section.twist) * Math.PI) / 180
-    const rig = planform(boat, sail, height, rigMastBend, angle, shape.footEaseMm)
+    const rig = planform(
+      boat,
+      sail,
+      height,
+      rigMastBend,
+      rigMastBendProfile,
+      angle,
+      shape.footEaseMm,
+    )
     const level = (Object.entries(LEVEL_HEIGHTS) as Array<[SailLevel, number]>)
       .find(([, levelHeight]) => levelHeight === height)?.[0]
     const battenStartU = battens.find(
@@ -878,8 +953,20 @@ export function buildSailSurface(
 
 export function buildRigSurfaces(boat: BoatClass, pair: SailPair): RigSurfaces {
   return {
-    main: buildSailSurface(boat, 'main', pair.main, pair.main.mastBend),
-    jib: buildSailSurface(boat, 'jib', pair.jib, pair.main.mastBend),
+    main: buildSailSurface(
+      boat,
+      'main',
+      pair.main,
+      pair.main.mastBend,
+      pair.main.mastBendProfile,
+    ),
+    jib: buildSailSurface(
+      boat,
+      'jib',
+      pair.jib,
+      pair.main.mastBend,
+      pair.main.mastBendProfile,
+    ),
   }
 }
 

@@ -10,6 +10,7 @@ import {
   fitProjection,
   getLevelRow,
   mastBendMillimeters,
+  mastBendProfileMillimeters,
   measureSurfaceRow,
   projectBoomEndCoordinate,
   projectCoordinate,
@@ -26,7 +27,8 @@ import {
 } from '../domain/hullGeometry'
 import { focusForControl } from '../domain/shapeComparison'
 import type { ControlMove } from '../domain/shapeComparison'
-import { CONTROL_LABELS, outhaulEaseMillimeters } from '../domain/trimModel'
+import { mastControlExplanation } from '../domain/mastResponse'
+import { calculateTrim, CONTROL_LABELS, outhaulEaseMillimeters } from '../domain/trimModel'
 import type {
   ProjectedPoint,
   ProjectedSurface,
@@ -40,6 +42,7 @@ import type {
 import type {
   BoatClass,
   ControlKey,
+  MastBendProfile,
   SailLevel,
   TrimControls,
   TrimResult,
@@ -384,6 +387,28 @@ function MastLayer({
         }
       })()
     : undefined
+  const bendLensBody = bendLens
+    ? (() => {
+        const halfWidth = reference ? 2.3 : 3.8
+        const offsets = bendLens.curve.map((point, index, points) => {
+          const previous = points[Math.max(0, index - 1)]
+          const next = points[Math.min(points.length - 1, index + 1)]
+          const dx = next.x - previous.x
+          const dy = next.y - previous.y
+          const length = Math.max(1e-9, Math.hypot(dx, dy))
+          return { x: -dy / length * halfWidth, y: dx / length * halfWidth }
+        })
+        const port = bendLens.curve.map((point, index) => ({
+          x: point.x + offsets[index].x,
+          y: point.y + offsets[index].y,
+        }))
+        const starboard = bendLens.curve.map((point, index) => ({
+          x: point.x - offsets[index].x,
+          y: point.y - offsets[index].y,
+        })).reverse()
+        return path([...port, ...starboard], (point) => point, true)
+      })()
+    : undefined
 
   return (
     <g className={`geometry-mast-model ${stateClass} is-${view}`}>
@@ -415,6 +440,7 @@ function MastLayer({
               <path className="geometry-mast-bend-baseline" d={path(bendLens.straight, (point) => point)} />
             </>
           ) : null}
+          <path className="geometry-mast-bend-lens-body" d={bendLensBody} />
           <path className="geometry-mast-bend-lens-curve" d={path(bendLens.curve, (point) => point)} />
           {!reference ? (
             <>
@@ -608,7 +634,9 @@ function ProjectionPanel({
   referenceMode,
   boat,
   mastBend,
+  mastBendProfile,
   referenceMastBend,
+  referenceMastBendProfile,
   aftDisplayMode,
   onAftDisplayModeChange,
   clothState,
@@ -622,7 +650,9 @@ function ProjectionPanel({
   referenceMode: ComparisonMode
   boat: BoatClass
   mastBend: number
+  mastBendProfile: MastBendProfile
   referenceMastBend: number
+  referenceMastBendProfile: MastBendProfile
   aftDisplayMode: AftDisplayMode
   onAftDisplayModeChange: (mode: AftDisplayMode) => void
   clothState: MainClothState
@@ -638,8 +668,12 @@ function ProjectionPanel({
   const hull = buildHullGeometry(boat)
   const specification = HULL_SPECIFICATIONS[boat]
   const boom = buildBoomGeometry(boat, actual.main)
-  const actualMastGeometry = buildMastGeometry(boat, mastBend)
-  const referenceMastGeometry = buildMastGeometry(boat, referenceMastBend)
+  const actualMastGeometry = buildMastGeometry(boat, mastBend, mastBendProfile)
+  const referenceMastGeometry = buildMastGeometry(
+    boat,
+    referenceMastBend,
+    referenceMastBendProfile,
+  )
   const [boomStart, boomEnd] = boom.centreline
   const boomAzimuthDegrees = view === 'aft'
     ? Math.atan2(boomEnd.y - boomStart.y, boomEnd.x - boomStart.x) * 180 / Math.PI
@@ -715,7 +749,7 @@ function ProjectionPanel({
   ]
     .filter((point) => point.z >= boomStart.z - 0.04)
     .map(project)
-  const rigHardpoints = buildRigHardpoints(boat, mastBend)
+  const rigHardpoints = buildRigHardpoints(boat, mastBend, mastBendProfile)
   const projectedHullPoints = hull.allPoints.map(project)
   const map = createMapper(
     [...actualProjected, ...referenceProjected],
@@ -1305,7 +1339,9 @@ function BeforeAfterBench({
   before,
   after,
   beforeMastBend,
+  beforeMastBendProfile,
   afterMastBend,
+  afterMastBendProfile,
   move,
 }: {
   boat: BoatClass
@@ -1313,7 +1349,9 @@ function BeforeAfterBench({
   before: RigSurfaces
   after: RigSurfaces
   beforeMastBend: number
+  beforeMastBendProfile: MastBendProfile
   afterMastBend: number
+  afterMastBendProfile: MastBendProfile
   move: ControlMove
 }) {
   const beforeSurface = before[active.sail]
@@ -1323,12 +1361,12 @@ function BeforeAfterBench({
   const beforeReading = measureStripe(beforeSurface, active.level)
   const afterReading = measureStripe(afterSurface, active.level)
   const beforeMast = useMemo(
-    () => buildMastGeometry(boat, beforeMastBend),
-    [beforeMastBend, boat],
+    () => buildMastGeometry(boat, beforeMastBend, beforeMastBendProfile),
+    [beforeMastBend, beforeMastBendProfile, boat],
   )
   const afterMast = useMemo(
-    () => buildMastGeometry(boat, afterMastBend),
-    [afterMastBend, boat],
+    () => buildMastGeometry(boat, afterMastBend, afterMastBendProfile),
+    [afterMastBend, afterMastBendProfile, boat],
   )
   const beforeMastBendMm = mastBendMillimeters(boat, beforeMastBend)
   const afterMastBendMm = mastBendMillimeters(boat, afterMastBend)
@@ -1410,6 +1448,93 @@ function BeforeAfterBench({
         <div><span>最大位置の変化</span><strong>{position.value}</strong><small>{position.direction}</small></div>
         <div><span>ツイストの変化</span><strong>{twist.value}</strong><small>{twist.direction}</small></div>
         <div><span>マストの曲がり</span><strong>{mastBend.value}</strong><small>{mastBend.direction}</small></div>
+      </div>
+    </section>
+  )
+}
+
+const MAST_STATION_META = [
+  { level: 'upper', label: 'TOP / 上部', height: '75%' },
+  { level: 'middle', label: 'MID / 中部', height: '50%' },
+  { level: 'lower', label: 'LOW / 下部', height: '25%' },
+] as const
+
+function formatMastDelta(value: number) {
+  if (Math.abs(value) < 0.05) return '≈ 0 mm'
+  return `${value > 0 ? '+' : '−'}${Math.abs(value).toFixed(1)} mm`
+}
+
+function MastResponsePanel({
+  boat,
+  angle,
+  windSpeed,
+  controls,
+  result,
+}: {
+  boat: BoatClass
+  angle: number
+  windSpeed: number
+  controls: TrimControls
+  result: TrimResult
+}) {
+  const cunninghamZero = useMemo(
+    () => calculateTrim(boat, angle, windSpeed, { ...controls, cunningham: 0 }),
+    [angle, boat, controls, windSpeed],
+  )
+  const currentStations = mastBendProfileMillimeters(
+    boat,
+    result.actual.main.mastBend,
+    result.actual.main.mastBendProfile,
+  )
+  const zeroStations = mastBendProfileMillimeters(
+    boat,
+    cunninghamZero.actual.main.mastBend,
+    cunninghamZero.actual.main.mastBendProfile,
+  )
+  const explanation = mastControlExplanation(boat, 'cunningham')
+  const maximumBend = CLASS_RIG_SPECIFICATIONS[boat].loadedBendMaxMm
+
+  return (
+    <section className="mast-response-panel" aria-labelledby="mast-response-title">
+      <header>
+        <span>MAST LOAD MAP / マストの動き</span>
+        <h3 id="mast-response-title">カニンガムを引くと、トップ側はどう曲がる？</h3>
+        <small>他の設定を固定 · カニンガム 0 → {controls.cunningham}</small>
+      </header>
+
+      <div className="mast-load-paths" aria-label="カニンガムの荷重経路">
+        <div className="is-primary">
+          <em>主作用</em>
+          <span>カニンガム ↓</span><b>→</b><span>ラフ張力 ↑</span><b>→</b><span>ドラフト 前へ</span>
+        </div>
+        <div className="is-secondary">
+          <em>二次作用</em>
+          <span>圧縮荷重 ↑</span><b>→</b><span>既存ベンドを増幅</span><b>→</b><span>上部が最も動く</span>
+        </div>
+      </div>
+
+      <div className="mast-station-readout" aria-label="高さ別の前後ベンド">
+        {MAST_STATION_META.map(({ level, label, height }) => {
+          const current = currentStations[level]
+          const delta = current - zeroStations[level]
+          const stationStyle = {
+            '--mast-station': `${Math.min(100, current / maximumBend * 100)}%`,
+          } as CSSProperties
+          return (
+            <div key={level} className={`mast-station is-${level}`} style={stationStyle}>
+              <span>{label}<small>{height}高さ</small></span>
+              <i aria-hidden="true"><b /></i>
+              <strong>{formatMastDelta(delta)}</strong>
+              <small>現在 {current.toFixed(0)} mm</small>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="mast-response-notes">
+        <p><strong>主作用</strong>{explanation.primary}</p>
+        <p><strong>なぜ曲がる</strong>{explanation.secondary}</p>
+        <p><strong>読み違い注意</strong>{explanation.caution}</p>
       </div>
     </section>
   )
@@ -1504,10 +1629,16 @@ export function BoatView({
             referenceMode={comparisonMode}
             boat={boat}
             mastBend={result.actual.main.mastBend}
+            mastBendProfile={result.actual.main.mastBendProfile}
             referenceMastBend={
               comparisonMode === 'previous'
                 ? previousResult.actual.main.mastBend
                 : result.target.main.mastBend
+            }
+            referenceMastBendProfile={
+              comparisonMode === 'previous'
+                ? previousResult.actual.main.mastBendProfile
+                : result.target.main.mastBendProfile
             }
             aftDisplayMode={aftDisplayMode}
             onAftDisplayModeChange={setAftDisplayMode}
@@ -1517,6 +1648,14 @@ export function BoatView({
           />
         ))}
       </div>
+
+      <MastResponsePanel
+        boat={boat}
+        angle={angle}
+        windSpeed={windSpeed}
+        controls={controls}
+        result={result}
+      />
 
       <div className={`geometry-cloth-readout is-${clothState.tone}`} role="status">
         <span>CLOTH / シワを読む</span>
@@ -1541,7 +1680,9 @@ export function BoatView({
           before={previousSurfaces}
           after={actualSurfaces}
           beforeMastBend={previousResult.actual.main.mastBend}
+          beforeMastBendProfile={previousResult.actual.main.mastBendProfile}
           afterMastBend={result.actual.main.mastBend}
+          afterMastBendProfile={result.actual.main.mastBendProfile}
           move={lastMove}
         />
       ) : (

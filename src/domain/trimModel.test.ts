@@ -162,6 +162,28 @@ describe('trim model', () => {
     )
   })
 
+  it('shows the Cunningham coupling in the upper mast rather than as uniform bend', () => {
+    for (const boat of ['420', '470'] as const) {
+      const controls = targetControls(boat, 45, 16)
+      const loose = calculateTrim(boat, 45, 16, {
+        ...controls,
+        cunningham: 0,
+      }).actual.main
+      const tight = calculateTrim(boat, 45, 16, {
+        ...controls,
+        cunningham: 100,
+      }).actual.main
+
+      const lowerChange = tight.mastBendProfile.lower - loose.mastBendProfile.lower
+      const middleChange = tight.mastBendProfile.middle - loose.mastBendProfile.middle
+      const upperChange = tight.mastBendProfile.upper - loose.mastBendProfile.upper
+
+      expect(upperChange).toBeGreaterThan(middleChange * 2)
+      expect(middleChange).toBeGreaterThan(lowerChange * 2)
+      expect(tight.mastBend).toBeGreaterThan(loose.mastBend)
+    }
+  })
+
   it('makes vang response largest at the upper leech', () => {
     const controls = targetControls('420', 90, 12)
     const loose = calculateTrim('420', 90, 12, { ...controls, vang: 0 }).actual.main.sections

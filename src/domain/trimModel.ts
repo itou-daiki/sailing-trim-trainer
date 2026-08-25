@@ -1,5 +1,6 @@
 import { BOATS } from '../data/boats'
 import { evaluateAero } from './aeroModel'
+import { calculateMastBendProfile, mastBendSignal } from './mastResponse'
 import { apparentWind, optimalMainTrim } from './windModel'
 import type {
   BoatClass,
@@ -211,21 +212,7 @@ function sailShapes(
   const cunningham = controls.cunningham / 100
   const outhaulEaseMm = outhaulEaseMillimeters(controls.outhaul)
   const sheet = controls.mainSheet / 100
-  const chock = controls.chock / 100
-  const forePuller = controls.forePuller / 100
-  const aftPuller = controls.aftPuller / 100
-
-  const bend = boat === '420'
-    ? {
-        lower: clamp(0.38 + vang * 0.2 - chock * 0.5, 0.08, 0.78),
-        middle: clamp(0.4 + vang * 0.34 - chock * 0.3, 0.12, 0.86),
-        upper: clamp(0.38 + vang * 0.42 - chock * 0.06, 0.16, 0.9),
-      }
-    : {
-        lower: clamp(0.34 + forePuller * 0.45 - aftPuller * 0.35 + vang * 0.16, 0.08, 0.9),
-        middle: clamp(0.36 + forePuller * 0.34 - aftPuller * 0.25 + vang * 0.28, 0.1, 0.92),
-        upper: clamp(0.36 + forePuller * 0.14 - aftPuller * 0.09 + vang * 0.42, 0.16, 0.94),
-      }
+  const bend = calculateMastBendProfile(boat, controls)
 
   const mainSections = {
     lower: {
@@ -303,12 +290,13 @@ function sailShapes(
   }
   const inboard = boat === '420' ? controls.windwardSheet : controls.jibLeadInOut
   const jibAngle = clamp(69 - controls.jibSheet * 0.57 - inboard * 0.12, 5, 70)
-  const mastBend = clamp(0.008 + bend.middle * 0.072, 0.012, 0.078)
+  const mastBend = mastBendSignal(boat, bend)
 
   return {
     main: {
       angle: mainAngle,
       mastBend,
+      mastBendProfile: bend,
       footEaseMm: outhaulEaseMm,
       draftDepth: mainSections.middle.draftDepth,
       draftPosition: mainSections.middle.draftPosition,
@@ -318,6 +306,7 @@ function sailShapes(
     jib: {
       angle: jibAngle,
       mastBend: 0,
+      mastBendProfile: { lower: 0, middle: 0, upper: 0 },
       footEaseMm: 0,
       draftDepth: jibSections.middle.draftDepth,
       draftPosition: jibSections.middle.draftPosition,

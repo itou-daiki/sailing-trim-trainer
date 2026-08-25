@@ -18,6 +18,8 @@ import {
   fitProjection,
   getLevelRow,
   mastBendMillimeters,
+  mastBendAtHeightMillimeters,
+  mastBendProfileMillimeters,
   measureSurfaceRow,
   projectBoomEndCoordinate,
   projectCoordinate,
@@ -651,7 +653,7 @@ describe('single sail surface geometry', () => {
       ) * SAIL_GEOMETRY_UNIT_MM
 
       expect(maximumDeflectionMm).toBeLessThanOrEqual(
-        CLASS_RIG_SPECIFICATIONS[boat].loadedBendMaxMm,
+        CLASS_RIG_SPECIFICATIONS[boat].loadedBendMaxMm + 1e-8,
       )
       expect(maximumDeflectionMm).toBeGreaterThan(
         CLASS_RIG_SPECIFICATIONS[boat].loadedBendMaxMm * 0.9,
@@ -662,6 +664,80 @@ describe('single sail surface geometry', () => {
       expect(maximumDeflectionMm).toBeGreaterThan(
         CLASS_RIG_SPECIFICATIONS[boat].mastCurvatureMm,
       )
+    }
+  })
+
+  it('moves the upper mast more than the middle when Cunningham is pulled', () => {
+    for (const boat of ['420', '470'] as const) {
+      const controls = targetControls(boat, 45, 16)
+      const loose = calculateTrim(boat, 45, 16, {
+        ...controls,
+        cunningham: 0,
+      }).actual.main
+      const tight = calculateTrim(boat, 45, 16, {
+        ...controls,
+        cunningham: 100,
+      }).actual.main
+      const looseStations = mastBendProfileMillimeters(
+        boat,
+        loose.mastBend,
+        loose.mastBendProfile,
+      )
+      const tightStations = mastBendProfileMillimeters(
+        boat,
+        tight.mastBend,
+        tight.mastBendProfile,
+      )
+
+      expect(tightStations.upper - looseStations.upper).toBeGreaterThan(
+        tightStations.middle - looseStations.middle,
+      )
+      expect(mastBendAtHeightMillimeters(
+        boat,
+        tight.mastBend,
+        tight.mastBendProfile,
+        0.75,
+      )).toBeCloseTo(tightStations.upper, 8)
+      expect(mastBendAtHeightMillimeters(
+        boat,
+        tight.mastBend,
+        tight.mastBendProfile,
+        1,
+      )).toBe(0)
+    }
+  })
+
+  it('keeps a curved solid mast at the class prebend floor with live controls eased', () => {
+    for (const boat of ['420', '470'] as const) {
+      const controls = {
+        ...targetControls(boat, 140, 4),
+        mainSheet: 0,
+        vang: 0,
+        cunningham: 0,
+        chock: 0,
+        forePuller: 0,
+        aftPuller: 0,
+      }
+      const main = calculateTrim(boat, 140, 4, controls).actual.main
+      const mast = buildMastGeometry(
+        boat,
+        main.mastBend,
+        main.mastBendProfile,
+      )
+      const lower = mast.centreline[0]
+      const upper = mast.centreline.at(-1)!
+      const maximumOffsetMm = Math.max(...mast.centreline.map((point) => {
+        const amount = (point.z - lower.z) / (upper.z - lower.z)
+        const straightX = lower.x + (upper.x - lower.x) * amount
+        return Math.abs(point.x - straightX) * SAIL_GEOMETRY_UNIT_MM
+      }))
+
+      expect(maximumOffsetMm).toBeCloseTo(
+        CLASS_RIG_SPECIFICATIONS[boat].tuningPrebendRangeMm[0],
+        8,
+      )
+      expect(mast.faces.length).toBeGreaterThan(100)
+      expect(mast.sections[0].length).toBe(12)
     }
   })
 

@@ -4784,6 +4784,104 @@ footer p { margin: 0; }
   font-weight: 900;
 }
 
+.geometry-mast-bend-measurement.is-top text {
+  font-size: 7.2px;
+}
+
+.geometry-mast-plan-readings path,
+.geometry-mast-plan-readings circle {
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-mast-plan-reading path {
+  fill: none;
+  stroke: rgba(181, 64, 36, 0.72);
+  stroke-width: 0.8;
+  stroke-dasharray: 2 2;
+}
+
+.geometry-mast-plan-reading circle {
+  fill: #fafbf7;
+  stroke: #b54024;
+  stroke-width: 1.15;
+}
+
+.geometry-mast-plan-readings text {
+  fill: #7f2e1d;
+  paint-order: stroke;
+  stroke: rgba(250, 251, 247, 0.98);
+  stroke-width: 3px;
+  font-family: var(--mono);
+  font-size: 7.2px;
+  font-weight: 900;
+}
+
+.geometry-mast-plan-readings .geometry-mast-plan-heading {
+  fill: #173f48;
+  font-size: 6.8px;
+  letter-spacing: 0.04em;
+}
+
+.geometry-mast-plan-reading.is-middle path,
+.geometry-mast-plan-reading.is-middle circle {
+  stroke: #168077;
+}
+
+.geometry-mast-plan-reading.is-middle text {
+  fill: #0f655f;
+}
+
+.geometry-mast-depth-readings path,
+.geometry-mast-depth-readings circle {
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-mast-depth-reading path {
+  fill: none;
+  stroke: #b54024;
+  stroke-width: 0.9;
+}
+
+.geometry-mast-depth-reading circle {
+  fill: #fafbf7;
+  stroke: #b54024;
+  stroke-width: 1.2;
+}
+
+.geometry-mast-depth-reading text {
+  fill: #7f2e1d;
+  paint-order: stroke;
+  stroke: rgba(250, 251, 247, 0.98);
+  stroke-width: 3px;
+  font-family: var(--mono);
+  font-size: 8.2px;
+  font-weight: 900;
+}
+
+.geometry-mast-depth-reading.is-middle path,
+.geometry-mast-depth-reading.is-middle circle {
+  stroke: #168077;
+}
+
+.geometry-mast-depth-reading.is-middle text {
+  fill: #0f655f;
+}
+
+.geometry-mast-depth-key-heading {
+  fill: #173f48;
+  paint-order: stroke;
+  stroke: rgba(250, 251, 247, 0.98);
+  stroke-width: 3px;
+  font-family: var(--mono);
+  font-size: 6.8px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+}
+
+.geometry-mast-depth-readings.is-shape-lens .geometry-mast-depth-key-dot {
+  stroke-width: 1px;
+}
+
 .geometry-boom-face,
 .geometry-boom-limit-mark,
 .geometry-boom-centreline,

@@ -79,20 +79,20 @@ const VIEW_META: Record<
   top: {
     index: '01',
     view: 'PLAN / 上から',
-    title: '開きとドラフト',
-    note: '3本のドラフトストライプの曲がりを重ねて見る',
+    title: '開き・ドラフト／マストベンド',
+    note: 'セールの開きと、マストの前後偏位を上から読む',
   },
   side: {
     index: '02',
     view: 'SIDE / 斜め横',
-    title: 'ラフからリーチ／マスト',
-    note: 'ストライプと、マストの曲がりを同じ側面で読む',
+    title: 'ラフからリーチ／後傾・ベンド',
+    note: 'ストライプと、後傾基準線からの曲がりを同じ側面で読む',
   },
   aft: {
     index: '03',
     view: 'STERN / 真後ろ',
-    title: '実艇後方とメインシェイプ',
-    note: '船体中心線の後方から、トランサム・マスト・セール全体を見る',
+    title: '実艇後方／奥行きベンド',
+    note: '真後ろで重なる前後ベンドを、上・中・下の奥行き量で読む',
   },
 }
 
@@ -312,6 +312,8 @@ function MastLayer({
   mast,
   view,
   map,
+  canvasWidth,
+  aftShapeLens,
   aftAzimuthDegrees,
   coordinateProjector,
   reference,
@@ -321,6 +323,8 @@ function MastLayer({
   mast: MastGeometry
   view: ProjectionView
   map: Mapper
+  canvasWidth: number
+  aftShapeLens?: boolean
   aftAzimuthDegrees?: number
   coordinateProjector?: CoordinateProjector
   reference: boolean
@@ -343,7 +347,7 @@ function MastLayer({
       .map((face) => path(project(face), map, true))
       .join(''),
   )
-  const bendMeasure = view === 'side' && mast.centreline.length > 2
+  const bendReadings = !reference && mast.centreline.length > 2
     ? (() => {
         const lower = mast.centreline[0]
         const upper = mast.centreline.at(-1)!
@@ -353,7 +357,7 @@ function MastLayer({
           z: upper.z - lower.z,
         }
         const axisLengthSquared = axis.x ** 2 + axis.y ** 2 + axis.z ** 2
-        const candidates = mast.centreline.slice(1, -1).map((point) => {
+        const readingForPoint = (point: MastGeometry['centreline'][number]) => {
           const amount = (
             (point.x - lower.x) * axis.x +
             (point.y - lower.y) * axis.y +
@@ -373,18 +377,57 @@ function MastLayer({
               point.z - baseline.z,
             ),
           }
-        })
+        }
+        const candidates = mast.centreline.slice(1, -1).map(readingForPoint)
         const maximum = candidates.reduce((current, candidate) =>
           candidate.distance > current.distance ? candidate : current,
         )
-        if (!maximum) return undefined
+        const luffStations = mast.centreline.slice(1)
+        const stations = ([
+          ['upper', 0.75, 'TOP'],
+          ['middle', 0.5, 'MID'],
+          ['lower', 0.25, 'LOW'],
+        ] as const).map(([level, height, label]) => {
+          const index = Math.round((luffStations.length - 1) * height)
+          return {
+            level,
+            height,
+            label,
+            ...readingForPoint(luffStations[index]),
+          }
+        })
         return {
-          mast: map(projectPoint(maximum.point)),
-          baseline: map(projectPoint(maximum.baseline)),
-          straight: [map(projectPoint(lower)), map(projectPoint(upper))],
+          maximum,
+          stations,
+          straight: [lower, upper],
         }
       })()
     : undefined
+  const bendMeasure = bendReadings && view !== 'aft'
+    ? {
+        mast: map(projectPoint(bendReadings.maximum.point)),
+        baseline: map(projectPoint(bendReadings.maximum.baseline)),
+        straight: bendReadings.straight.map((point) => map(projectPoint(point))),
+      }
+    : undefined
+  const aftReadings = bendReadings && view === 'aft'
+    ? bendReadings.stations.map((reading) => ({
+        ...reading,
+        screen: map(projectPoint(reading.point)),
+        millimeters: reading.distance * SAIL_GEOMETRY_UNIT_MM,
+      }))
+    : []
+  const planReadings = bendReadings && view === 'top'
+    ? bendReadings.stations.map((reading) => ({
+        ...reading,
+        screen: map(projectPoint(reading.point)),
+        millimeters: reading.distance * SAIL_GEOMETRY_UNIT_MM,
+      }))
+    : []
+  const measuredBendMillimeters = bendReadings
+    ? bendReadings.maximum.distance * SAIL_GEOMETRY_UNIT_MM
+    : bendMillimeters
+  const viewLabel = view === 'top' ? 'PLAN / 上から' : 'SIDE / 斜め横'
 
   return (
     <g className={`geometry-mast-model ${stateClass} is-${view}`}>
@@ -404,16 +447,77 @@ function MastLayer({
           d={path(project(mast.sections.map((section) => section[0])), map)}
         />
       ) : null}
-      {bendMeasure && !reference ? (
+      {bendMeasure ? (
         <g
-          className="geometry-mast-bend-measurement"
-          aria-label={`SIDE / 斜め横の現在のマスト。実寸最大たわみ${bendMillimeters.toFixed(0)} mm`}
+          className={`geometry-mast-bend-measurement is-${view}`}
+          aria-label={`${viewLabel}の現在のマスト。実寸最大たわみ${measuredBendMillimeters.toFixed(0)} mm`}
         >
-          <title>後傾基準線と帆走中の立体マストを実寸で比較</title>
+          <title>{view === 'top'
+            ? '上から見た後傾基準位置と、帆走中の前後ベンドを実寸で比較'
+            : '後傾基準線と帆走中の立体マストを実寸で比較'}</title>
           <path className="geometry-mast-bend-baseline" d={path(bendMeasure.straight, (point) => point)} />
           <path className="geometry-mast-bend-measure" d={`M${bendMeasure.mast.x.toFixed(2)} ${bendMeasure.mast.y.toFixed(2)}L${bendMeasure.baseline.x.toFixed(2)} ${bendMeasure.baseline.y.toFixed(2)}`} />
           <circle cx={bendMeasure.mast.x} cy={bendMeasure.mast.y} r="2.6" />
-          <text x={Math.min(bendMeasure.mast.x, bendMeasure.baseline.x) - 7} y={bendMeasure.mast.y - 8} textAnchor="end">{`実寸 ${bendMillimeters.toFixed(0)} mm`}</text>
+          {view === 'side' ? (
+            <text
+              x={Math.min(bendMeasure.mast.x, bendMeasure.baseline.x) - 7}
+              y={bendMeasure.mast.y - 8}
+              textAnchor="end"
+            >{`最大 ${measuredBendMillimeters.toFixed(0)} mm`}</text>
+          ) : null}
+        </g>
+      ) : null}
+      {planReadings.length ? (
+        <g className="geometry-mast-plan-readings" aria-hidden="true">
+          <text className="geometry-mast-plan-heading" x={canvasWidth - 118} y="13">
+            {`MAST BEND · MAX ${measuredBendMillimeters.toFixed(0)} mm`}
+          </text>
+          {planReadings.map((reading, index) => {
+            const labelX = canvasWidth - 118
+            const labelY = 29 + index * 15
+            return (
+              <g key={reading.level} className={`geometry-mast-plan-reading is-${reading.level}`}>
+                <circle cx={reading.screen.x} cy={reading.screen.y} r="3.2" />
+                <path d={`M${(reading.screen.x + 4).toFixed(2)} ${reading.screen.y.toFixed(2)}L${(labelX - 8).toFixed(2)} ${labelY.toFixed(2)}`} />
+                <text x={labelX} y={labelY + 2.5}>
+                  {`${reading.label} · 前 ${reading.millimeters.toFixed(0)} mm`}
+                </text>
+              </g>
+            )
+          })}
+        </g>
+      ) : null}
+      {aftReadings.length ? (
+        <g
+          className={`geometry-mast-depth-readings${aftShapeLens ? ' is-shape-lens' : ''}`}
+          aria-label={`STERN / 真後ろのマストベンド。前後方向は奥行きに重なるため、上部${aftReadings[0].millimeters.toFixed(0)} mm、中部${aftReadings[1].millimeters.toFixed(0)} mm、下部${aftReadings[2].millimeters.toFixed(0)} mmを数値表示`}
+        >
+          <title>真後ろでは見えない前後ベンドを、マスト上の高さ別奥行き量で表示</title>
+          {aftShapeLens ? (
+            <>
+              <text className="geometry-mast-depth-key-heading" x="18" y="48">BEND DEPTH / 奥行き</text>
+              {aftReadings.map((reading, index) => {
+                const keyY = 62 + index * 14
+                return (
+                  <g key={reading.level} className={`geometry-mast-depth-reading is-${reading.level}`}>
+                    <circle cx={reading.screen.x} cy={reading.screen.y} r="3.2" />
+                    <circle className="geometry-mast-depth-key-dot" cx="20" cy={keyY} r="2.5" />
+                    <text x="28" y={keyY + 2.5}>
+                      {`${reading.label} · ${reading.millimeters.toFixed(0)} mm`}
+                    </text>
+                  </g>
+                )
+              })}
+            </>
+          ) : aftReadings.map((reading) => (
+              <g key={reading.level} className={`geometry-mast-depth-reading is-${reading.level}`}>
+                <circle cx={reading.screen.x} cy={reading.screen.y} r="3.2" />
+                <path d={`M${(reading.screen.x + 4).toFixed(2)} ${reading.screen.y.toFixed(2)}h12`} />
+                <text x={reading.screen.x + 20} y={reading.screen.y + 2.5}>
+                  {`${reading.label} · 奥 ${reading.millimeters.toFixed(0)} mm`}
+                </text>
+              </g>
+            ))}
         </g>
       ) : null}
     </g>
@@ -784,8 +888,8 @@ function ProjectionPanel({
   const aftLeech = aftMiddleRow ? map(aftMiddleRow.points.at(-1)!) : undefined
   const cameraNote = view === 'aft'
     ? (aftDisplayMode === 'shape'
-        ? `真後ろの同じカメラをセールへ拡大し、横方向だけ×${AFT_SHAPE_LENS_SCALE}`
-        : '船体中心線の後方・水面近くから、船体とリグ全体を見る')
+        ? `真後ろの同じカメラをセールへ拡大 · 横×${AFT_SHAPE_LENS_SCALE} · ベンドは奥行きmm`
+        : '真後ろでは前後ベンドが奥行きに重なるため、TOP / MID / LOWのmmで読む')
     : meta.note
 
   return (
@@ -858,6 +962,8 @@ function ProjectionPanel({
           mast={referenceMastGeometry}
           view={view}
           map={map}
+          canvasWidth={width}
+          aftShapeLens={view === 'aft' && aftDisplayMode === 'shape'}
           aftAzimuthDegrees={boomAzimuthDegrees}
           coordinateProjector={project}
           reference
@@ -892,6 +998,8 @@ function ProjectionPanel({
           mast={actualMastGeometry}
           view={view}
           map={map}
+          canvasWidth={width}
+          aftShapeLens={view === 'aft' && aftDisplayMode === 'shape'}
           aftAzimuthDegrees={boomAzimuthDegrees}
           coordinateProjector={project}
           reference={false}

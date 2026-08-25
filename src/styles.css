@@ -4424,7 +4424,7 @@ footer p { margin: 0; }
 
 .geometry-panel figcaption {
   display: grid;
-  grid-template-columns: 30px 1fr;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
   gap: 7px;
   align-items: center;
   min-height: 48px;
@@ -4468,6 +4468,42 @@ footer p { margin: 0; }
   width: 100%;
   min-height: 0;
   flex: 1;
+}
+
+.geometry-panel-tools {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.geometry-panel-expand {
+  min-height: 28px;
+  padding: 4px 8px;
+  color: #183f48;
+  background: #f7f9f5;
+  border: 1px solid #78908f;
+  border-radius: 0;
+  font-family: var(--mono);
+  font-size: 0.48rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.geometry-panel-expand:hover,
+.geometry-panel-expand:focus-visible {
+  color: #fff;
+  background: #183f48;
+  outline: 2px solid #e75a35;
+  outline-offset: 2px;
+}
+
+.geometry-panel-expand[aria-pressed="true"] {
+  color: #fff;
+  background: #b74429;
+  border-color: #8f321f;
 }
 
 .geometry-waterline {
@@ -6671,5 +6707,116 @@ footer p { margin: 0; }
   .lesson-loop .mode-switch {
     width: 100%;
     margin-left: 0;
+  }
+}
+
+/* Teaching focus: enlarge one projection without hiding the trim controls. */
+.geometry-stage.is-expanded {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  width: 100%;
+  height: min(68vh, 610px);
+  min-height: 480px;
+}
+
+.geometry-stage.is-expanded-top {
+  height: min(42vh, 340px);
+  min-height: 270px;
+}
+
+.geometry-stage.is-expanded .geometry-panel:not(.is-expanded) {
+  display: none;
+}
+
+.geometry-stage.is-expanded .geometry-panel.is-expanded {
+  grid-row: 1;
+  grid-column: 1;
+  width: 100%;
+  height: 100%;
+}
+
+.geometry-stage.is-expanded .geometry-panel-top figcaption {
+  position: static;
+  min-width: 0;
+  background: #e8eeeb;
+  border: 0;
+  border-bottom: 1px solid #a7b6b4;
+}
+
+.geometry-stage.is-expanded .geometry-panel-top > svg {
+  height: auto;
+}
+
+@media (max-width: 1120px) {
+  .geometry-panel figcaption,
+  .geometry-panel-aft figcaption {
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+  }
+
+  .geometry-stage.is-expanded {
+    height: min(64vh, 520px);
+    min-height: 420px;
+  }
+
+  .geometry-stage.is-expanded-top {
+    height: 280px;
+    min-height: 240px;
+  }
+}
+
+@media (max-width: 720px) {
+  .geometry-panel figcaption,
+  .geometry-panel-aft figcaption {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 3px;
+  }
+
+  .geometry-panel-tools {
+    gap: 2px;
+  }
+
+  .geometry-panel-expand {
+    min-height: 23px;
+    padding: 3px 5px;
+    font-size: 0.38rem;
+  }
+
+  .geometry-stage.is-expanded {
+    height: min(58vh, 430px);
+    min-height: 340px;
+  }
+
+  .geometry-stage.is-expanded-top {
+    height: 230px;
+    min-height: 210px;
+  }
+
+  .geometry-stage.is-expanded .geometry-panel figcaption {
+    min-height: 38px;
+    padding: 5px 6px;
+  }
+
+  .geometry-stage.is-expanded .geometry-panel figcaption strong {
+    font-size: 0.54rem;
+  }
+
+  .geometry-panel-top figcaption {
+    min-width: 126px;
+    padding-right: 42px;
+  }
+
+  .geometry-panel-top .geometry-panel-tools {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+  }
+
+  .geometry-stage.is-expanded .geometry-panel-top figcaption {
+    padding-right: 6px;
+  }
+
+  .geometry-stage.is-expanded .geometry-panel-top .geometry-panel-tools {
+    position: static;
   }
 }

@@ -612,6 +612,8 @@ function ProjectionPanel({
   aftDisplayMode,
   onAftDisplayModeChange,
   clothState,
+  expanded,
+  onToggleExpanded,
 }: {
   view: ProjectionView
   actual: RigSurfaces
@@ -624,6 +626,8 @@ function ProjectionPanel({
   aftDisplayMode: AftDisplayMode
   onAftDisplayModeChange: (mode: AftDisplayMode) => void
   clothState: MainClothState
+  expanded: boolean
+  onToggleExpanded: () => void
 }) {
   const dimensions: Record<ProjectionView, { width: number; height: number }> = {
     top: { width: 760, height: 160 },
@@ -786,29 +790,40 @@ function ProjectionPanel({
     : meta.note
 
   return (
-    <figure className={`geometry-panel geometry-panel-${view}${view === 'aft' ? ` is-${aftDisplayMode}` : ''}`}>
+    <figure className={`geometry-panel geometry-panel-${view}${view === 'aft' ? ` is-${aftDisplayMode}` : ''}${expanded ? ' is-expanded' : ''}`}>
       <figcaption>
         <span>{meta.index}</span>
         <div>
           <strong>{meta.view}</strong>
           <small>{meta.title}{view === 'aft' ? ` · ${boat} M${classSails.main.battens.length}バテン` : ''}</small>
         </div>
-        {view === 'aft' ? (
-          <div className="geometry-aft-mode-switch" aria-label="後方ビューの表示">
-            <button
-              type="button"
-              className={aftDisplayMode === 'shape' ? 'is-active' : ''}
-              aria-pressed={aftDisplayMode === 'shape'}
-              onClick={() => onAftDisplayModeChange('shape')}
-            >形を読む</button>
-            <button
-              type="button"
-              className={aftDisplayMode === 'boat' ? 'is-active' : ''}
-              aria-pressed={aftDisplayMode === 'boat'}
-              onClick={() => onAftDisplayModeChange('boat')}
-            >実艇</button>
-          </div>
-        ) : null}
+        <div className="geometry-panel-tools">
+          {view === 'aft' ? (
+            <div className="geometry-aft-mode-switch" aria-label="後方ビューの表示">
+              <button
+                type="button"
+                className={aftDisplayMode === 'shape' ? 'is-active' : ''}
+                aria-pressed={aftDisplayMode === 'shape'}
+                onClick={() => onAftDisplayModeChange('shape')}
+              >形を読む</button>
+              <button
+                type="button"
+                className={aftDisplayMode === 'boat' ? 'is-active' : ''}
+                aria-pressed={aftDisplayMode === 'boat'}
+                onClick={() => onAftDisplayModeChange('boat')}
+              >実艇</button>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className="geometry-panel-expand"
+            aria-label={`${meta.view}を${expanded ? '3視点表示へ戻す' : '拡大する'}`}
+            aria-pressed={expanded}
+            onClick={onToggleExpanded}
+          >
+            <span aria-hidden="true">{expanded ? '3視点へ戻る' : '拡大'}</span>
+          </button>
+        </div>
       </figcaption>
       <svg
         viewBox={`0 0 ${width} ${height}`}
@@ -1419,6 +1434,7 @@ export function BoatView({
   const suggestedFocus = focusForControl(focusControl)
   const [inspectionFocus, setInspectionFocus] = useState<Focus | null>(null)
   const [aftDisplayMode, setAftDisplayMode] = useState<AftDisplayMode>('boat')
+  const [expandedView, setExpandedView] = useState<ProjectionView | null>(null)
   const active = inspectionFocus ?? suggestedFocus
   const actualSurfaces = useMemo(
     () => buildRigSurfaces(boat, result.actual),
@@ -1477,7 +1493,7 @@ export function BoatView({
       </div>
       {shareStatus ? <p className="geometry-share-status" role="status">{shareStatus}</p> : null}
 
-      <div className="geometry-stage">
+      <div className={`geometry-stage${expandedView ? ` is-expanded is-expanded-${expandedView}` : ''}`}>
         {(['top', 'side', 'aft'] as const).map((view) => (
           <ProjectionPanel
             key={view}
@@ -1496,6 +1512,8 @@ export function BoatView({
             aftDisplayMode={aftDisplayMode}
             onAftDisplayModeChange={setAftDisplayMode}
             clothState={clothState}
+            expanded={expandedView === view}
+            onToggleExpanded={() => setExpandedView((current) => current === view ? null : view)}
           />
         ))}
       </div>

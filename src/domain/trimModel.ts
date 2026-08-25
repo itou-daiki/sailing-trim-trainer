@@ -109,6 +109,22 @@ export const CONTROL_EFFECTS: Record<ControlKey, string> = {
   jibLeadInOut: '内へ寄せるほどジブの角度が小さくなります。上り角度とスロットの余裕の交換です。',
 }
 
+/**
+ * Applies one user control move while preserving the 470 puller's physical
+ * one-direction-at-a-time rigging. Tensioning either side first releases the
+ * opposing side; easing a side to zero leaves the other side unchanged.
+ */
+export function applyControlChange(
+  controls: TrimControls,
+  control: ControlKey,
+  value: number,
+): TrimControls {
+  const next = { ...controls, [control]: clamp(value, 0, 100) }
+  if (value > 0 && control === 'forePuller') next.aftPuller = 0
+  if (value > 0 && control === 'aftPuller') next.forePuller = 0
+  return next
+}
+
 export const defaultControls: TrimControls = {
   mainSheet: 70,
   jibSheet: 68,
@@ -122,7 +138,7 @@ export const defaultControls: TrimControls = {
   jibHeight: 48,
   windwardSheet: 30,
   forePuller: 42,
-  aftPuller: 32,
+  aftPuller: 0,
   jibLeadForeAft: 55,
   jibLeadInOut: 58,
 }
@@ -146,6 +162,12 @@ function targetControlsForMainAngle(
     targetOuthaulEaseMillimeters(boat, trueWindAngle, windSpeed),
   )
   const targetMainSheet = mainSheetForAngle(mainAngle)
+  // The 470 fore and aft puller ropes act on one fore-aft mast position.
+  // They cannot both carry trim load. This single forward reference preserves
+  // the former net mast response while keeping the opposing rope released.
+  const targetForePuller = boat === '470'
+    ? Math.round(lerp(5, 46, breeze))
+    : 0
 
   return {
     mainSheet: Math.round(targetMainSheet),
@@ -159,8 +181,8 @@ function targetControlsForMainAngle(
     chock: Math.round(boat === '420' ? clamp(10 + targetVang * 0.8, 16, 76) : 50),
     jibHeight: Math.round(boat === '420' ? lerp(60, 38, breeze) : 50),
     windwardSheet: Math.round(boat === '420' ? lerp(46, 2, course) : 0),
-    forePuller: Math.round(boat === '470' ? lerp(38, 65, breeze) : 50),
-    aftPuller: Math.round(boat === '470' ? lerp(42, 24, breeze) : 50),
+    forePuller: targetForePuller,
+    aftPuller: 0,
     jibLeadForeAft: Math.round(boat === '470' ? clamp(62 - course * 28 - breeze * 7, 24, 68) : 50),
     jibLeadInOut: Math.round(boat === '470' ? lerp(65, 20, course) : 50),
   }
@@ -439,10 +461,18 @@ function prioritizedActions(
   targetShape: SailPair,
   currentEfficiency: number,
 ): TrimAction[] {
+  const pullerToRelease = boat === '470'
+    ? controls.aftPuller > 0 && target.forePuller > 0
+      ? 'aftPuller'
+      : controls.forePuller > 0 && target.aftPuller > 0
+        ? 'forePuller'
+        : undefined
+    : undefined
+
   return controlErrors(boat, controls, target)
     .filter((item) => item.severity >= 0.35)
     .map((item) => {
-      const corrected = { ...controls, [item.key]: target[item.key] }
+      const corrected = applyControlChange(controls, item.key, target[item.key])
       const correctedScore = solveTrimConfiguration(
         boat,
         trueWindAngle,
@@ -451,9 +481,16 @@ function prioritizedActions(
         target,
         targetShape,
       ).metrics.efficiency
-      return { ...item, benefit: Math.max(0, correctedScore - currentEfficiency) }
+      return {
+        ...item,
+        benefit: Math.max(0, correctedScore - currentEfficiency),
+        releaseBeforeSwitch: item.key === pullerToRelease,
+      }
     })
-    .sort((a, b) => b.benefit - a.benefit || b.severity * b.weight - a.severity * a.weight)
+    .sort((a, b) =>
+      Number(b.releaseBeforeSwitch) - Number(a.releaseBeforeSwitch) ||
+      b.benefit - a.benefit ||
+      b.severity * b.weight - a.severity * a.weight)
     .map((item) => ({
       control: item.key,
       direction:

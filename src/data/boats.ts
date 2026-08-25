@@ -23,7 +23,7 @@ export const BOATS: Record<BoatClass, BoatProfile> = {
     name: 'International 470',
     crew: '2人乗り・ハイパフォーマンス',
     hullSpeedFactor: 1.04,
-    note: 'フォア／アフタープラーは、金具の名前ではなくロワーマストがどちらへ動いたかで理解します。',
+    note: 'フォア／アフタープラーは同時に作用しません。片側を引くと反対側は自動で解除され、ロワーマストが動いた方向で理解します。',
     advancedControls: [
       'forePuller',
       'aftPuller',

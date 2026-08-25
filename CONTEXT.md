@@ -59,6 +59,10 @@ _Avoid_: Mainsail foot length, tack-to-clew chord, clew position
 The direction and relative vertical distribution of a shape change caused by one control. Direct control response and the smaller aeroelastic sail-load feedback are separated, then solved to a stable quasi-steady state. It represents a pedagogical sensitivity, not a measured force or rig load.
 _Avoid_: Physics coefficient, measured load
 
+**470 mast puller state**:
+One mutually exclusive fore-aft rig state: neutral, fore puller tensioned, or aft puller tensioned. The fore and aft pullers never contribute load simultaneously. Switching direction first releases the active puller to zero, then tensions the opposite puller; reference trims, drills, shared URLs, and live slider transitions preserve the same invariant.
+_Avoid_: Adding fore and aft puller percentages, balancing two opposing tensions, recommending the opposite puller before releasing the active one
+
 **Sail surface**:
 A single three-dimensional form of one sail whose horizontal sections carry the observed depth, draft position, and twist. Every camera view is an observation of this same form.
 _Avoid_: Separate drawings for each view, decorative sail curve

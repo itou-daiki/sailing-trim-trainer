@@ -1,11 +1,36 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyControlChange,
   calculateTrim,
   outhaulEaseMillimeters,
   targetControls,
 } from './trimModel'
 
 describe('trim model', () => {
+  it('releases the opposite 470 mast puller before applying one direction', () => {
+    const controls = targetControls('470', 45, 12)
+
+    const aft = applyControlChange(controls, 'aftPuller', 70)
+    expect(aft.aftPuller).toBe(70)
+    expect(aft.forePuller).toBe(0)
+
+    const forward = applyControlChange(aft, 'forePuller', 45)
+    expect(forward.forePuller).toBe(45)
+    expect(forward.aftPuller).toBe(0)
+  })
+
+  it('never tensions both 470 mast pullers in a reference trim', () => {
+    for (const angle of [45, 90, 140]) {
+      for (const windSpeed of [4, 8, 12, 16, 22]) {
+        const controls = targetControls('470', angle, windSpeed)
+        expect(
+          controls.forePuller > 0 && controls.aftPuller > 0,
+          `${angle}° / ${windSpeed} kt`,
+        ).toBe(false)
+      }
+    }
+  })
+
   it('gives the target setup a high efficiency score', () => {
     const controls = targetControls('420', 45, 8)
     const result = calculateTrim('420', 45, 8, controls)
@@ -370,7 +395,7 @@ describe('trim model', () => {
     expect(Number.isFinite(result.apparentWindSpeed)).toBe(true)
   })
 
-  it('orders every recommendation by simulated aerodynamic improvement', () => {
+  it('orders recommendations by improvement after any mandatory puller release', () => {
     const scenarios = [
       { boat: '420' as const, angle: 45, wind: 16, controls: { vang: 0, cunningham: 0, outhaul: 0, chock: 0, jibHeight: 100 } },
       { boat: '470' as const, angle: 45, wind: 16, controls: { vang: 100, cunningham: 0, outhaul: 0, forePuller: 0, aftPuller: 100, jibLeadForeAft: 0 } },
@@ -381,17 +406,30 @@ describe('trim model', () => {
       const baseline = targetControls(scenario.boat, scenario.angle, scenario.wind)
       const controls = { ...baseline, ...scenario.controls }
       const result = calculateTrim(scenario.boat, scenario.angle, scenario.wind, controls)
+      const switchingPullerDirection = scenario.boat === '470' && (
+        (controls.aftPuller > 0 && result.targetControls.forePuller > 0) ||
+        (controls.forePuller > 0 && result.targetControls.aftPuller > 0)
+      )
 
-      for (let index = 1; index < result.actions.length; index += 1) {
-        expect(result.actions[index - 1].gain).toBeGreaterThanOrEqual(result.actions[index].gain)
+      if (!switchingPullerDirection) {
+        for (let index = 1; index < result.actions.length; index += 1) {
+          expect(result.actions[index - 1].gain).toBeGreaterThanOrEqual(result.actions[index].gain)
+        }
       }
 
       const first = result.actions[0]
       if (!first) continue
-      const corrected = calculateTrim(scenario.boat, scenario.angle, scenario.wind, {
-        ...controls,
-        [first.control]: result.targetControls[first.control],
-      })
+      const correctedControls = applyControlChange(
+        controls,
+        first.control,
+        result.targetControls[first.control],
+      )
+      const corrected = calculateTrim(
+        scenario.boat,
+        scenario.angle,
+        scenario.wind,
+        correctedControls,
+      )
       const measuredGain = corrected.metrics.efficiency - result.metrics.efficiency
       expect(first.gain).toBeCloseTo(measuredGain, 1)
       expect(measuredGain).toBeGreaterThan(0)

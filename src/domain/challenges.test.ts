@@ -3,6 +3,16 @@ import { buildChallengeSetup, TRIM_CHALLENGES } from './challenges'
 import { calculateTrim, targetControls } from './trimModel'
 
 describe('trim challenges', () => {
+  it('never starts a 470 drill with both mast pullers tensioned', () => {
+    for (const challenge of TRIM_CHALLENGES.filter(({ boat }) => boat === '470')) {
+      const { controls } = buildChallengeSetup(challenge)
+      expect(
+        controls.forePuller > 0 && controls.aftPuller > 0,
+        challenge.id,
+      ).toBe(false)
+    }
+  })
+
   it('provides a staged path and a visible shape-evidence check for every drill', () => {
     expect(TRIM_CHALLENGES.map((challenge) => challenge.stage)).toEqual([
       'foundation', 'foundation', 'foundation',

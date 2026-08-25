@@ -3,7 +3,7 @@ import { labSnapshotUrl, parseLabSnapshot } from './labShare'
 import { targetControls } from './trimModel'
 
 describe('shape lab sharing', () => {
-  it('round-trips the exact 470 lab condition and shape controls', () => {
+  it('round-trips a 470 lab condition without simultaneous puller tension', () => {
     const controls = {
       ...targetControls('470', 90, 12),
       vang: 17,
@@ -23,8 +23,11 @@ describe('shape lab sharing', () => {
 
     expect(parsed).toMatchObject({ boat: '470', angle: 90, windSpeed: 12 })
     expect(parsed?.controls.vang).toBe(17)
-    expect(parsed?.controls.forePuller).toBe(51)
+    expect(parsed?.controls.forePuller).toBe(0)
+    expect(parsed?.controls.aftPuller).toBe(62)
     expect(parsed?.controls.jibLeadForeAft).toBe(73)
+    expect(new URL(url).searchParams.get('forePuller')).toBe('0')
+    expect(new URL(url).searchParams.get('aftPuller')).toBe('62')
     expect(url).not.toContain('challenge=')
   })
 

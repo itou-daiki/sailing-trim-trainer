@@ -1,4 +1,4 @@
-import { targetControls } from './trimModel'
+import { applyControlChange, targetControls } from './trimModel'
 import type { BoatClass, ControlKey, TrimControls } from './types'
 
 export type PredictionOption = {
@@ -220,8 +220,8 @@ export const TRIM_CHALLENGES: TrimChallenge[] = [
     title: '不足したフォアプラー',
     question: '470の強風でフォアプラーが抜け、メインが深い。どこを前へ引く？',
     objective: 'フォアプラー、ロワーマスト、メインの深さを結びつける。',
-    successCriterion: 'フォアプラーを基準へ戻し、適合度98%以上にする。',
-    threshold: 98,
+    successCriterion: 'フォアプラーを基準へ戻し、適合度99%以上にする。',
+    threshold: 99,
     moveBudget: 4,
     setup: { angle: 45, windSpeed: 16, overrides: { forePuller: 0 } },
     prediction: {
@@ -510,12 +510,20 @@ export function getChallenge(id: string | null | undefined) {
 export function buildChallengeSetup(challenge: TrimChallenge): ChallengeSetup {
   const sourceAngle = challenge.setup.sourceAngle ?? challenge.setup.angle
   const sourceWindSpeed = challenge.setup.sourceWindSpeed ?? challenge.setup.windSpeed
-  const controls = targetControls(challenge.boat, sourceAngle, sourceWindSpeed)
+  const reference = targetControls(challenge.boat, sourceAngle, sourceWindSpeed)
+  const controls = Object.entries(challenge.setup.overrides ?? {}).reduce(
+    (current, [control, value]) => applyControlChange(
+      current,
+      control as ControlKey,
+      value,
+    ),
+    reference,
+  )
 
   return {
     boat: challenge.boat,
     angle: challenge.setup.angle,
     windSpeed: challenge.setup.windSpeed,
-    controls: { ...controls, ...challenge.setup.overrides },
+    controls,
   }
 }

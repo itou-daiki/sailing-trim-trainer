@@ -881,26 +881,30 @@ describe('single sail surface geometry', () => {
         for (const wind of [4, 8, 12, 18, 22]) {
           const target = targetControls(boat, angle, wind)
           for (const edge of values) {
-            const controls = {
-              ...target,
-              vang: edge,
-              cunningham: 100 - edge,
-              outhaul: edge,
-              chock: 100 - edge,
-              forePuller: edge,
-              aftPuller: 100 - edge,
-              jibHeight: edge,
-              jibLeadForeAft: 100 - edge,
-            }
-            const result = calculateTrim(boat, angle, wind, controls)
-            const surfaces = buildRigSurfaces(boat, result.actual)
+            for (const pullers of [
+              { forePuller: edge, aftPuller: 0 },
+              { forePuller: 0, aftPuller: edge },
+            ]) {
+              const controls = {
+                ...target,
+                vang: edge,
+                cunningham: 100 - edge,
+                outhaul: edge,
+                chock: 100 - edge,
+                ...pullers,
+                jibHeight: edge,
+                jibLeadForeAft: 100 - edge,
+              }
+              const result = calculateTrim(boat, angle, wind, controls)
+              const surfaces = buildRigSurfaces(boat, result.actual)
 
-            for (const surface of [surfaces.main, surfaces.jib]) {
-              for (const row of surface.rows) {
-                for (const point of row.points) {
-                  expect(Number.isFinite(point.x)).toBe(true)
-                  expect(Number.isFinite(point.y)).toBe(true)
-                  expect(Number.isFinite(point.z)).toBe(true)
+              for (const surface of [surfaces.main, surfaces.jib]) {
+                for (const row of surface.rows) {
+                  for (const point of row.points) {
+                    expect(Number.isFinite(point.x)).toBe(true)
+                    expect(Number.isFinite(point.y)).toBe(true)
+                    expect(Number.isFinite(point.z)).toBe(true)
+                  }
                 }
               }
             }

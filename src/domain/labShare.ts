@@ -1,4 +1,4 @@
-import { targetControls } from './trimModel'
+import { applyControlChange, targetControls } from './trimModel'
 import type { BoatClass, ControlKey, TrimControls } from './types'
 
 export type LabSnapshot = {
@@ -31,11 +31,11 @@ export function parseLabSnapshot(search: string): LabSnapshot | undefined {
   const windSpeed = numberInRange(params.get('tws'), 4, 22)
   if (angle === undefined || windSpeed === undefined) return undefined
 
-  const controls = targetControls(rawBoat, angle, windSpeed)
+  let controls = targetControls(rawBoat, angle, windSpeed)
   for (const key of [...COMMON_CONTROLS, ...CLASS_CONTROLS[rawBoat]]) {
     const value = numberInRange(params.get(key), 0, 100)
     if (value === undefined) return undefined
-    controls[key] = Math.round(value)
+    controls = applyControlChange(controls, key, Math.round(value))
   }
 
   return { boat: rawBoat, angle, windSpeed, controls }
@@ -43,6 +43,13 @@ export function parseLabSnapshot(search: string): LabSnapshot | undefined {
 
 export function labSnapshotUrl(currentHref: string, snapshot: LabSnapshot) {
   const url = new URL(currentHref)
+  let controls = snapshot.controls
+  if (snapshot.boat === '470') {
+    const supplied = snapshot.controls
+    controls = { ...supplied, forePuller: 0, aftPuller: 0 }
+    controls = applyControlChange(controls, 'forePuller', supplied.forePuller)
+    controls = applyControlChange(controls, 'aftPuller', supplied.aftPuller)
+  }
   url.search = ''
   url.hash = ''
   url.searchParams.set('mode', 'lab')
@@ -50,7 +57,7 @@ export function labSnapshotUrl(currentHref: string, snapshot: LabSnapshot) {
   url.searchParams.set('twa', String(snapshot.angle))
   url.searchParams.set('tws', String(snapshot.windSpeed))
   for (const key of [...COMMON_CONTROLS, ...CLASS_CONTROLS[snapshot.boat]]) {
-    url.searchParams.set(key, String(Math.round(snapshot.controls[key])))
+    url.searchParams.set(key, String(Math.round(controls[key])))
   }
   return url.toString()
 }

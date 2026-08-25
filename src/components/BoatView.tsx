@@ -1005,6 +1005,13 @@ function ProjectionPanel({
           reference={false}
           bendMillimeters={mastBendMillimeters(boat, mastBend)}
         />
+        {view === 'side' ? (
+          <SideMastBendLens
+            mast={actualMastGeometry}
+            bendMillimeters={mastBendMillimeters(boat, mastBend)}
+            canvasWidth={width}
+          />
+        ) : null}
         <BoomLayer
           boom={boom}
           view={view}
@@ -1290,14 +1297,21 @@ function formatMovePosition(control: ControlKey, value: number) {
 
 const MAST_BEND_LENS_SCALE = 20
 
-function mastBendTrace(mast: MastGeometry) {
+type MastBendTraceLayout = {
+  baselineX: number
+  topY: number
+  bottomY: number
+}
+
+function mastBendTrace(
+  mast: MastGeometry,
+  layout: MastBendTraceLayout = { baselineX: 52, topY: 8, bottomY: 60 },
+) {
   const lower = mast.centreline[0]
   const upper = mast.centreline.at(-1)
   if (!lower || !upper) throw new Error('A mast trace requires at least two stations')
 
-  const baselineX = 52
-  const topY = 8
-  const bottomY = 60
+  const { baselineX, topY, bottomY } = layout
   const span = Math.max(1e-9, upper.z - lower.z)
   const verticalScale = (bottomY - topY) / span
   const points = mast.centreline.map((point) => {
@@ -1319,6 +1333,65 @@ function mastBendTrace(mast: MastGeometry) {
     maximum,
     path: `M${points.map((point) => `${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join('L')}`,
   }
+}
+
+function SideMastBendLens({
+  mast,
+  bendMillimeters,
+  canvasWidth,
+}: {
+  mast: MastGeometry
+  bendMillimeters: number
+  canvasWidth: number
+}) {
+  const frameWidth = 132
+  const frameHeight = 154
+  const trace = mastBendTrace(mast, {
+    baselineX: 98,
+    topY: 39,
+    bottomY: 133,
+  })
+
+  return (
+    <g
+      className="geometry-side-bend-lens"
+      transform={`translate(${canvasWidth - frameWidth - 12} 13)`}
+      role="img"
+      aria-label={`SIDEマストベンド拡大。後傾を除き、横変位を${MAST_BEND_LENS_SCALE}倍で表示。最大たわみ${bendMillimeters.toFixed(0)} mm`}
+    >
+      <title>実寸マストと対応する、後傾を除いたマストベンド拡大図</title>
+      <rect className="geometry-side-bend-lens-frame" width={frameWidth} height={frameHeight} />
+      <rect className="geometry-side-bend-lens-header" width={frameWidth} height="22" />
+      <text className="geometry-side-bend-lens-title" x="9" y="14">BEND LENS · ×{MAST_BEND_LENS_SCALE}</text>
+      <text className="geometry-side-bend-lens-value" x="9" y="34">MAX {bendMillimeters.toFixed(0)} mm</text>
+      {[0.25, 0.5, 0.75].map((height) => {
+        const y = trace.bottomY - height * (trace.bottomY - trace.topY)
+        return (
+          <g key={height} className="geometry-side-bend-lens-station">
+            <path d={`M13 ${y.toFixed(2)}H116`} />
+            <text x="119" y={y + 2.5} textAnchor="end">{Math.round(height * 100)}</text>
+          </g>
+        )
+      })}
+      <path
+        className="geometry-side-bend-lens-straight"
+        d={`M${trace.baselineX} ${trace.bottomY}V${trace.topY}`}
+      />
+      <path className="geometry-side-bend-lens-curve" d={trace.path} />
+      <path
+        className="geometry-side-bend-lens-measure"
+        d={`M${trace.baselineX} ${trace.maximum.y}H${trace.maximum.x}`}
+      />
+      <circle
+        className="geometry-side-bend-lens-point"
+        cx={trace.maximum.x}
+        cy={trace.maximum.y}
+        r="3.2"
+      />
+      <text className="geometry-side-bend-lens-head" x="12" y={trace.topY + 3}>HEAD</text>
+      <text className="geometry-side-bend-lens-foot" x="12" y="146">← BOW / 前 · 後傾を除く</text>
+    </g>
+  )
 }
 
 function MastBendTrace({

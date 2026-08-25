@@ -4788,6 +4788,88 @@ footer p { margin: 0; }
   font-size: 7.2px;
 }
 
+.geometry-side-bend-lens {
+  pointer-events: none;
+}
+
+.geometry-side-bend-lens-frame {
+  fill: rgba(242, 246, 242, 0.96);
+  stroke: #526f72;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-side-bend-lens-header {
+  fill: #173f48;
+}
+
+.geometry-side-bend-lens text {
+  font-family: var(--mono);
+  font-weight: 900;
+}
+
+.geometry-side-bend-lens-title {
+  fill: #f7faf5;
+  font-size: 7.3px;
+  letter-spacing: 0.04em;
+}
+
+.geometry-side-bend-lens-value {
+  fill: #9a351f;
+  font-size: 8.2px;
+}
+
+.geometry-side-bend-lens-station path {
+  fill: none;
+  stroke: #bdc9c5;
+  stroke-width: 0.65;
+  stroke-dasharray: 2 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-side-bend-lens-station text {
+  fill: #728587;
+  font-size: 5.8px;
+}
+
+.geometry-side-bend-lens-straight,
+.geometry-side-bend-lens-curve,
+.geometry-side-bend-lens-measure {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-side-bend-lens-straight {
+  stroke: #526f72;
+  stroke-width: 1.1;
+  stroke-dasharray: 3 3;
+}
+
+.geometry-side-bend-lens-curve {
+  stroke: #d64e2d;
+  stroke-width: 2.4;
+}
+
+.geometry-side-bend-lens-measure {
+  stroke: #d64e2d;
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.geometry-side-bend-lens-point {
+  fill: #f7faf5;
+  stroke: #d64e2d;
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.geometry-side-bend-lens-head,
+.geometry-side-bend-lens-foot {
+  fill: #526f72;
+  font-size: 6.2px;
+  letter-spacing: 0.02em;
+}
+
 .geometry-mast-plan-readings path,
 .geometry-mast-plan-readings circle {
   vector-effect: non-scaling-stroke;

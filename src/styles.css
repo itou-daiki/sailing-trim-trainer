@@ -5369,8 +5369,8 @@ footer p { margin: 0; }
   z-index: 2;
   display: grid;
   grid-template-columns: minmax(180px, 0.58fr) minmax(0, 2.42fr);
-  grid-template-rows: minmax(155px, auto) auto;
-  min-height: 218px;
+  grid-template-rows: minmax(210px, auto) auto;
+  min-height: 270px;
   background: #f6f7f2;
   border-top: 5px solid var(--orange);
 }
@@ -5440,7 +5440,7 @@ footer p { margin: 0; }
   display: grid;
   min-width: 0;
   margin: 0;
-  grid-template-rows: auto minmax(84px, 1fr) auto;
+  grid-template-rows: auto minmax(84px, 1fr) auto auto;
   background: #fbfcf8;
 }
 
@@ -5554,6 +5554,92 @@ footer p { margin: 0; }
   font-size: 0.4rem;
 }
 
+.mast-bend-trace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 104px;
+  min-height: 58px;
+  background: #f0f3ef;
+  border-top: 1px solid #9fadaa;
+}
+
+.mast-bend-label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 9px;
+}
+
+.mast-bend-label > span,
+.mast-bend-label > small {
+  color: #5a7073;
+  font-family: var(--mono);
+  font-size: 0.39rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.mast-bend-label strong {
+  margin: 2px 0;
+  color: #536d86;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mast-bend-label strong small {
+  color: #647779;
+  font-size: 0.42rem;
+}
+
+.mast-bend-trace.is-after .mast-bend-label strong { color: #b54024; }
+
+.mast-bend-trace > svg {
+  display: block;
+  width: 104px;
+  height: 100%;
+  min-height: 58px;
+  background: #f8faf6;
+  border-left: 1px solid #c1ccc9;
+}
+
+.mast-bend-straight,
+.mast-bend-curve,
+.mast-bend-measure {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.mast-bend-straight {
+  stroke: #7e9292;
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+}
+
+.mast-bend-curve {
+  stroke: #536d86;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mast-bend-measure {
+  stroke: #536d86;
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.mast-bend-point {
+  fill: #536d86;
+  stroke: #fff;
+  stroke-width: 1;
+}
+
+.mast-bend-trace.is-after .mast-bend-curve,
+.mast-bend-trace.is-after .mast-bend-measure { stroke: #d64e2d; }
+.mast-bend-trace.is-after .mast-bend-point { fill: #d64e2d; }
+.mast-bend-direction { font-size: 5.5px !important; }
+
 .change-trace-arrow {
   display: flex;
   min-width: 0;
@@ -5582,7 +5668,7 @@ footer p { margin: 0; }
 
 .change-trace-deltas {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   min-height: 54px;
   background: #d7e9e5;
   border-top: 1px solid #8eaaa6;
@@ -5590,8 +5676,8 @@ footer p { margin: 0; }
 
 .change-trace-deltas > div {
   display: grid;
-  grid-template-columns: minmax(78px, 1fr) auto minmax(74px, 0.8fr);
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 6px;
   align-items: center;
   min-width: 0;
   padding: 7px 10px;
@@ -5617,7 +5703,8 @@ footer p { margin: 0; }
 
 .change-trace-deltas small {
   color: #8f3b25;
-  text-align: right;
+  grid-column: 1 / -1;
+  text-align: left;
 }
 
 @media (max-width: 1120px) {
@@ -5762,7 +5849,7 @@ footer p { margin: 0; }
   }
 
   .change-trace-comparison { grid-template-columns: minmax(0, 1fr) 30px minmax(0, 1fr); }
-  .change-trace-card { grid-template-rows: auto 78px auto; }
+  .change-trace-card { grid-template-rows: auto 78px auto auto; }
   .change-trace-card figcaption { grid-template-columns: 1fr; gap: 1px; min-height: 39px; padding: 4px 5px; }
   .change-trace-card figcaption span { font-size: 0.39rem; }
   .change-trace-card figcaption strong { font-size: 0.49rem; }
@@ -5771,6 +5858,13 @@ footer p { margin: 0; }
   .change-trace-card dt { font-size: 0.34rem; }
   .change-trace-card dd { font-size: 0.52rem; }
   .change-trace-card dl > div { padding: 4px 3px; }
+  .mast-bend-trace { grid-template-columns: minmax(0, 1fr) 58px; min-height: 53px; }
+  .mast-bend-label { padding: 4px 5px; }
+  .mast-bend-label > span { font-size: 0.32rem; }
+  .mast-bend-label > small { display: none; }
+  .mast-bend-label strong { font-size: 0.56rem; }
+  .mast-bend-trace > svg { width: 58px; min-height: 53px; }
+  .mast-bend-direction { display: none; }
   .change-trace-arrow span,
   .change-trace-arrow small { font-size: 0.29rem; }
   .change-trace-arrow b { font-size: 0.85rem; }
@@ -5783,7 +5877,8 @@ footer p { margin: 0; }
     text-align: center;
   }
   .change-trace-deltas span,
-  .change-trace-deltas small { font-size: 0.36rem; text-align: center; }
+  .change-trace-deltas small { font-size: 0.33rem; text-align: center; }
+  .change-trace-deltas span { font-size: 0.34rem; }
   .change-trace-deltas strong { font-size: 0.58rem; }
 }
 

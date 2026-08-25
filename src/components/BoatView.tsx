@@ -1134,12 +1134,80 @@ function formatMovePosition(control: ControlKey, value: number) {
   return `バンドから ${formatted} mm`
 }
 
+const MAST_BEND_LENS_SCALE = 20
+
+function mastBendTrace(mast: MastGeometry) {
+  const lower = mast.centreline[0]
+  const upper = mast.centreline.at(-1)
+  if (!lower || !upper) throw new Error('A mast trace requires at least two stations')
+
+  const baselineX = 52
+  const topY = 8
+  const bottomY = 60
+  const span = Math.max(1e-9, upper.z - lower.z)
+  const verticalScale = (bottomY - topY) / span
+  const points = mast.centreline.map((point) => {
+    const amount = (point.z - lower.z) / span
+    const straightX = lower.x + (upper.x - lower.x) * amount
+    return {
+      x: baselineX + (point.x - straightX) * verticalScale * MAST_BEND_LENS_SCALE,
+      y: bottomY - amount * (bottomY - topY),
+    }
+  })
+  const maximum = points.reduce((current, point) =>
+    Math.abs(point.x - baselineX) > Math.abs(current.x - baselineX) ? point : current,
+  )
+
+  return {
+    baselineX,
+    topY,
+    bottomY,
+    maximum,
+    path: `M${points.map((point) => `${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join('L')}`,
+  }
+}
+
+function MastBendTrace({
+  phase,
+  mast,
+  bendMillimeters,
+}: {
+  phase: 'before' | 'after'
+  mast: MastGeometry
+  bendMillimeters: number
+}) {
+  const trace = mastBendTrace(mast)
+  const phaseLabel = phase === 'before' ? '操作前' : '操作後'
+
+  return (
+    <div className={`mast-bend-trace is-${phase}`}>
+      <div className="mast-bend-label">
+        <span>MAST / SIDE PROFILE</span>
+        <strong>{bendMillimeters.toFixed(0)}<small> mm</small></strong>
+        <small>直線基準からの最大たわみ · 横変位 ×{MAST_BEND_LENS_SCALE}</small>
+      </div>
+      <svg viewBox="0 0 104 68" role="img" aria-label={`${phaseLabel}のマストベンド${bendMillimeters.toFixed(0)} mm。艇首を左にして、直線基準との差を横方向${MAST_BEND_LENS_SCALE}倍で表示`}>
+        <path className="mast-bend-straight" d={`M${trace.baselineX} ${trace.bottomY}V${trace.topY}`} />
+        <path className="mast-bend-curve" d={trace.path} />
+        <path className="mast-bend-measure" d={`M${trace.baselineX} ${trace.maximum.y}H${trace.maximum.x}`} />
+        <circle className="mast-bend-point" cx={trace.maximum.x} cy={trace.maximum.y} r="3" />
+        <text x="4" y="11">HEAD</text>
+        <text className="mast-bend-direction" x="100" y="11" textAnchor="end">← BOW / 前</text>
+        <text x="4" y="63">DECK</text>
+        <text x="100" y="63" textAnchor="end">BEND ×{MAST_BEND_LENS_SCALE}</text>
+      </svg>
+    </div>
+  )
+}
+
 function SectionTrace({
   phase,
   sail,
   level,
   row,
   reading,
+  mast,
+  mastBendMm,
   controlPosition,
 }: {
   phase: 'before' | 'after'
@@ -1147,6 +1215,8 @@ function SectionTrace({
   level: SailLevel
   row: SurfaceRow
   reading: StripeMeasurement
+  mast: MastGeometry
+  mastBendMm: number
   controlPosition: string
 }) {
   const peakX = PROFILE_LEFT + reading.draftPosition * (PROFILE_RIGHT - PROFILE_LEFT)
@@ -1177,19 +1247,26 @@ function SectionTrace({
         <div><dt>最大位置</dt><dd>{Math.round(reading.draftPosition * 100)}<small>%c</small></dd></div>
         <div><dt>ツイスト</dt><dd>{reading.twist.toFixed(1)}<small>°</small></dd></div>
       </dl>
+      <MastBendTrace phase={phase} mast={mast} bendMillimeters={mastBendMm} />
     </figure>
   )
 }
 
 function BeforeAfterBench({
+  boat,
   active,
   before,
   after,
+  beforeMastBend,
+  afterMastBend,
   move,
 }: {
+  boat: BoatClass
   active: Focus
   before: RigSurfaces
   after: RigSurfaces
+  beforeMastBend: number
+  afterMastBend: number
   move: ControlMove
 }) {
   const beforeSurface = before[active.sail]
@@ -1198,6 +1275,16 @@ function BeforeAfterBench({
   const afterRow = getLevelRow(afterSurface, active.level)
   const beforeReading = measureStripe(beforeSurface, active.level)
   const afterReading = measureStripe(afterSurface, active.level)
+  const beforeMast = useMemo(
+    () => buildMastGeometry(boat, beforeMastBend),
+    [beforeMastBend, boat],
+  )
+  const afterMast = useMemo(
+    () => buildMastGeometry(boat, afterMastBend),
+    [afterMastBend, boat],
+  )
+  const beforeMastBendMm = mastBendMillimeters(boat, beforeMastBend)
+  const afterMastBendMm = mastBendMillimeters(boat, afterMastBend)
   const depth = deltaReading(
     (afterReading.draftDepth - beforeReading.draftDepth) * 100,
     'pt',
@@ -1219,6 +1306,13 @@ function BeforeAfterBench({
     '閉じた',
     0.05,
   )
+  const mastBend = deltaReading(
+    afterMastBendMm - beforeMastBendMm,
+    ' mm',
+    '曲がりが増えた',
+    '曲がりが減った',
+    0.5,
+  )
   const sailLabel = active.sail === 'main' ? 'メイン' : 'ジブ'
   const focusLabel = `${sailLabel}・${LEVEL_LABELS[active.level]}`
   const beforePosition = `${CONTROL_LABELS[move.control]} ${formatMovePosition(move.control, move.from)}`
@@ -1227,7 +1321,7 @@ function BeforeAfterBench({
   return (
     <section className="before-after-bench" aria-labelledby="change-trace-title">
       <p className="change-trace-announcement" aria-live="polite" aria-atomic="true">
-        {`${CONTROL_LABELS[move.control]}。操作前${formatMovePosition(move.control, move.from)}、操作後${formatMovePosition(move.control, move.to)}。${focusLabel}は、深さ${depth.direction}、最大位置${position.direction}、ツイスト${twist.direction}。`}
+        {`${CONTROL_LABELS[move.control]}。操作前${formatMovePosition(move.control, move.from)}、操作後${formatMovePosition(move.control, move.to)}。${focusLabel}は、深さ${depth.direction}、最大位置${position.direction}、ツイスト${twist.direction}。マストベンドは${mastBend.direction}。`}
       </p>
       <header className="change-trace-head">
         <span>CHANGE TRACE / 操作前後</span>
@@ -1243,6 +1337,8 @@ function BeforeAfterBench({
           level={active.level}
           row={beforeRow}
           reading={beforeReading}
+          mast={beforeMast}
+          mastBendMm={beforeMastBendMm}
           controlPosition={beforePosition}
         />
         <div className="change-trace-arrow" aria-hidden="true">
@@ -1256,6 +1352,8 @@ function BeforeAfterBench({
           level={active.level}
           row={afterRow}
           reading={afterReading}
+          mast={afterMast}
+          mastBendMm={afterMastBendMm}
           controlPosition={afterPosition}
         />
       </div>
@@ -1264,6 +1362,7 @@ function BeforeAfterBench({
         <div><span>深さの変化</span><strong>{depth.value}</strong><small>{depth.direction}</small></div>
         <div><span>最大位置の変化</span><strong>{position.value}</strong><small>{position.direction}</small></div>
         <div><span>ツイストの変化</span><strong>{twist.value}</strong><small>{twist.direction}</small></div>
+        <div><span>マストベンド</span><strong>{mastBend.value}</strong><small>{mastBend.direction}</small></div>
       </div>
     </section>
   )
@@ -1387,9 +1486,12 @@ export function BoatView({
 
       {lastMove ? (
         <BeforeAfterBench
+          boat={boat}
           active={active}
           before={previousSurfaces}
           after={actualSurfaces}
+          beforeMastBend={previousResult.actual.main.mastBend}
+          afterMastBend={result.actual.main.mastBend}
           move={lastMove}
         />
       ) : (

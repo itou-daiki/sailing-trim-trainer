@@ -45,6 +45,11 @@ describe('teaching-oriented before and after comparison', () => {
     expect(markup).toContain('バング 20')
     expect(markup).toContain('バング 80')
     expect(markup).toContain('ツイストの変化')
+    expect(markup).toContain('MAST / SIDE PROFILE')
+    expect(markup).toContain('直線基準からの最大たわみ')
+    expect(markup).toContain('横変位 ×20')
+    expect(markup).toContain('マストベンド')
+    expect(markup).toContain('BEND ×20')
   })
 
   it('shows the measured target comparison before the first control move', () => {

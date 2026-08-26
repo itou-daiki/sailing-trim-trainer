@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { BoatView } from './components/BoatView'
 import type { ComparisonMode } from './components/BoatView'
 import { ChallengeDeck } from './components/ChallengeDeck'
@@ -104,6 +105,9 @@ function App() {
       ? '自由練習です。風と艇種を変え、一本ずつ動かして形の応答を見ます。'
       : `真風角${initial.angle}° / ${initial.windSpeed} kt。予想用にあえて崩した形を表示しています。`)
   const controlStartRef = useRef<{ control: ControlKey; controls: TrimControls } | undefined>(undefined)
+  const workspaceTabsRef = useRef<HTMLElement>(null)
+  const freePracticeTabRef = useRef<HTMLButtonElement>(null)
+  const problemScenesTabRef = useRef<HTMLButtonElement>(null)
 
   const result = useMemo(
     () => calculateTrim(boat, angle, windSpeed, controls),
@@ -128,6 +132,7 @@ function App() {
     [boat, controls, displayedActions, result.metrics.efficiency, result.targetControls],
   )
   const challengeMode = workspaceMode === 'challenge'
+  const workspaceTab = challengeMode ? 'problem-scenes' : 'free-practice'
   const previewingChallenge = challengeMode && phase === 'preview'
   const controlLocked = challengeMode && phase !== 'practice'
 
@@ -390,6 +395,34 @@ function App() {
     setCourseNotice('自由練習です。風と艇種を変え、一本ずつ動かして形の応答を見ます。')
   }
 
+  const openWorkspaceTab = (nextTab: 'free-practice' | 'problem-scenes') => {
+    if (nextTab === workspaceTab) return
+    workspaceTabsRef.current?.scrollIntoView({ block: 'start' })
+    if (nextTab === 'free-practice') {
+      enterFreeLab()
+      return
+    }
+    selectChallenge(activeChallenge.id)
+  }
+
+  const handleWorkspaceTabKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    currentTab: 'free-practice' | 'problem-scenes',
+  ) => {
+    const nextTab = event.key === 'ArrowRight' || event.key === 'ArrowLeft'
+      ? currentTab === 'free-practice' ? 'problem-scenes' : 'free-practice'
+      : event.key === 'Home'
+        ? 'free-practice'
+        : event.key === 'End'
+          ? 'problem-scenes'
+          : undefined
+    if (!nextTab) return
+    event.preventDefault()
+    openWorkspaceTab(nextTab)
+    const nextTabRef = nextTab === 'free-practice' ? freePracticeTabRef : problemScenesTabRef
+    nextTabRef.current?.focus()
+  }
+
   const nextChallenge = () => {
     const activeIndex = TRIM_CHALLENGES.findIndex((challenge) => challenge.id === activeChallenge.id)
     const following = TRIM_CHALLENGES[(activeIndex + 1) % TRIM_CHALLENGES.length]
@@ -451,6 +484,47 @@ function App() {
       />
 
       <main>
+        <nav ref={workspaceTabsRef} className="workspace-tabs" aria-label="練習モード" role="tablist">
+          <button
+            type="button"
+            ref={freePracticeTabRef}
+            id="free-practice-tab"
+            role="tab"
+            aria-controls="free-practice-panel"
+            aria-selected={workspaceTab === 'free-practice'}
+            tabIndex={workspaceTab === 'free-practice' ? 0 : -1}
+            className={workspaceTab === 'free-practice' ? 'is-active' : ''}
+            onClick={() => openWorkspaceTab('free-practice')}
+            onKeyDown={(event) => handleWorkspaceTabKeyDown(event, 'free-practice')}
+          >
+            <span>FREE LAB</span>
+            <strong>自由練習</strong>
+            <small>風と一本の操作を試す</small>
+          </button>
+          <button
+            type="button"
+            ref={problemScenesTabRef}
+            id="problem-scenes-tab"
+            role="tab"
+            aria-controls="problem-scenes-panel"
+            aria-selected={workspaceTab === 'problem-scenes'}
+            tabIndex={workspaceTab === 'problem-scenes' ? 0 : -1}
+            className={workspaceTab === 'problem-scenes' ? 'is-active' : ''}
+            onClick={() => openWorkspaceTab('problem-scenes')}
+            onKeyDown={(event) => handleWorkspaceTabKeyDown(event, 'problem-scenes')}
+          >
+            <span>PROBLEM SCENES</span>
+            <strong>問題場面</strong>
+            <small>{TRIM_CHALLENGES.length}場面から原因を読む</small>
+          </button>
+        </nav>
+
+        <div
+          className="workspace-panel"
+          id={`${workspaceTab}-panel`}
+          role="tabpanel"
+          aria-labelledby={`${workspaceTab}-tab`}
+        >
         <section className="lesson-brief" aria-labelledby="lesson-title">
           <div>
             <span className="lesson-kicker">{workspaceMode === 'shared' ? `SHARED SHAPE / ${boat}` : workspaceMode === 'free' ? `FREE SHAPE LAB / ${boat}` : `TODAY'S QUESTION / ${activeChallenge.boat}`}</span>
@@ -465,11 +539,46 @@ function App() {
           </p>
           <div className="lesson-loop" aria-label="学習の流れ">
             <span>予想</span><i>→</i><span>動かす</span><i>→</i><span>形を見る</span><i>→</i><span>形で説明</span>
-            <button type="button" className="mode-switch" onClick={challengeMode ? enterFreeLab : () => selectChallenge(activeChallenge.id)}>
-              {challengeMode ? '自由練習へ' : '課題に戻る'}
-            </button>
           </div>
         </section>
+
+        {challengeMode ? (
+          <section className="practice-library is-tabbed" aria-label="問題場面">
+            <div className="practice-library-head">
+              <span>PROBLEM SCENES / 15</span>
+              <div>
+                <h2>問題場面を選ぶ</h2>
+                <p>基礎1–3 → 艇種固有4–8 → コース変更9 → 良形／悪形とシワ10–15。場面を選び、予想してから下の三面図で確かめます。</p>
+              </div>
+            </div>
+            <ChallengeDeck
+              challenges={TRIM_CHALLENGES}
+              active={activeChallenge}
+              progress={progress}
+              phase={phase}
+              prediction={prediction}
+              confidence={confidence}
+              evidenceAnswer={evidenceAnswer}
+              moveCount={moveCount}
+              startEfficiency={startEfficiency}
+              currentEfficiency={result.metrics.efficiency}
+              hintLevel={hintLevel}
+              moveFeedback={moveFeedback}
+              shareStatus={shareStatus}
+              assisted={assisted}
+              onSelect={selectChallenge}
+              onPredict={choosePrediction}
+              onConfidence={setConfidence}
+              onStart={startChallenge}
+              onHint={showHint}
+              onRetry={retryChallenge}
+              onEvidence={setEvidenceAnswer}
+              onFinishReflection={finishReflection}
+              onNext={nextChallenge}
+              onShare={shareChallenge}
+            />
+          </section>
+        ) : null}
 
         <section className="live-training-area" id="simulator" aria-label="セール形状とトリム操作">
           <div className="condition-bar">
@@ -536,42 +645,6 @@ function App() {
           </div>
         </section>
 
-        <section className="practice-library" aria-label="練習課題">
-          <div className="practice-library-head">
-            <span>AFTER THE SHAPE BENCH</span>
-            <div>
-              <h2>形が読めたら、課題で確かめる</h2>
-              <p>基礎1–3 → 艇種固有4–8 → コース変更9 → 良形／悪形とシワ10–15の順で、原因を形から読む練習をします。</p>
-            </div>
-          </div>
-          <ChallengeDeck
-            challenges={TRIM_CHALLENGES}
-            active={activeChallenge}
-            progress={progress}
-            phase={phase}
-            prediction={prediction}
-            confidence={confidence}
-            evidenceAnswer={evidenceAnswer}
-            moveCount={moveCount}
-            startEfficiency={startEfficiency}
-            currentEfficiency={result.metrics.efficiency}
-            hintLevel={hintLevel}
-            moveFeedback={moveFeedback}
-            shareStatus={shareStatus}
-            assisted={assisted}
-            onSelect={selectChallenge}
-            onPredict={choosePrediction}
-            onConfidence={setConfidence}
-            onStart={startChallenge}
-            onHint={showHint}
-            onRetry={retryChallenge}
-            onEvidence={setEvidenceAnswer}
-            onFinishReflection={finishReflection}
-            onNext={nextChallenge}
-            onShare={shareChallenge}
-          />
-        </section>
-
         <section className="model-note" aria-label="モデルについて">
           <span>MODEL NOTE</span>
           <p>
@@ -612,10 +685,11 @@ function App() {
             </ul>
           </div>
         </details>
+        </div>
       </main>
 
       <footer>
-        <span>TRIM NOTE / TRAINING BUILD 0.22.3</span>
+        <span>TRIM NOTE / TRAINING BUILD 0.22.4</span>
         <span className="footer-credit">Created by Dit-Lab.</span>
         <p>タック、ジャイブ、レース戦術を扱わず、420 / 470のセール形状づくりに集中しています。</p>
       </footer>
